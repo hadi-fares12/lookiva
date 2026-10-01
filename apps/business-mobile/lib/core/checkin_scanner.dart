@@ -103,16 +103,6 @@ class _BusinessCheckInScannerPageState extends State<BusinessCheckInScannerPage>
               child: MobileScanner(
                 controller: _controller,
                 onDetect: _onDetect,
-                placeholderBuilder: (context) => const Center(child: CircularProgressIndicator()),
-                errorBuilder: (context, error) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      bt(context, 'cameraUnavailable'),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
               ),
             ),
           ),
