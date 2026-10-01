@@ -179,6 +179,61 @@ class LookivaApi {
     }
   }
 
+  Future<Map<String, dynamic>> register({
+    required String firstName,
+    required String lastName,
+    required String password,
+    String email = '',
+    String phone = '',
+    String locale = 'en',
+  }) async {
+    final payload = <String, dynamic>{
+      'firstName': firstName.trim(),
+      'lastName': lastName.trim(),
+      'password': password,
+      'locale': locale,
+      'acceptTerms': true,
+      if (email.trim().isNotEmpty) 'email': email.trim().toLowerCase(),
+      if (phone.trim().isNotEmpty) 'phone': phone.trim(),
+    };
+    final response = await _dio.post<dynamic>(
+      '/auth/register',
+      data: payload,
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+    final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
+    final access = data['accessToken']?.toString();
+    final refresh = data['refreshToken']?.toString();
+    if (access == null || refresh == null) {
+      throw StateError('Authentication tokens were not returned');
+    }
+    await _storage.write(key: _accessKey, value: access);
+    await _storage.write(key: _refreshKey, value: refresh);
+    try {
+      return await me();
+    } catch (_) {
+      await clearSession();
+      rethrow;
+    }
+  }
+
+  Future<void> forgotPassword(String email) async {
+    await _dio.post<dynamic>(
+      '/auth/forgot-password',
+      data: {'email': email.trim().toLowerCase()},
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+  }
+
+  Future<void> resetPassword(String token, String password) async {
+    await _dio.post<dynamic>(
+      '/auth/reset-password',
+      data: {'token': token.trim(), 'password': password},
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+    await clearSession();
+  }
+
   Future<Map<String, dynamic>> me() async {
     final response = await _dio.get<dynamic>('/auth/me');
     final data = _unwrap(response.data);
