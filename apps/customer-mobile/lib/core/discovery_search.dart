@@ -187,9 +187,9 @@ class _SearchLoading extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: List.generate(
           6,
-          (_) => Card(
+          (_) => const Card(
             margin: const EdgeInsets.only(bottom: 10),
-            child: const Padding(padding: EdgeInsets.all(24), child: LinearProgressIndicator()),
+            child: Padding(padding: EdgeInsets.all(24), child: LinearProgressIndicator()),
           ),
         ),
       );
