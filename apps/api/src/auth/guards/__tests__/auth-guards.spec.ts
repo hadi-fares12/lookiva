@@ -3,8 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { ExecutionContext } from '@nestjs/common';
 import { JwtAuthGuard } from '../jwt-auth.guard';
 import { PermissionsGuard } from '../permissions.guard';
-import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
-import { PERMISSIONS_KEY } from '../../common/decorators/permissions.decorator';
+import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
+import { PERMISSIONS_KEY } from '../../../common/decorators/permissions.decorator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Auth Guards (unit)', () => {
