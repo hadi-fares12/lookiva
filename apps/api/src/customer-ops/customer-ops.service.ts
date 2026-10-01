@@ -28,8 +28,16 @@ export class CustomerOpsService {
 
   async bookings(userId: string, status?: string, limit = 100) {
     const customer = await this.customerForUser(userId);
+    const statusFilter =
+      status === 'upcoming'
+        ? { status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress', 'rescheduled'] } }
+        : status === 'cancelled'
+          ? { status: { in: ['cancelled', 'cancelled_by_customer', 'cancelled_by_business', 'cancelled_by_system'] } }
+          : status
+            ? { status }
+            : {};
     return this.prisma.appointments.findMany({
-      where: { customer_id: customer.id, ...(status ? { status } : {}) },
+      where: { customer_id: customer.id, ...statusFilter },
       include: {
         company: { select: { id: true, display_name: true, logo_media_id: true } },
         branch: { select: { id: true, name: true, address_line_1: true, latitude: true, longitude: true } },
