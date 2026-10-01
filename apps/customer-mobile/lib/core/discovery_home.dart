@@ -149,7 +149,7 @@ class _Section extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.15),
+                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .15),
                             foregroundColor: Theme.of(context).colorScheme.primary,
                             child: const Icon(Icons.content_cut_rounded),
                           ),
