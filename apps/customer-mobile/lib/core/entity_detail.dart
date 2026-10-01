@@ -116,7 +116,7 @@ class _Hero extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.14),
+            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
             foregroundColor: Theme.of(context).colorScheme.primary,
             child: Icon(type == 'professional' ? Icons.person_rounded : type == 'service' ? Icons.design_services_rounded : Icons.storefront_rounded, size: 30),
           ),
