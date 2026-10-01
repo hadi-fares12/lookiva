@@ -22,8 +22,9 @@ class LookivaBusinessApi {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await _storage.read(key: _accessKey);
-          if (token != null && token.isNotEmpty)
+          if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+          }
           handler.next(options);
         },
         onError: (error, handler) async {
@@ -143,16 +144,18 @@ class LookivaBusinessApi {
   dynamic _unwrap(dynamic body) {
     if (body is Map<String, dynamic> &&
         body.length == 1 &&
-        body.containsKey('data'))
+        body.containsKey('data')) {
       return body['data'];
+    }
     return body;
   }
 
   String friendlyError(Object error) {
     if (error is DioException) {
       final body = _unwrap(error.response?.data);
-      if (body is Map && body['message'] != null)
+      if (body is Map && body['message'] != null) {
         return body['message'].toString();
+      }
       return 'Request failed (${error.response?.statusCode ?? 'network'}).';
     }
     return error.toString();
@@ -176,8 +179,9 @@ class LookivaBusinessApi {
     final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
     final access = data['accessToken']?.toString();
     final refresh = data['refreshToken']?.toString();
-    if (access == null || refresh == null)
+    if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
+    }
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -212,8 +216,9 @@ class LookivaBusinessApi {
     final accepted = scopes
         .where((s) => _allowedRoles.contains(s['roleKey']?.toString()))
         .toList();
-    if (accepted.isEmpty)
+    if (accepted.isEmpty) {
       throw StateError('This account does not have business dashboard access');
+    }
     Map<String, dynamic>? business;
     for (final scope in accepted) {
       if (scope['companyId'] != null) {
@@ -221,10 +226,11 @@ class LookivaBusinessApi {
         break;
       }
     }
-    if (business == null)
+    if (business == null) {
       throw StateError(
         'Select a company in the web dashboard before using a platform-level account on mobile',
       );
+    }
     return BusinessSession(
       user: user,
       companyId: business['companyId'].toString(),
@@ -236,8 +242,9 @@ class LookivaBusinessApi {
     final access = await _storage.read(key: _accessKey);
     final refresh = await _storage.read(key: _refreshKey);
     if ((access == null || access.isEmpty) &&
-        (refresh == null || refresh.isEmpty))
+        (refresh == null || refresh.isEmpty)) {
       return null;
+    }
     try {
       final user = await me();
       final session = _businessScope(user);
