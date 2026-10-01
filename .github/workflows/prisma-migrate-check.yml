@@ -22,7 +22,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: prisma
           POSTGRES_PASSWORD: prisma
@@ -30,7 +30,7 @@ jobs:
         ports:
           - "5432:5432"
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U prisma -d shadow_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
