@@ -9,6 +9,7 @@ import 'core/lookiva_api.dart';
 import 'core/remote_page.dart';
 import 'core/l10n.dart';
 import 'core/checkin_scanner.dart';
+import 'core/auth_pages.dart';
 
 const String _prefThemeMode = 'biz_theme_mode';
 const String _prefLocale = 'biz_locale_code';
@@ -287,6 +288,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const BusinessLoginPage(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const BusinessForgotPasswordPage(),
     ),
     GoRoute(
       path: '/dashboard',
@@ -793,7 +798,17 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
                           : bt(context, 'signIn'),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => context.push('/forgot-password'),
+                      child: Text(bt(context, 'forgotPassword')),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   FutureBuilder<String?>(
                     future: LookivaBusinessApi.getStoredApiBaseUrl(),
                     builder: (ctx, snap) {
