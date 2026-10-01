@@ -15,6 +15,11 @@ jobs:
     name: Lint, Typecheck, Build & Test
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_MEDIA_BASE_URL: http://localhost:9000
+      PUBLIC_CUSTOMER_WEB_URL: http://localhost:3001
 
     steps:
       - name: Checkout repository
@@ -56,26 +61,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nodemodules-
 
-      - name: Setup Flutter 3.19
+      - name: Setup current stable Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.19.6"
           channel: "stable"
           cache: true
-          cache-key: "flutter-3.19.6-stable"
 
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: pnpm prisma:generate
 
       - name: Run linter
         run: pnpm lint
 
       - name: Run typecheck
         run: pnpm typecheck
-
-      - name: Generate Prisma client
-        working-directory: apps/api
-        run: pnpm prisma:generate
 
       - name: Build all packages
         run: pnpm build
