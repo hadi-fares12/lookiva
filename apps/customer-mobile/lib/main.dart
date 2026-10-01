@@ -720,6 +720,8 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
   }
 
   Future<void> _onLogoTapped() async {
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+    if (isRelease) return;
     final now = DateTime.now();
     if (_lastLogoTap != null && now.difference(_lastLogoTap!).inSeconds > 2) {
       _logoTapCount = 0;
@@ -755,13 +757,13 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
             TextField(
               controller: controller,
               decoration: const InputDecoration(
-                hintText: 'http://192.168.1.120:8000/api/v1',
+                hintText: 'http://192.168.1.50:4000/api/v1',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             const Text(
-              'Example: http://192.168.1.120:8000/api/v1\n'
+              'Example: http://192.168.1.50:4000/api/v1\n'
               'Android emulator default: http://10.0.2.2:4000/api/v1\n\n'
               'Tip: Tap the LOOKIVA logo 7 times on this screen to open.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
