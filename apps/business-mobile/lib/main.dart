@@ -953,7 +953,7 @@ class _BusinessDashboardPageState extends State<BusinessDashboardPage> {
                     (d) => NavigationRailDestination(
                       icon: d.icon,
                       selectedIcon: d.selectedIcon,
-                      label: Text(d.label!),
+                      label: Text(d.label),
                     ),
                   )
                   .toList(),
