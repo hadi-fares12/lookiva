@@ -11,6 +11,10 @@
       {
         "name": "next"
       }
+    ],
+    "types": [
+      "node",
+      "react"
     ]
   },
   "include": [
