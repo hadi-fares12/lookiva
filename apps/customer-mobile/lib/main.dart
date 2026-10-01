@@ -23,7 +23,6 @@ const Color _goldPrimary = Color(0xFFD4AF37);
 const Color _goldVariant1 = Color(0xFFC9A227);
 const Color _goldVariant2 = Color(0xFFE4C35A);
 const Color _silverPrimary = Color(0xFFA7ABB2);
-const Color _silverVariant = Color(0xFFC5C8CE);
 
 ThemeData _buildMidnightGold() {
   const surface0 = Color(0xFF080808);
