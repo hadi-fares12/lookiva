@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
+import 'device_location.dart';
 import 'l10n.dart';
 
 class CustomerDiscoverySearch extends StatefulWidget {
   final bool availableNow;
-  const CustomerDiscoverySearch({super.key, this.availableNow = false});
+  final bool startNearMe;
+  const CustomerDiscoverySearch({
+    super.key,
+    this.availableNow = false,
+    this.startNearMe = false,
+  });
 
   @override
   State<CustomerDiscoverySearch> createState() => _CustomerDiscoverySearchState();
@@ -17,11 +24,19 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
   bool _verifiedOnly = false;
   bool _offersOnly = false;
   bool _openNow = false;
+  bool _nearMe = false;
+  bool _locating = false;
+  Position? _position;
+  String? _locationErrorKey;
 
   @override
   void initState() {
     super.initState();
-    _search();
+    if (widget.startNearMe) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _enableNearMe());
+    } else {
+      _search();
+    }
   }
 
   @override
@@ -30,8 +45,45 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
     super.dispose();
   }
 
+  Future<void> _enableNearMe() async {
+    if (_locating) return;
+    setState(() {
+      _locating = true;
+      _locationErrorKey = null;
+    });
+    try {
+      final position = await DeviceLocation.current();
+      if (!mounted) return;
+      setState(() {
+        _position = position;
+        _nearMe = true;
+      });
+      _search();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _nearMe = false;
+        _position = null;
+        _locationErrorKey = DeviceLocation.messageKey(error);
+      });
+      _search();
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _disableNearMe() {
+    setState(() {
+      _nearMe = false;
+      _position = null;
+      _locationErrorKey = null;
+    });
+    _search();
+  }
+
   void _search() {
     final q = _controller.text.trim();
+    final position = _position;
     final query = <String, dynamic>{
       'limit': 30,
       if (q.length >= 2) 'q': q,
@@ -39,6 +91,12 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
       if (_verifiedOnly) 'verified': true,
       if (_offersOnly) 'promotion': true,
       if (_openNow) 'openNow': true,
+      if (_nearMe && position != null) ...{
+        'lat': position.latitude,
+        'lon': position.longitude,
+        'sort': 'nearest',
+        'radiusMeters': 5000,
+      },
     };
     setState(() {
       _future = LookivaApi.instance.get('/discovery/search', query: query);
@@ -50,7 +108,11 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
     final future = _future;
     return RefreshIndicator(
       onRefresh: () async {
-        _search();
+        if (_nearMe) {
+          await _enableNearMe();
+        } else {
+          _search();
+        }
         if (_future != null) await _future;
       },
       child: ListView(
@@ -77,6 +139,25 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
             runSpacing: 8,
             children: [
               FilterChip(
+                avatar: _locating
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location_rounded, size: 18),
+                label: Text(ct(context,'nearMe')),
+                selected: _nearMe,
+                onSelected: _locating
+                    ? null
+                    : (v) {
+                        if (v) {
+                          _enableNearMe();
+                        } else {
+                          _disableNearMe();
+                        }
+                      },
+              ),
+              FilterChip(
                 label: Text(ct(context,'openNow')),
                 selected: _openNow,
                 onSelected: (v) { setState(() => _openNow = v); _search(); },
@@ -95,9 +176,25 @@ class _CustomerDiscoverySearchState extends State<CustomerDiscoverySearch> {
                 Chip(avatar: const Icon(Icons.bolt_rounded, size: 18), label: Text(ct(context,'availableNow'))),
             ],
           ),
+          if (_locationErrorKey != null) ...[
+            const SizedBox(height: 10),
+            Card(
+              child: ListTile(
+                leading: Icon(
+                  Icons.location_off_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(ct(context, _locationErrorKey!)),
+                trailing: TextButton(
+                  onPressed: _enableNearMe,
+                  child: Text(ct(context,'retry')),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           if (future == null)
-            const _EmptySearch()
+            const _SearchLoading()
           else
             FutureBuilder<dynamic>(
               future: future,
