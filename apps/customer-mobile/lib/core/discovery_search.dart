@@ -144,7 +144,7 @@ class _ResultCard extends StatelessWidget {
       if (item['minPrice'] != null) 'From ${item['currencyCode'] ?? ''} ${item['minPrice']}',
     ].where((e) => e.trim().isNotEmpty).join(' • ');
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
