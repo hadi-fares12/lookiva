@@ -1,0 +1,126 @@
+@import '@lookiva/design-tokens/src/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark light;
+}
+
+html[data-theme='midnight-gold'] body {
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+}
+
+html[data-theme='silver-light'] body {
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+}
+
+html[dir='rtl'] .mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+html[dir='rtl'] .ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+html[dir='rtl'] .space-x-1 > * + * {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+html[dir='rtl'] .space-x-2 > * + * {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+html[dir='rtl'] .space-x-3 > * + * {
+  margin-left: 0;
+  margin-right: 0.75rem;
+}
+
+html[dir='rtl'] .space-x-4 > * + * {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+html[dir='rtl'] .pl-4 { padding-left: 0; padding-right: 1rem; }
+html[dir='rtl'] .pr-4 { padding-right: 0; padding-left: 1rem; }
+html[dir='rtl'] .pl-2 { padding-left: 0; padding-right: 0.5rem; }
+html[dir='rtl'] .pr-2 { padding-right: 0; padding-left: 0.5rem; }
+html[dir='rtl'] .text-left { text-align: right; }
+html[dir='rtl'] .text-right { text-align: left; }
+html[dir='rtl'] .left-0 { left: auto; right: 0; }
+html[dir='rtl'] .right-0 { right: auto; left: 0; }
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html[dir='rtl'] body,
+html[lang='ar'] body {
+  font-family: 'Cairo', 'Noto Sans Arabic', 'Tajawal', 'Inter', system-ui, sans-serif;
+}
+
+@keyframes pulse-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-1) 0px,
+    var(--surface-2) 40px,
+    var(--surface-1) 80px
+  );
+  background-size: 800px 100%;
+  animation: pulse-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.maplibregl-popup-content {
+  background: var(--surface-1) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--border-subtle) !important;
+  padding: 0 !important;
+  box-shadow: var(--shadow-4) !important;
+}
+
+.maplibregl-popup-close-button {
+  color: var(--text-secondary) !important;
+  font-size: 20px !important;
+  padding: 8px 12px !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: var(--surface-1) !important;
+}
+
+.swiper-pagination-bullet-active {
+  background: var(--accent-gold-2) !important;
+}

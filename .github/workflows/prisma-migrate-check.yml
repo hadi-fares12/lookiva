@@ -1,0 +1,117 @@
+name: Prisma Migrate Check
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "apps/api/prisma/**"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "apps/api/prisma/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prisma-check:
+    name: Validate & Diff Schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: shadow_db
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm@9
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Validate Prisma schema
+        working-directory: apps/api
+        run: pnpm exec prisma validate
+
+      - name: Format check Prisma schema
+        working-directory: apps/api
+        run: pnpm exec prisma format --check
+
+      - name: Run Prisma diff against empty shadow DB
+        working-directory: apps/api
+        env:
+          DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+          DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+        run: |
+          pnpm exec prisma migrate diff \
+            --from-empty \
+            --to-schema-datamodel prisma/schema.prisma \
+            --script \
+            --exit-code
+
+      - name: Apply all migrations to shadow DB (sanity check)
+        working-directory: apps/api
+        env:
+          DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+          DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+        run: pnpm exec prisma migrate deploy
+
+      - name: Verify migration status after deploy
+        working-directory: apps/api
+        env:
+          DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+          DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+        run: pnpm exec prisma migrate status
+
+      - name: Generate Prisma client (compile check)
+        working-directory: apps/api
+        run: pnpm prisma:generate
+
+      - name: Upload migration artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-migration-report
+          path: |
+            apps/api/prisma/schema.prisma
+            apps/api/prisma/migrations/
+          if-no-files-found: ignore
+          retention-days: 7

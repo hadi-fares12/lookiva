@@ -1,0 +1,16 @@
+{
+  "name": "@lookiva/typescript-config",
+  "version": "0.1.0",
+  "files": [
+    "base.json",
+    "node.json",
+    "nextjs.json",
+    "package.json"
+  ],
+  "scripts": {
+    "typecheck": "echo \"no typecheck for tsconfig package\""
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

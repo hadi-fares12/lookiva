@@ -1,0 +1,26 @@
+FROM node:22-alpine AS base
+RUN apk add --no-cache ffmpeg
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/workers/package.json apps/workers/package.json
+COPY apps/api/package.json apps/api/package.json
+COPY apps/api/prisma ./apps/api/prisma
+COPY packages ./packages
+RUN pnpm install --frozen-lockfile --filter @lookiva/workers... --prod=false
+RUN pnpm --filter @lookiva/api prisma:generate
+COPY apps/workers ./apps/workers
+RUN pnpm --filter @lookiva/workers build
+
+FROM node:22-alpine AS runtime
+RUN apk add --no-cache ffmpeg
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/apps/workers/node_modules ./apps/workers/node_modules
+COPY --from=base /app/apps/workers/dist ./apps/workers/dist
+COPY --from=base /app/apps/workers/package.json ./apps/workers/package.json
+COPY --from=base /app/packages ./packages
+USER node
+CMD ["node", "apps/workers/dist/main.js"]

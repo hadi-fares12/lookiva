@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, Typecheck, Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm@9
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: ${{ runner.os }}-nodemodules-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-nodemodules-
+
+      - name: Setup Flutter 3.19
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.19.6"
+          channel: "stable"
+          cache: true
+          cache-key: "flutter-3.19.6-stable"
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Run linter
+        run: pnpm lint
+
+      - name: Run typecheck
+        run: pnpm typecheck
+
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: pnpm prisma:generate
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run Node tests
+        run: pnpm test
+
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.FLUTTER_HOME }}/.pub-cache
+            apps/customer-mobile/.dart_tool
+            apps/business-mobile/.dart_tool
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('apps/customer-mobile/pubspec.lock', 'apps/business-mobile/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Get Flutter dependencies (customer-mobile)
+        working-directory: apps/customer-mobile
+        run: flutter pub get
+
+      - name: Get Flutter dependencies (business-mobile)
+        working-directory: apps/business-mobile
+        run: flutter pub get
+
+      - name: Flutter analyze (customer-mobile)
+        working-directory: apps/customer-mobile
+        run: flutter analyze --no-fatal-infos
+
+      - name: Flutter analyze (business-mobile)
+        working-directory: apps/business-mobile
+        run: flutter analyze --no-fatal-infos
+
+      - name: Flutter test (customer-mobile)
+        working-directory: apps/customer-mobile
+        run: flutter test
+
+      - name: Flutter test (business-mobile)
+        working-directory: apps/business-mobile
+        run: flutter test

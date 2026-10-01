@@ -1,0 +1,272 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class LookivaApi {
+  LookivaApi._() {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await _storage.read(key: _accessKey);
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final options = error.requestOptions;
+          if (error.response?.statusCode == 401 &&
+              options.extra['lookivaRetried'] != true) {
+            try {
+              final refreshed = await _refresh();
+              if (refreshed) {
+                options.extra['lookivaRetried'] = true;
+                final token = await _storage.read(key: _accessKey);
+                options.headers['Authorization'] = 'Bearer $token';
+                final response = await _dio.fetch<dynamic>(options);
+                handler.resolve(response);
+                return;
+              }
+            } catch (_) {
+              await clearSession();
+            }
+          }
+          handler.next(error);
+        },
+      ),
+    );
+  }
+
+  static final LookivaApi instance = LookivaApi._();
+  static const _storage = FlutterSecureStorage();
+  static const _accessKey = 'lookiva_customer_access';
+  static const _refreshKey = 'lookiva_customer_refresh';
+  static const _prefApiUrl = 'cust_api_base_url';
+
+  static String? _cachedBaseUrl;
+
+  static Future<void> setApiBaseUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cleaned = url.replaceAll(RegExp(r'/$'), '');
+    await prefs.setString(_prefApiUrl, cleaned);
+    _cachedBaseUrl = cleaned;
+    instance._dio.options.baseUrl = cleaned;
+  }
+
+  static Future<String?> getStoredApiBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_prefApiUrl);
+  }
+
+  static Future<void> clearStoredApiBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefApiUrl);
+    _cachedBaseUrl = null;
+  }
+
+  static Future<String> _resolveBaseUrl() async {
+    if (_cachedBaseUrl != null && _cachedBaseUrl!.isNotEmpty) {
+      return _cachedBaseUrl!;
+    }
+    final stored = await getStoredApiBaseUrl();
+    if (stored != null && stored.isNotEmpty) {
+      _cachedBaseUrl = stored;
+      return stored;
+    }
+    const configured = String.fromEnvironment('LOOKIVA_API_URL');
+    if (configured.isNotEmpty) {
+      final clean = configured.replaceAll(RegExp(r'/$'), '');
+      _cachedBaseUrl = clean;
+      return clean;
+    }
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+    if (isRelease) {
+      throw StateError(
+        'LOOKIVA_API_URL must be supplied for production builds using --dart-define, '
+        'or configured via the developer settings screen.',
+      );
+    }
+    final fallback = Platform.isAndroid
+        ? 'http://10.0.2.2:4000/api/v1'
+        : 'http://localhost:4000/api/v1';
+    _cachedBaseUrl = fallback;
+    return fallback;
+  }
+
+  static Future<void> initializeBaseUrl() async {
+    final resolved = await _resolveBaseUrl();
+    instance._dio.options.baseUrl = resolved;
+  }
+
+  late final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 20),
+      headers: const {'Content-Type': 'application/json'},
+    ),
+  );
+
+  dynamic _unwrap(dynamic body) {
+    if (body is Map<String, dynamic> &&
+        body.length == 1 &&
+        body.containsKey('data')) {
+      return body['data'];
+    }
+    return body;
+  }
+
+  String friendlyError(Object error) {
+    if (error is DioException) {
+      final body = error.response?.data;
+      final unwrapped = _unwrap(body);
+      if (unwrapped is Map && unwrapped['message'] != null)
+        return unwrapped['message'].toString();
+      if (body is Map && body['message'] != null)
+        return body['message'].toString();
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.connectionError) {
+        return 'Unable to reach LOOKIVA. Check your connection and server URL.';
+      }
+      return 'Request failed (${error.response?.statusCode ?? 'network'}).';
+    }
+    return error.toString();
+  }
+
+  Future<Map<String, dynamic>> login(
+    String identifier,
+    String password, {
+    bool rememberMe = true,
+  }) async {
+    final response = await _dio.post<dynamic>(
+      '/auth/login',
+      data: {
+        'identifier': identifier.trim(),
+        'password': password,
+        'rememberMe': rememberMe,
+        'deviceName': 'LOOKIVA Customer Flutter',
+      },
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+    final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
+    final access = data['accessToken']?.toString();
+    final refresh = data['refreshToken']?.toString();
+    if (access == null || refresh == null)
+      throw StateError('Authentication tokens were not returned');
+    await _storage.write(key: _accessKey, value: access);
+    await _storage.write(key: _refreshKey, value: refresh);
+    try {
+      return await me();
+    } catch (_) {
+      await clearSession();
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> me() async {
+    final response = await _dio.get<dynamic>('/auth/me');
+    final data = _unwrap(response.data);
+    final map = Map<String, dynamic>.from(data as Map);
+    final user = map['user'] ?? map;
+    return Map<String, dynamic>.from(user as Map);
+  }
+
+  Future<bool> restoreSession() async {
+    final access = await _storage.read(key: _accessKey);
+    final refresh = await _storage.read(key: _refreshKey);
+    if ((access == null || access.isEmpty) &&
+        (refresh == null || refresh.isEmpty))
+      return false;
+    try {
+      await me();
+      return true;
+    } catch (error) {
+      if (_isOffline(error) && access != null && access.isNotEmpty) return true;
+      try {
+        if (await _refresh()) {
+          await me();
+          return true;
+        }
+      } catch (refreshError) {
+        if (_isOffline(refreshError) && access != null && access.isNotEmpty)
+          return true;
+      }
+      await clearSession();
+      return false;
+    }
+  }
+
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    final response = await _dio.get<dynamic>(path, queryParameters: query);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> post(String path, {Object? data}) async {
+    final response = await _dio.post<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> patch(String path, {Object? data}) async {
+    final response = await _dio.patch<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> put(String path, {Object? data}) async {
+    final response = await _dio.put<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> delete(String path, {Object? data}) async {
+    final response = await _dio.delete<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<void> logout() async {
+    try {
+      await _dio.post<dynamic>('/auth/logout');
+    } catch (_) {}
+    await clearSession();
+  }
+
+  Future<void> clearSession() async {
+    await _storage.delete(key: _accessKey);
+    await _storage.delete(key: _refreshKey);
+  }
+
+  bool _isOffline(Object error) {
+    return error is DioException &&
+        error.response == null &&
+        (error.type == DioExceptionType.connectionError ||
+            error.type == DioExceptionType.connectionTimeout ||
+            error.type == DioExceptionType.receiveTimeout ||
+            error.type == DioExceptionType.sendTimeout);
+  }
+
+  Future<bool> _refresh() async {
+    final refreshToken = await _storage.read(key: _refreshKey);
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+    final currentBase = _cachedBaseUrl ?? await _resolveBaseUrl();
+    final plain = Dio(
+      BaseOptions(
+        baseUrl: currentBase,
+        headers: const {'Content-Type': 'application/json'},
+      ),
+    );
+    final response = await plain.post<dynamic>(
+      '/auth/refresh',
+      data: {
+        'refreshToken': refreshToken,
+        'deviceName': 'LOOKIVA Customer Flutter',
+      },
+    );
+    final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
+    final access = data['accessToken']?.toString();
+    final refresh = data['refreshToken']?.toString();
+    if (access == null || refresh == null) return false;
+    await _storage.write(key: _accessKey, value: access);
+    await _storage.write(key: _refreshKey, value: refresh);
+    return true;
+  }
+}

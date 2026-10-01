@@ -1,0 +1,3687 @@
+// Prisma Schema for LOOKIVA Platform
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "views"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ============================================================
+// USERS & AUTHENTICATION
+// ============================================================
+
+model users {
+  id                String    @id @default(cuid())
+  email             String?   @unique
+  email_verified_at DateTime?
+  phone             String?   @unique
+  phone_verified_at DateTime?
+  password_hash     String
+  full_name         String
+  avatar_media_id   String?
+  locale            String    @default("en")
+  theme_mode        String    @default("midnight-gold")
+  is_active         Boolean   @default(true)
+  last_login_at     DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
+
+  user_profiles                   user_profiles[]
+  preferences                     user_preferences[]
+  sessions                        sessions[]
+  role_scopes                     user_role_scopes[]
+  customers                       customers[]
+  professionals                   professionals[]
+  companies_owned                 companies[]                      @relation("CompanyOwner")
+  reviews_written                 reviews[]                        @relation("ReviewAuthor")
+  posts                           posts[]                          @relation("PostAuthor")
+  likes                           likes[]
+  comments                        comments[]
+  follows_following               follows[]                        @relation("Follower")
+  favorites                       favorites[]
+  audit_logs                      audit_logs[]                     @relation("AuditActor")
+  notifications                   notifications[]
+  conversations                   conversation_members[]
+  messages_sent                   messages[]                       @relation("MessageSender")
+  referral_accounts               referrals[]                      @relation("ReferralReferrer")
+  referral_referred               referrals?                       @relation("ReferralReferred")
+  moderation_strikes              user_strikes[]                   @relation("UserStrike")
+  notification_preferences        notification_preferences?
+  location_preferences            location_preferences?
+  nearby_notification_preferences nearby_notification_preferences?
+  coupon_usage                    coupon_usage[]
+  password_reset_tokens           password_reset_tokens[]
+  email_verification_tokens       email_verification_tokens[]
+  phone_otp_tokens                phone_otp_tokens[]
+  search_history                   search_history[]
+  push_devices                     push_devices[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([is_active])
+  @@index([created_at])
+}
+
+model user_profiles {
+  id                   String    @id @default(cuid())
+  user_id              String    @unique
+  first_name           String
+  last_name            String
+  date_of_birth        DateTime?
+  gender               String?
+  bio                  String?
+  website_url          String?
+  instagram_handle     String?
+  tiktok_handle        String?
+  facebook_url         String?
+  linkedin_url         String?
+  address_line_1       String?
+  address_line_2       String?
+  postal_code          String?
+  city_id              String?
+  country_id           String
+  currency_code        String?
+  notification_token   String?
+  completed_onboarding Boolean   @default(false)
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  user    users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  country countries @relation("UserProfileCountry", fields: [country_id], references: [id])
+  city    cities?   @relation("UserProfileCity", fields: [city_id], references: [id], onDelete: SetNull)
+
+  @@index([country_id])
+  @@index([city_id])
+}
+
+model user_preferences {
+  id                        String   @id @default(cuid())
+  user_id                   String   @unique
+  email_marketing           Boolean  @default(false)
+  email_bookings            Boolean  @default(true)
+  email_reviews             Boolean  @default(true)
+  push_marketing            Boolean  @default(false)
+  push_bookings             Boolean  @default(true)
+  push_reviews              Boolean  @default(true)
+  push_messages             Boolean  @default(true)
+  push_system               Boolean  @default(true)
+  sms_bookings              Boolean  @default(false)
+  sms_reminders             Boolean  @default(false)
+  nearby_enabled            Boolean  @default(false)
+  nearby_radius_meters      Int      @default(1000)
+  auto_translate            Boolean  @default(false)
+  reduced_motion            Boolean  @default(false)
+  high_contrast             Boolean  @default(false)
+  show_verified_only        Boolean  @default(false)
+  default_payment_method_id String?
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model search_history {
+  id          String   @id @default(cuid())
+  user_id     String
+  query_text  String
+  entity_type String?
+  created_at  DateTime @default(now())
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([query_text])
+}
+
+model push_devices {
+  id           String   @id @default(cuid())
+  user_id      String
+  token        String   @unique
+  platform     String
+  app_type     String   @default("customer")
+  device_name  String?
+  locale       String?
+  is_enabled   Boolean  @default(true)
+  last_seen_at DateTime @default(now())
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_enabled])
+  @@index([platform])
+}
+
+model sessions {
+  id                 String    @id @default(cuid())
+  user_id            String
+  refresh_token_hash String    @unique
+  access_token_jti   String    @unique
+  user_agent         String?
+  ip_address         String?
+  country_code       String?
+  city               String?
+  device_type        String?
+  device_name        String?
+  family_id          String?
+  expires_at         DateTime
+  last_active_at     DateTime?
+  revoked_at         DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([family_id])
+  @@index([expires_at])
+  @@index([revoked_at])
+}
+
+// ============================================================
+// RBAC - ROLES & PERMISSIONS
+// ============================================================
+
+model roles {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  scope_type  String
+  name        String
+  description String?
+  is_system   Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  role_permissions role_permissions[]
+  user_scopes      user_role_scopes[]
+
+  @@index([key])
+  @@index([scope_type])
+}
+
+model permissions {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  scope_type  String
+  name        String
+  description String?
+  group       String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  role_permissions role_permissions[]
+
+  @@index([key])
+  @@index([group])
+}
+
+model role_permissions {
+  id            String   @id @default(cuid())
+  role_id       String
+  permission_id String
+  created_at    DateTime @default(now())
+
+  role       roles       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@index([permission_id])
+}
+
+model user_role_scopes {
+  id                 String    @id @default(cuid())
+  user_id            String
+  role_id            String
+  role_key           String
+  scope_type         String
+  scope_id           String?
+  company_id         String?
+  branch_id          String?
+  granted_by_user_id String?
+  expires_at         DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  user        users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role        roles      @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  companies   companies? @relation(fields: [companiesId], references: [id])
+  companiesId String?
+  branches    branches?  @relation(fields: [branchesId], references: [id])
+  branchesId  String?
+
+  @@unique([user_id, role_id, scope_type, scope_id])
+  @@index([user_id])
+  @@index([user_id, role_key, scope_type, scope_id])
+  @@index([company_id])
+  @@index([branch_id])
+}
+
+// ============================================================
+// GEOGRAPHY
+// ============================================================
+
+model countries {
+  id              String   @id @default(cuid())
+  iso_code        String   @unique
+  name            String
+  native_name     String?
+  dial_code       String
+  currency_code   String
+  currency_symbol String?
+  flag_emoji      String?
+  latitude        Float?
+  longitude       Float?
+  timezones       String[] @default([])
+  languages       String[] @default([])
+  is_active       Boolean  @default(true)
+  sort_order      Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  regions       regions[]
+  districts     districts[]
+  cities        cities[]
+  areas         areas[]
+  companies     companies[]
+  branches      branches[]
+  user_profiles user_profiles[] @relation("UserProfileCountry")
+  taxes         country_taxes[]
+
+  @@index([iso_code])
+  @@index([is_active])
+}
+
+model regions {
+  id          String   @id @default(cuid())
+  country_id  String
+  code        String?
+  name        String
+  native_name String?
+  latitude    Float?
+  longitude   Float?
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  country   countries   @relation(fields: [country_id], references: [id], onDelete: Cascade)
+  districts districts[]
+  cities    cities[]
+  areas     areas[]
+  branches  branches[]
+
+  @@unique([country_id, code])
+  @@index([country_id])
+  @@index([is_active])
+}
+
+model districts {
+  id          String   @id @default(cuid())
+  region_id   String
+  country_id  String
+  code        String?
+  name        String
+  native_name String?
+  latitude    Float?
+  longitude   Float?
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  country  countries  @relation(fields: [country_id], references: [id], onDelete: Cascade)
+  region   regions    @relation(fields: [region_id], references: [id], onDelete: Cascade)
+  cities   cities[]
+  areas    areas[]
+  branches branches[]
+
+  @@unique([region_id, code])
+  @@index([region_id])
+  @@index([country_id])
+  @@index([is_active])
+}
+
+model cities {
+  id          String   @id @default(cuid())
+  district_id String?
+  region_id   String?
+  country_id  String
+  code        String?
+  name        String
+  native_name String?
+  latitude    Float?
+  longitude   Float?
+  timezone    String?
+  is_active   Boolean  @default(true)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  country       countries       @relation(fields: [country_id], references: [id], onDelete: Cascade)
+  region        regions?        @relation(fields: [region_id], references: [id], onDelete: SetNull)
+  district      districts?      @relation(fields: [district_id], references: [id], onDelete: SetNull)
+  areas         areas[]
+  branches      branches[]
+  user_profiles user_profiles[] @relation("UserProfileCity")
+
+  @@index([country_id])
+  @@index([region_id])
+  @@index([district_id])
+  @@index([name])
+  @@index([is_active])
+}
+
+model areas {
+  id            String   @id @default(cuid())
+  city_id       String
+  country_id    String
+  code          String?
+  name          String
+  native_name   String?
+  latitude      Float?
+  longitude     Float?
+  radius_meters Int?
+  postal_codes  String[] @default([])
+  is_active     Boolean  @default(true)
+  sort_order    Int      @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  city        cities     @relation(fields: [city_id], references: [id], onDelete: Cascade)
+  country     countries  @relation(fields: [country_id], references: [id], onDelete: Cascade)
+  branches    branches[]
+  regions     regions?   @relation(fields: [regionsId], references: [id])
+  regionsId   String?
+  districts   districts? @relation(fields: [districtsId], references: [id])
+  districtsId String?
+
+  @@index([city_id])
+  @@index([country_id])
+  @@index([name])
+  @@index([is_active])
+}
+
+model languages {
+  id          String   @id @default(cuid())
+  iso_code    String   @unique
+  iso3_code   String?
+  name        String
+  native_name String
+  direction   String   @default("ltr")
+  flag_emoji  String?
+  is_active   Boolean  @default(true)
+  is_default  Boolean  @default(false)
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+model currencies {
+  id             String   @id @default(cuid())
+  iso_code       String   @unique
+  numeric_code   String?
+  name           String
+  symbol         String
+  native_symbol  String?
+  decimal_digits Int      @default(2)
+  rounding       Float    @default(0)
+  is_active      Boolean  @default(true)
+  is_default     Boolean  @default(false)
+  sort_order     Int      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+}
+
+// ============================================================
+// PLATFORM SETTINGS
+// ============================================================
+
+model platform_settings {
+  id                         String   @id @default(cuid())
+  site_name                  String   @default("LOOKIVA")
+  tagline                    String?
+  logo_media_id              String?
+  favicon_media_id           String?
+  default_locale             String   @default("en")
+  default_theme              String   @default("midnight-gold")
+  default_currency_code      String   @default("USD")
+  default_country_code       String   @default("LB")
+  min_booking_notice_minutes Int?
+  max_booking_advance_days   Int?
+  default_cancellation_hours Int?
+  default_deposit_percent    Float?
+  maintenance_mode           Boolean  @default(false)
+  maintenance_message        String?
+  support_email              String   @default("support@lookiva.dev")
+  support_phone              String?
+  whatsapp_number            String?
+  social_links               Json?
+  legal_urls                 Json?
+  version                    String   @default("1.0.0")
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+}
+
+model theme_settings {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  name       String
+  palette    Json
+  is_active  Boolean  @default(true)
+  is_default Boolean  @default(false)
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model feature_flags {
+  id              String    @id @default(cuid())
+  key             String    @unique
+  name            String
+  description     String?
+  is_enabled      Boolean   @default(false)
+  rollout_percent Int       @default(0)
+  user_ids        String[]  @default([])
+  country_codes   String[]  @default([])
+  environment     String?
+  expires_at      DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+}
+
+model remote_config {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  value_json      Json
+  value_type      String   @default("string")
+  description     String?
+  is_public       Boolean  @default(true)
+  min_app_version String?
+  platforms       String[] @default([])
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+}
+
+// ============================================================
+// COMPANIES & BRANCHES
+// ============================================================
+
+model companies {
+  id                         String    @id @default(cuid())
+  owner_user_id              String
+  country_id                 String
+  city_id                    String?
+  category_ids               String[]
+  legal_name                 String?
+  display_name               String
+  slug                       String    @unique
+  description_short          String?
+  description_long           String?
+  tagline                    String?
+  tax_number                 String?
+  commercial_register_number String?
+  cover_media_id             String?
+  logo_media_id              String?
+  website_url                String?
+  booking_enabled            Boolean   @default(true)
+  walk_ins_enabled           Boolean   @default(true)
+  online_payments_enabled    Boolean   @default(false)
+  min_booking_notice_minutes Int?
+  max_booking_advance_days   Int?
+  cancellation_policy_hours  Int?
+  cancellation_fee_percent   Float?
+  no_show_fee_percent        Float?
+  deposit_required           Boolean   @default(false)
+  deposit_percent            Float?
+  auto_confirm_bookings      Boolean   @default(true)
+  avg_rating                 Float?
+  review_count               Int       @default(0)
+  follower_count             Int       @default(0)
+  view_count                 Int       @default(0)
+  featured_level             Int?
+  featured_expires_at        DateTime?
+  is_verified                Boolean   @default(false)
+  is_active                  Boolean   @default(true)
+  verified_at                DateTime?
+  published_at               DateTime?
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+  deleted_at                 DateTime?
+
+  owner_user                users                       @relation("CompanyOwner", fields: [owner_user_id], references: [id])
+  country                   countries                   @relation(fields: [country_id], references: [id])
+  branches                  branches[]
+  professionals             professionals[]
+  services                  services[]
+  reviews                   reviews[]
+  posts                     posts[]
+  favorites                 favorites[]
+  follows                   follows[]
+  settings                  company_settings?
+  verification              company_verification?
+  user_role_scopes          user_role_scopes[]
+  commissions               commissions[]
+  subscriptions             subscriptions[]
+  resources                 resources[]
+  appointments              appointments[]
+  appointment_holds         appointment_holds[]
+  payments                  payments[]
+  business_nearby_campaigns business_nearby_campaigns[]
+  promotions                promotions[]
+  coupons                   coupons[]
+  coupon_usage              coupon_usage[]
+  packages                  packages[]
+  memberships               memberships[]
+  gift_cards                gift_cards[]
+  products                  products[]
+  consent_forms             consent_forms[]
+  commission_rules          commission_rules[]
+  disputes                  disputes[]
+
+  @@index([owner_user_id])
+  @@index([country_id])
+  @@index([city_id])
+  @@index([slug])
+  @@index([is_verified, is_active])
+  @@index([avg_rating])
+  @@index([review_count])
+  @@index([follower_count])
+  @@index([created_at])
+  @@index([display_name])
+}
+
+model company_settings {
+  id                     String   @id @default(cuid())
+  company_id             String   @unique
+  facilities             String[]
+  languages_spoken       String[]
+  parking_options        String[]
+  accepted_payments      String[]
+  policies               Json?
+  cancellation_policy    String?
+  refund_policy          String?
+  privacy_policy         String?
+  home_service_enabled   Boolean  @default(false)
+  home_service_radius    Int?
+  default_tax_percent    Float?
+  min_order_amount       Float?
+  max_daily_appointments Int?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  company companies @relation(fields: [company_id], references: [id], onDelete: Cascade)
+}
+
+model company_verification {
+  id                   String    @id @default(cuid())
+  company_id           String    @unique
+  submitted_by_user_id String
+  legal_business_name  String?
+  registration_number  String?
+  tax_id_number        String?
+  owner_full_name      String?
+  owner_id_number      String?
+  documents            String[]
+  notes                String?
+  reviewed_by_user_id  String?
+  reviewed_at          DateTime?
+  rejection_reason     String?
+  status               String    @default("pending")
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  company companies @relation(fields: [company_id], references: [id], onDelete: Cascade)
+}
+
+model branches {
+  id                         String    @id @default(cuid())
+  company_id                 String
+  manager_user_id            String?
+  country_id                 String
+  city_id                    String?
+  area_id                    String?
+  region_id                  String?
+  district_id                String?
+  reference_code             String?
+  name                       String
+  slug                       String
+  description                String?
+  address_line_1             String?
+  address_line_2             String?
+  postal_code                String?
+  latitude                   Float?
+  longitude                  Float?
+  geohash                    String?
+  phone                      String?
+  phone_secondary            String?
+  email                      String?
+  whatsapp                   String?
+  facebook_url               String?
+  instagram_handle           String?
+  cover_media_id             String?
+  timezone                   String?
+  booking_enabled            Boolean   @default(true)
+  walk_ins_enabled           Boolean   @default(true)
+  home_service_enabled       Boolean   @default(false)
+  home_service_radius_meters Int?
+  auto_confirm_bookings      Boolean?
+  sort_order                 Int       @default(0)
+  is_active                  Boolean   @default(true)
+  is_main                    Boolean   @default(false)
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+  deleted_at                 DateTime?
+
+  company                          companies                          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  country                          countries                          @relation(fields: [country_id], references: [id])
+  city                             cities?                            @relation(fields: [city_id], references: [id], onDelete: SetNull)
+  area                             areas?                             @relation(fields: [area_id], references: [id], onDelete: SetNull)
+  region                           regions?                           @relation(fields: [region_id], references: [id], onDelete: SetNull)
+  district                         districts?                         @relation(fields: [district_id], references: [id], onDelete: SetNull)
+  location                         branch_locations?
+  hours                            branch_hours[]
+  exceptions                       branch_exceptions[]
+  professional_branches            professional_branches[]
+  resources                        resources[]
+  appointments                     appointments[]
+  queues                           queues[]
+  user_role_scopes                 user_role_scopes[]
+  professional_schedules           professional_schedules[]
+  professional_schedule_exceptions professional_schedule_exceptions[]
+  service_branch_settings          service_branch_settings[]
+  floor_plans                      floor_plans[]
+  appointment_holds                appointment_holds[]
+  cash_sessions                    cash_sessions[]
+  reviews                          reviews[]
+  posts                            posts[]
+  favorites                        favorites[]
+  business_nearby_campaigns        business_nearby_campaigns[]
+  promotions                       promotions[]
+  inventory_items                  inventory_items[]
+  inventory_movements              inventory_movements[]
+
+  @@unique([company_id, slug])
+  @@index([company_id])
+  @@index([country_id])
+  @@index([city_id])
+  @@index([area_id])
+  @@index([slug])
+  @@index([is_active])
+  @@index([latitude, longitude])
+}
+
+model branch_locations {
+  id         String                                @id @default(cuid())
+  branch_id  String                                @unique
+  address    String?
+  point      Unsupported("geometry(Point, 4326)")?
+  floor      String?
+  landmark   String?
+  created_at DateTime                              @default(now())
+  updated_at DateTime                              @updatedAt
+
+  branch branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+}
+
+model branch_hours {
+  id                String   @id @default(cuid())
+  branch_id         String
+  day_of_week       Int
+  is_closed         Boolean  @default(false)
+  opens_at          String?
+  closes_at         String?
+  break_starts_at   String?
+  break_ends_at     String?
+  slot_size_minutes Int      @default(15)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  branch branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@unique([branch_id, day_of_week])
+  @@index([branch_id])
+}
+
+model branch_exceptions {
+  id             String   @id @default(cuid())
+  branch_id      String
+  exception_date DateTime
+  is_closed      Boolean  @default(true)
+  opens_at       String?
+  closes_at      String?
+  reason         String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  branch branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@unique([branch_id, exception_date])
+  @@index([branch_id])
+  @@index([exception_date])
+}
+
+// ============================================================
+// PROFESSIONALS
+// ============================================================
+
+model professionals {
+  id                   String    @id @default(cuid())
+  user_id              String
+  company_id           String
+  branch_ids           String[]
+  member_number        String?
+  display_name         String
+  bio                  String?
+  avatar_media_id      String?
+  cover_media_id       String?
+  specialties          String[]  @default([])
+  tags                 String[]  @default([])
+  years_experience     Int?
+  gender_preference    String?
+  accepts_walk_ins     Boolean   @default(true)
+  accepts_home_service Boolean   @default(false)
+  commission_percent   Float?
+  avg_rating           Float?
+  review_count         Int       @default(0)
+  follower_count       Int       @default(0)
+  sort_order           Int       @default(0)
+  is_verified          Boolean   @default(false)
+  is_active            Boolean   @default(true)
+  verified_at          DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  deleted_at           DateTime?
+
+  user                 users                              @relation(fields: [user_id], references: [id])
+  company              companies                          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  profile              professional_profiles?
+  branches             professional_branches[]
+  services_links       service_professionals[]
+  schedules            professional_schedules[]
+  schedule_exceptions  professional_schedule_exceptions[]
+  resources_links      professional_resources[]
+  reviews              reviews[]
+  posts                posts[]
+  favorites            favorites[]
+  follows              follows[]
+  commissions          commissions[]
+  payouts              professional_payouts[]
+  appointments         appointment_participants[]
+  appointment_services appointment_services[]
+
+  @@index([user_id])
+  @@index([company_id])
+  @@index([is_active])
+  @@index([avg_rating])
+  @@index([review_count])
+  @@index([follower_count])
+  @@index([display_name])
+}
+
+model professional_profiles {
+  id                  String   @id @default(cuid())
+  professional_id     String   @unique
+  user_id             String
+  education           String[] @default([])
+  certifications      String[] @default([])
+  awards              String[] @default([])
+  languages_spoken    String[] @default([])
+  portfolio_media_ids String[] @default([])
+  reel_media_ids      String[] @default([])
+  pricing_notes       String?
+  social_links        Json?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+}
+
+model professional_branches {
+  id                 String   @id @default(cuid())
+  professional_id    String
+  branch_id          String
+  is_primary         Boolean  @default(false)
+  commission_percent Float?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  branch       branches      @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@unique([professional_id, branch_id])
+  @@index([branch_id])
+}
+
+model service_professionals {
+  id              String   @id @default(cuid())
+  professional_id String
+  service_id      String
+  is_primary      Boolean  @default(false)
+  custom_price    Float?
+  custom_duration Int?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  service      services      @relation(fields: [service_id], references: [id], onDelete: Cascade)
+
+  @@unique([professional_id, service_id])
+  @@index([service_id])
+  @@map("professional_services")
+}
+
+model professional_schedules {
+  id              String    @id @default(cuid())
+  professional_id String
+  branch_id       String
+  day_of_week     Int
+  is_off          Boolean   @default(false)
+  starts_at       String?
+  ends_at         String?
+  break_starts_at String?
+  break_ends_at   String?
+  effective_from  DateTime?
+  effective_to    DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  branch       branches      @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@index([branch_id])
+}
+
+model professional_schedule_exceptions {
+  id              String   @id @default(cuid())
+  professional_id String
+  branch_id       String?
+  exception_date  DateTime
+  is_off          Boolean  @default(true)
+  starts_at       String?
+  ends_at         String?
+  reason          String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  branch       branches?     @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+
+  @@index([professional_id])
+  @@index([exception_date])
+}
+
+// ============================================================
+// CATEGORIES & SERVICES
+// ============================================================
+
+model service_categories {
+  id                            String   @id @default(cuid())
+  parent_id                     String?
+  country_id                    String?
+  code                          String?
+  slug                          String   @unique
+  name                          String
+  name_translations             Json?
+  description                   String?
+  description_translations      Json?
+  icon_key                      String?
+  cover_media_id                String?
+  color                         String?
+  home_service_allowed          Boolean  @default(false)
+  requires_professional         Boolean  @default(true)
+  default_duration_minutes      Int?
+  default_buffer_before_minutes Int      @default(0)
+  default_buffer_after_minutes  Int      @default(0)
+  sort_order                    Int      @default(0)
+  is_active                     Boolean  @default(true)
+  is_featured                   Boolean  @default(false)
+  depth_level                   Int      @default(0)
+  created_at                    DateTime @default(now())
+  updated_at                    DateTime @updatedAt
+
+  parent               service_categories?         @relation("CategoryTree", fields: [parent_id], references: [id])
+  children             service_categories[]        @relation("CategoryTree")
+  services             services[]
+  posts                post_services[]
+  discovery_candidates business_nearby_campaigns[]
+
+  @@index([parent_id])
+  @@index([country_id])
+  @@index([slug])
+  @@index([is_active])
+  @@index([sort_order])
+  @@index([name])
+}
+
+model services {
+  id                        String    @id @default(cuid())
+  company_id                String
+  category_id               String
+  branch_ids                String[]
+  professional_ids          String[]
+  resource_ids              String[]  @default([])
+  sku                       String?
+  slug                      String
+  name                      String
+  summary                   String?
+  description               String?
+  cover_media_id            String?
+  gallery_media_ids         String[]  @default([])
+  duration_minutes          Int
+  buffer_before_minutes     Int       @default(0)
+  buffer_after_minutes      Int       @default(0)
+  base_price                Float
+  currency_code             String
+  tax_inclusive             Boolean   @default(true)
+  tax_percent               Float?
+  discount_percent          Float?
+  discount_fixed            Float?
+  discount_valid_from       DateTime?
+  discount_valid_until      DateTime?
+  home_service_allowed      Boolean   @default(false)
+  home_service_fee          Float?
+  walk_ins_allowed          Boolean   @default(true)
+  gender_preference         String?
+  max_clients_per_slot      Int       @default(1)
+  online_payment_required   Boolean   @default(false)
+  deposit_percent           Float?
+  cancellation_policy_hours Int?
+  cancellation_fee_percent  Float?
+  tags                      String[]  @default([])
+  avg_rating                Float?
+  review_count              Int       @default(0)
+  booking_count             Int       @default(0)
+  sort_order                Int       @default(0)
+  is_active                 Boolean   @default(true)
+  is_featured               Boolean   @default(false)
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @updatedAt
+  deleted_at                DateTime?
+
+  company               companies                       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  category              service_categories              @relation(fields: [category_id], references: [id])
+  translations          service_translations[]
+  branch_settings       service_branch_settings[]
+  dependencies          service_dependencies[]          @relation("Dependency")
+  dependents            service_dependencies[]          @relation("Dependent")
+  stages                service_stages[]
+  professionals_links   service_professionals[]
+  resource_requirements service_resource_requirements[]
+  reviews               reviews[]
+  appointments          appointment_services[]
+  favorites             favorites[]
+  posts                 post_services[]
+  package_usage         package_usage[]
+
+  @@unique([company_id, slug])
+  @@index([company_id])
+  @@index([category_id])
+  @@index([slug])
+  @@index([is_active])
+  @@index([base_price])
+  @@index([avg_rating])
+  @@index([review_count])
+  @@index([booking_count])
+  @@index([duration_minutes])
+}
+
+model service_translations {
+  id          String   @id @default(cuid())
+  service_id  String
+  locale      String
+  name        String
+  summary     String?
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  service services @relation(fields: [service_id], references: [id], onDelete: Cascade)
+
+  @@unique([service_id, locale])
+  @@index([locale])
+}
+
+model service_branch_settings {
+  id                      String   @id @default(cuid())
+  service_id              String
+  branch_id               String
+  is_enabled              Boolean  @default(true)
+  custom_price            Float?
+  custom_duration         Int?
+  custom_deposit_percent  Float?
+  online_payment_required Boolean?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  service services @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  branch  branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@unique([service_id, branch_id])
+  @@index([branch_id])
+}
+
+model service_dependencies {
+  id              String   @id @default(cuid())
+  service_id      String
+  prerequisite_id String
+  min_gap_minutes Int      @default(0)
+  max_gap_minutes Int?
+  is_optional     Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  service      services @relation("Dependent", fields: [service_id], references: [id], onDelete: Cascade)
+  prerequisite services @relation("Dependency", fields: [prerequisite_id], references: [id])
+
+  @@unique([service_id, prerequisite_id])
+  @@index([prerequisite_id])
+}
+
+model service_stages {
+  id               String   @id @default(cuid())
+  service_id       String
+  stage_order      Int
+  name             String
+  description      String?
+  duration_minutes Int
+  resource_type_id String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  service       services        @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  resource_type resource_types? @relation(fields: [resource_type_id], references: [id], onDelete: SetNull)
+
+  @@index([service_id])
+  @@index([stage_order])
+}
+
+// ============================================================
+// RESOURCES
+// ============================================================
+
+model resource_types {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  key              String   @unique
+  name             String
+  description      String?
+  icon_key         String?
+  default_capacity Int      @default(1)
+  requires_booking Boolean  @default(true)
+  allow_parallel   Boolean  @default(false)
+  sort_order       Int      @default(0)
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  resources            resources[]
+  service_stages       service_stages[]
+  service_resource_req service_resource_requirements[]
+}
+
+model resources {
+  id                String    @id @default(cuid())
+  company_id        String
+  branch_id         String?
+  resource_type_id  String?
+  code              String?
+  name              String
+  type              String
+  description       String?
+  icon_key          String?
+  media_ids         String[]  @default([])
+  quantity          Int       @default(1)
+  location_note     String?
+  capacity_per_slot Int?
+  setup_minutes     Int       @default(0)
+  cleanup_minutes   Int       @default(0)
+  hourly_cost       Float?
+  currency_code     String?
+  attributes        Json?
+  tags              String[]  @default([])
+  sort_order        Int       @default(0)
+  is_active         Boolean   @default(true)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
+
+  company                companies                       @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch                 branches?                       @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  resource_type          resource_types?                 @relation(fields: [resource_type_id], references: [id], onDelete: SetNull)
+  professionals_links    professional_resources[]
+  service_requirements   service_resource_requirements[]
+  blocks                 resource_blocks[]
+  maintenance            resource_maintenance[]
+  floor_plan_items       floor_plan_items[]
+  appointments           appointment_resources[]
+  preferred_by_customers customer_preferred_resources[]
+  media_links            resource_media[]
+  resource_attributes    resource_attributes[]
+
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([resource_type_id])
+  @@index([type])
+  @@index([is_active])
+  @@index([name])
+}
+
+model resource_attributes {
+  id                 String   @id @default(cuid())
+  resource_id        String
+  attribute_key      String
+  attribute_value    String
+  label_translations Json?
+  searchable         Boolean  @default(true)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  resource resources @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+
+  @@index([resource_id])
+  @@index([attribute_key])
+}
+
+model professional_resources {
+  id              String   @id @default(cuid())
+  professional_id String
+  resource_id     String
+  is_default      Boolean  @default(false)
+  priority        Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  professional professionals @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  resource     resources     @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+
+  @@unique([professional_id, resource_id])
+  @@index([resource_id])
+}
+
+model service_resource_requirements {
+  id                 String   @id @default(cuid())
+  service_id         String
+  resource_type_id   String?
+  resource_id        String?
+  quantity_required  Int      @default(1)
+  min_quantity       Int      @default(1)
+  stage_id           String?
+  allow_substitution Boolean  @default(true)
+  surcharge_amount   Float?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  service       services        @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  resource_type resource_types? @relation(fields: [resource_type_id], references: [id], onDelete: SetNull)
+  resource      resources?      @relation(fields: [resource_id], references: [id], onDelete: SetNull)
+
+  @@index([service_id])
+  @@index([resource_type_id])
+  @@index([resource_id])
+}
+
+model resource_blocks {
+  id              String   @id @default(cuid())
+  resource_id     String
+  block_type      String
+  starts_at       DateTime
+  ends_at         DateTime
+  reason          String?
+  created_by_id   String?
+  is_recurring    Boolean  @default(false)
+  recurrence_rule String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  resource resources @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+
+  @@index([resource_id])
+  @@index([starts_at, ends_at])
+}
+
+model resource_maintenance {
+  id               String    @id @default(cuid())
+  resource_id      String
+  maintenance_type String
+  scheduled_at     DateTime
+  completed_at     DateTime?
+  status           String    @default("scheduled")
+  cost_amount      Float?
+  currency_code    String?
+  notes            String?
+  performed_by     String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  resource resources @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+
+  @@index([resource_id])
+  @@index([scheduled_at])
+  @@index([status])
+}
+
+model floor_plans {
+  id                  String   @id @default(cuid())
+  branch_id           String
+  name                String
+  description         String?
+  width_cm            Int?
+  height_cm           Int?
+  background_media_id String?
+  is_active           Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  branch branches           @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  items  floor_plan_items[]
+
+  @@index([branch_id])
+}
+
+model floor_plan_items {
+  id            String   @id @default(cuid())
+  floor_plan_id String
+  resource_id   String?
+  item_type     String
+  label         String?
+  x_position_cm Int
+  y_position_cm Int
+  width_cm      Int
+  height_cm     Int
+  rotation_deg  Int      @default(0)
+  zone          String?
+  color         String?
+  sort_order    Int      @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  floor_plan floor_plans @relation(fields: [floor_plan_id], references: [id], onDelete: Cascade)
+  resource   resources?  @relation(fields: [resource_id], references: [id], onDelete: SetNull)
+
+  @@index([floor_plan_id])
+  @@index([resource_id])
+}
+
+// ============================================================
+// CUSTOMERS
+// ============================================================
+
+model customers {
+  id                         String    @id @default(cuid())
+  user_id                    String
+  customer_number            String?
+  loyalty_level              String?
+  loyalty_points             Int       @default(0)
+  total_spent_amount         Float     @default(0)
+  total_bookings             Int       @default(0)
+  referral_code              String?   @unique
+  referred_by_user_id        String?
+  last_booking_at            DateTime?
+  preferred_branch_id        String?
+  preferred_professional_ids String[]  @default([])
+  blocked_by_company_ids     String[]  @default([])
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+
+  user                     users                          @relation(fields: [user_id], references: [id])
+  profile                  customer_profiles?
+  addresses                customer_addresses[]
+  preferences              customer_preferences?
+  dependents               customer_dependents[]
+  appointments             appointments[]
+  appointment_participants appointment_participants[]
+  appointment_holds        appointment_holds[]
+  payments                 payments[]
+  reviews                  reviews[]
+  favorites                favorites[]
+  follows                  follows[]
+  likes                    likes[]
+  comments                 comments[]
+  wallet                   wallets?
+  loyalty_account          loyalty_accounts?
+  package_purchases        package_purchases[]
+  conversations            conversation_members[]
+  notifications            notifications[]
+  preferred_resources      customer_preferred_resources[]
+  queue_entries            queue_entries[]
+  membership_subscriptions membership_subscriptions[]
+  consent_form_responses   consent_form_responses[]
+
+  @@index([user_id])
+  @@index([referral_code])
+  @@index([referred_by_user_id])
+  @@index([total_bookings])
+  @@index([loyalty_points])
+}
+
+model customer_profiles {
+  id                 String   @id @default(cuid())
+  customer_id        String   @unique
+  skin_type          String?
+  hair_type          String?
+  allergies          String[] @default([])
+  preferred_products String[] @default([])
+  color_preferences  String[] @default([])
+  style_notes        String?
+  medical_notes      String?
+  private_notes      String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  customer customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+}
+
+model customer_addresses {
+  id             String   @id @default(cuid())
+  customer_id    String
+  label          String?
+  address_line_1 String
+  address_line_2 String?
+  postal_code    String?
+  city_id        String?
+  country_id     String
+  latitude       Float?
+  longitude      Float?
+  is_default     Boolean  @default(false)
+  is_home        Boolean  @default(false)
+  is_work        Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  customer customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@index([is_default])
+}
+
+model customer_preferences {
+  id                         String   @id @default(cuid())
+  customer_id                String   @unique
+  preferred_resource_types   String[] @default([])
+  preferred_chair_attributes String[] @default([])
+  price_range_min            Float?
+  price_range_max            Float?
+  favorite_service_ids       String[] @default([])
+  favorite_category_ids      String[] @default([])
+  style_interests            String[] @default([])
+  gender_preference          String?
+  accessibility_needs        String[] @default([])
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  customer customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+}
+
+model customer_dependents {
+  id                         String    @id @default(cuid())
+  customer_id                String
+  full_name                  String
+  relationship               String
+  date_of_birth              DateTime?
+  gender                     String?
+  avatar_media_id            String?
+  notes                      String?
+  hair_type                  String?
+  skin_type                  String?
+  allergies                  String[]  @default([])
+  preferred_professional_ids String[]  @default([])
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+
+  customer customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+}
+
+// ============================================================
+// APPOINTMENTS
+// ============================================================
+
+model appointments {
+  id                      String    @id @default(cuid())
+  company_id              String
+  branch_id               String
+  customer_id             String?
+  customer_user_id        String?
+  status                  String    @default("pending")
+  starts_at               DateTime
+  ends_at                 DateTime
+  duration_minutes        Int
+  guest_count             Int       @default(1)
+  notes_customer          String?
+  notes_staff             String?
+  notes_private           String?
+  is_walk_in              Boolean   @default(false)
+  is_home_service         Boolean   @default(false)
+  home_service_address    String?
+  home_service_latitude   Float?
+  home_service_longitude  Float?
+  arrival_latitude        Float?
+  arrival_longitude       Float?
+  checked_in_at           DateTime?
+  started_at              DateTime?
+  completed_at            DateTime?
+  cancelled_at            DateTime?
+  cancelled_by_user_id    String?
+  cancellation_reason     String?
+  cancellation_fee_amount Float?
+  cancellation_fee_paid   Boolean   @default(false)
+  no_show_at              DateTime?
+  rescheduled_from_id     String?
+  rescheduled_to_id       String?
+  queue_entry_id          String?
+  source                  String    @default("direct")
+  referral_code_used      String?
+  created_by_user_id      String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  company                companies                    @relation(fields: [company_id], references: [id])
+  branch                 branches                     @relation(fields: [branch_id], references: [id])
+  customer               customers?                   @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+  participants           appointment_participants[]
+  services               appointment_services[]
+  resources              appointment_resources[]
+  holds                  appointment_holds[]
+  status_history         appointment_status_history[]
+  notes_list             appointment_notes[]
+  media                  appointment_media[]
+  booking_snapshot       booking_snapshots?
+  financial_snapshot     booking_financial_snapshots?
+  payments               payments[]
+  review                 reviews[]
+  queues                 queue_entries[]
+  package_usage          package_usage[]
+  consent_form_responses consent_form_responses[]
+
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([customer_id])
+  @@index([customer_user_id])
+  @@index([status])
+  @@index([starts_at, ends_at])
+  @@index([starts_at])
+  @@index([created_at])
+  @@index([is_walk_in])
+  @@index([source])
+}
+
+model appointment_participants {
+  id              String   @id @default(cuid())
+  appointment_id  String
+  professional_id String
+  customer_id     String?
+  dependent_id    String?
+  role            String   @default("professional")
+  notes           String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  appointment  appointments  @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+  professional professionals @relation(fields: [professional_id], references: [id])
+  customer     customers?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+
+  @@unique([appointment_id, professional_id, customer_id, dependent_id])
+  @@index([appointment_id])
+  @@index([professional_id])
+  @@index([customer_id])
+}
+
+model appointment_services {
+  id               String    @id @default(cuid())
+  appointment_id   String
+  service_id       String
+  professional_id  String?
+  quantity         Int       @default(1)
+  unit_price       Float
+  discount_percent Float?
+  discount_amount  Float?
+  final_price      Float
+  duration_minutes Int
+  tax_percent      Float?
+  tax_amount       Float?
+  starts_at        DateTime?
+  ends_at          DateTime?
+  status           String    @default("pending")
+  notes            String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  appointment  appointments   @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+  service      services       @relation(fields: [service_id], references: [id])
+  professional professionals? @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+
+  @@index([appointment_id])
+  @@index([service_id])
+  @@index([professional_id])
+}
+
+model appointment_resources {
+  id               String    @id @default(cuid())
+  appointment_id   String
+  resource_id      String
+  stage_id         String?
+  starts_at        DateTime?
+  ends_at          DateTime?
+  surcharge_amount Float?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+  resource    resources    @relation(fields: [resource_id], references: [id])
+
+  @@unique([appointment_id, resource_id, stage_id])
+  @@index([appointment_id])
+  @@index([resource_id])
+}
+
+model appointment_holds {
+  id              String    @id @default(cuid())
+  appointment_id  String?
+  customer_id     String
+  company_id      String
+  branch_id       String
+  professional_id String?
+  resource_ids    String[]  @default([])
+  service_ids     String[]  @default([])
+  hold_token      String    @unique
+  expires_at      DateTime
+  held_until      DateTime
+  starts_at       DateTime?
+  ends_at         DateTime?
+  status          String    @default("active")
+  converted_at    DateTime?
+  created_by_ip   String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  appointment appointments? @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  customer    customers     @relation(fields: [customer_id], references: [id])
+  company     companies     @relation(fields: [company_id], references: [id])
+  branch      branches      @relation(fields: [branch_id], references: [id])
+
+  @@index([customer_id])
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([status])
+  @@index([expires_at])
+  @@index([held_until])
+}
+
+model appointment_status_history {
+  id             String   @id @default(cuid())
+  appointment_id String
+  old_status     String?
+  new_status     String
+  changed_by_id  String?
+  reason         String?
+  notes          String?
+  created_at     DateTime @default(now())
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+
+  @@index([appointment_id])
+  @@index([new_status])
+  @@index([created_at])
+}
+
+model appointment_notes {
+  id             String   @id @default(cuid())
+  appointment_id String
+  author_user_id String
+  note_text      String
+  is_private     Boolean  @default(false)
+  is_pinned      Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+
+  @@index([appointment_id])
+  @@index([is_pinned])
+}
+
+model appointment_media {
+  id             String   @id @default(cuid())
+  appointment_id String
+  media_id       String
+  media_type     String
+  is_before      Boolean  @default(false)
+  is_after       Boolean  @default(false)
+  caption        String?
+  uploaded_by_id String?
+  created_at     DateTime @default(now())
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+
+  @@index([appointment_id])
+  @@index([media_id])
+}
+
+model booking_snapshots {
+  id                     String   @id @default(cuid())
+  appointment_id         String   @unique
+  snapshot_version       Int      @default(1)
+  services_snapshot      Json
+  professionals_snapshot Json
+  resources_snapshot     Json
+  branches_snapshot      Json
+  company_snapshot       Json
+  pricing_snapshot       Json
+  policies_snapshot      Json
+  created_at             DateTime @default(now())
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+}
+
+model booking_financial_snapshots {
+  id                       String   @id @default(cuid())
+  appointment_id           String   @unique
+  currency_code            String
+  exchange_rate_snapshot   Json?
+  services_total           Float
+  discount_total           Float
+  resource_surcharges      Float
+  tax_total                Float
+  deposit_percent          Float?
+  deposit_amount           Float
+  cancellation_fee         Float
+  grand_total              Float
+  amount_due_now           Float
+  amount_due_later         Float
+  commission_rule_snapshot Json?
+  tax_breakdown            Json?
+  created_at               DateTime @default(now())
+
+  appointment appointments @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// QUEUES
+// ============================================================
+
+model queues {
+  id                                String   @id @default(cuid())
+  branch_id                         String
+  name                              String   @default("Default")
+  is_active                         Boolean  @default(true)
+  estimated_wait_per_person_minutes Int      @default(15)
+  max_waiting                       Int
+  created_at                        DateTime @default(now())
+  updated_at                        DateTime @updatedAt
+
+  branch  branches        @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  entries queue_entries[]
+
+  @@index([branch_id])
+  @@index([is_active])
+}
+
+model queue_entries {
+  id                     String    @id @default(cuid())
+  queue_id               String
+  appointment_id         String?
+  customer_id            String?
+  customer_name          String?
+  customer_phone         String?
+  service_ids            String[]  @default([])
+  professional_id        String?
+  position               Int
+  estimated_wait_minutes Int?
+  joined_at              DateTime  @default(now())
+  called_at              DateTime?
+  served_at              DateTime?
+  completed_at           DateTime?
+  cancelled_at           DateTime?
+  cancellation_reason    String?
+  status                 String    @default("waiting")
+  notes                  String?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  queue       queues        @relation(fields: [queue_id], references: [id], onDelete: Cascade)
+  appointment appointments? @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  customer    customers?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+
+  @@index([queue_id])
+  @@index([customer_id])
+  @@index([status])
+  @@index([joined_at])
+  @@index([position])
+}
+
+// ============================================================
+// PAYMENTS & FINANCE
+// ============================================================
+
+model payments {
+  id                      String    @id @default(cuid())
+  company_id              String
+  appointment_id          String?
+  customer_id             String
+  payment_method          String
+  currency_code           String
+  amount                  Float
+  tip_amount              Float?
+  deposit_amount          Float?
+  reference_code          String?
+  external_transaction_id String?
+  status                  String    @default("pending")
+  paid_at                 DateTime?
+  captured_at             DateTime?
+  refunded_at             DateTime?
+  failure_reason          String?
+  gateway_response        Json?
+  cash_session_id         String?
+  processed_by_user_id    String?
+  notes                   String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  company        companies              @relation(fields: [company_id], references: [id])
+  appointment    appointments?          @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  customer       customers              @relation(fields: [customer_id], references: [id])
+  transactions   payment_transactions[]
+  refunds        refunds[]
+  ledger_entries financial_ledger[]
+  commissions    commissions[]
+  cash_session   cash_sessions?         @relation(fields: [cash_session_id], references: [id], onDelete: SetNull)
+  wallet_ledger  wallet_ledger[]
+
+  @@index([company_id])
+  @@index([appointment_id])
+  @@index([customer_id])
+  @@index([status])
+  @@index([payment_method])
+  @@index([paid_at])
+  @@index([reference_code])
+  @@index([external_transaction_id])
+}
+
+model payment_transactions {
+  id                       String    @id @default(cuid())
+  payment_id               String
+  transaction_type         String
+  gateway                  String
+  amount                   Float
+  currency_code            String
+  external_reference       String?
+  status                   String
+  gateway_response_code    String?
+  gateway_response_message String?
+  raw_response             Json?
+  processed_at             DateTime?
+  created_at               DateTime  @default(now())
+
+  payment payments @relation(fields: [payment_id], references: [id], onDelete: Cascade)
+
+  @@index([payment_id])
+  @@index([status])
+  @@index([processed_at])
+  @@index([external_reference])
+}
+
+model refunds {
+  id                   String    @id @default(cuid())
+  payment_id           String
+  company_id           String
+  customer_id          String
+  amount               Float
+  currency_code        String
+  reason               String?
+  refund_method        String
+  status               String    @default("pending")
+  external_reference   String?
+  processed_at         DateTime?
+  processed_by_user_id String?
+  notes                String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  payment payments @relation(fields: [payment_id], references: [id])
+
+  @@index([payment_id])
+  @@index([company_id])
+  @@index([customer_id])
+  @@index([status])
+}
+
+model financial_ledger {
+  id               String   @id @default(cuid())
+  company_id       String
+  payment_id       String?
+  appointment_id   String?
+  entry_type       String
+  debit_amount     Float    @default(0)
+  credit_amount    Float    @default(0)
+  currency_code    String
+  exchange_rate_id String?
+  category         String
+  subcategory      String?
+  description      String?
+  reference_id     String?
+  reference_type   String?
+  transaction_date DateTime
+  created_by_id    String?
+  created_at       DateTime @default(now())
+
+  payment       payments?                @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+  exchange_rate exchange_rate_snapshots? @relation(fields: [exchange_rate_id], references: [id], onDelete: SetNull)
+
+  @@index([company_id])
+  @@index([payment_id])
+  @@index([appointment_id])
+  @@index([entry_type])
+  @@index([transaction_date])
+  @@index([category])
+  @@index([reference_id, reference_type])
+}
+
+model cash_sessions {
+  id                String    @id @default(cuid())
+  branch_id         String
+  opened_by_user_id String
+  closed_by_user_id String?
+  opening_cash      Float
+  closing_cash      Float?
+  expected_cash     Float?
+  difference_amount Float?
+  difference_note   String?
+  opened_at         DateTime  @default(now())
+  closed_at         DateTime?
+  status            String    @default("open")
+  notes             String?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  branch    branches         @relation(fields: [branch_id], references: [id])
+  movements cash_movements[]
+  payments  payments[]
+
+  @@index([branch_id])
+  @@index([status])
+  @@index([opened_at])
+  @@index([opened_by_user_id])
+}
+
+model cash_movements {
+  id              String   @id @default(cuid())
+  cash_session_id String
+  movement_type   String
+  amount          Float
+  currency_code   String
+  reason          String?
+  reference_id    String?
+  created_by_id   String?
+  created_at      DateTime @default(now())
+
+  cash_session cash_sessions @relation(fields: [cash_session_id], references: [id], onDelete: Cascade)
+
+  @@index([cash_session_id])
+  @@index([movement_type])
+}
+
+model exchange_rate_snapshots {
+  id              String    @id @default(cuid())
+  base_currency   String
+  target_currency String
+  rate            Float
+  source          String?
+  effective_from  DateTime
+  effective_to    DateTime?
+  is_current      Boolean   @default(false)
+  created_at      DateTime  @default(now())
+
+  ledger_entries financial_ledger[]
+
+  @@unique([base_currency, target_currency, effective_from])
+  @@index([base_currency, target_currency])
+  @@index([effective_from])
+  @@index([is_current])
+}
+
+model commissions {
+  id                 String    @id @default(cuid())
+  company_id         String
+  professional_id    String?
+  appointment_id     String?
+  payment_id         String?
+  rule_id            String?
+  commission_type    String
+  base_amount        Float
+  commission_percent Float?
+  commission_fixed   Float?
+  commission_amount  Float
+  currency_code      String
+  status             String    @default("pending")
+  payout_id          String?
+  calculated_at      DateTime  @default(now())
+  paid_at            DateTime?
+  notes              String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  company      companies                   @relation(fields: [company_id], references: [id])
+  professional professionals?              @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  payment      payments?                   @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+  rule         commission_rules?           @relation(fields: [rule_id], references: [id], onDelete: SetNull)
+  payout       professional_payouts?       @relation(fields: [payout_id], references: [id], onDelete: SetNull)
+  payout_items professional_payout_items[]
+
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([appointment_id])
+  @@index([payment_id])
+  @@index([status])
+  @@index([calculated_at])
+}
+
+model professional_payouts {
+  id                   String    @id @default(cuid())
+  company_id           String
+  professional_id      String
+  payout_period_start  DateTime
+  payout_period_end    DateTime
+  total_commission     Float
+  total_tips           Float
+  total_adjustments    Float     @default(0)
+  currency_code        String
+  gross_amount         Float
+  net_amount           Float
+  status               String    @default("pending")
+  paid_at              DateTime?
+  payment_method       String?
+  reference_code       String?
+  processed_by_user_id String?
+  notes                String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  professional professionals               @relation(fields: [professional_id], references: [id])
+  items        professional_payout_items[]
+  commissions  commissions[]
+
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([status])
+  @@index([payout_period_start, payout_period_end])
+}
+
+model professional_payout_items {
+  id            String   @id @default(cuid())
+  payout_id     String
+  commission_id String?
+  item_type     String
+  description   String
+  amount        Float
+  currency_code String
+  reference_id  String?
+  created_at    DateTime @default(now())
+
+  payout     professional_payouts @relation(fields: [payout_id], references: [id], onDelete: Cascade)
+  commission commissions?         @relation(fields: [commission_id], references: [id], onDelete: SetNull)
+
+  @@index([payout_id])
+}
+
+model wallets {
+  id                  String    @id @default(cuid())
+  customer_id         String    @unique
+  balance_cents       Int       @default(0)
+  currency_code       String
+  is_active           Boolean   @default(true)
+  last_transaction_at DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  customer         customers          @relation(fields: [customer_id], references: [id])
+  ledger           wallet_ledger[]
+  gift_card_ledger gift_card_ledger[]
+
+  @@index([is_active])
+}
+
+model wallet_ledger {
+  id                  String   @id @default(cuid())
+  wallet_id           String
+  payment_id          String?
+  transaction_type    String
+  amount_cents        Int
+  balance_after_cents Int
+  currency_code       String
+  description         String?
+  reference_id        String?
+  reference_type      String?
+  created_at          DateTime @default(now())
+
+  wallet  wallets   @relation(fields: [wallet_id], references: [id], onDelete: Cascade)
+  payment payments? @relation(fields: [payment_id], references: [id], onDelete: SetNull)
+
+  @@index([wallet_id])
+  @@index([transaction_type])
+  @@index([created_at])
+}
+
+// ============================================================
+// REVIEWS
+// ============================================================
+
+model reviews {
+  id                  String    @id @default(cuid())
+  author_user_id      String
+  company_id          String
+  branch_id           String?
+  service_id          String?
+  professional_id     String?
+  appointment_id      String?
+  title               String?
+  body                String?
+  overall_rating      Float
+  dimension_ratings   Json?
+  media_ids           String[]  @default([])
+  response_body       String?
+  response_by_user_id String?
+  response_at         DateTime?
+  helpful_count       Int       @default(0)
+  reported_count      Int       @default(0)
+  is_verified         Boolean   @default(false)
+  is_featured         Boolean   @default(false)
+  is_anonymous        Boolean   @default(false)
+  status              String    @default("published")
+  published_at        DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+  deleted_at          DateTime?
+
+  author_user  users            @relation("ReviewAuthor", fields: [author_user_id], references: [id])
+  company      companies        @relation(fields: [company_id], references: [id])
+  professional professionals?   @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  service      services?        @relation(fields: [service_id], references: [id], onDelete: SetNull)
+  branch       branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  appointment  appointments?    @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  ratings      review_ratings[]
+  media_list   review_media[]
+  reports      review_reports[]
+  customers    customers?       @relation(fields: [customersId], references: [id])
+  customersId  String?
+
+  @@index([author_user_id])
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([service_id])
+  @@index([branch_id])
+  @@index([appointment_id])
+  @@index([overall_rating])
+  @@index([is_verified])
+  @@index([status])
+  @@index([created_at])
+  @@index([helpful_count])
+}
+
+model review_ratings {
+  id         String   @id @default(cuid())
+  review_id  String
+  dimension  String
+  rating     Float
+  created_at DateTime @default(now())
+
+  review reviews @relation(fields: [review_id], references: [id], onDelete: Cascade)
+
+  @@unique([review_id, dimension])
+  @@index([review_id])
+  @@index([dimension])
+}
+
+model review_media {
+  id         String   @id @default(cuid())
+  review_id  String
+  media_id   String
+  media_type String
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+
+  review reviews @relation(fields: [review_id], references: [id], onDelete: Cascade)
+
+  @@index([review_id])
+  @@index([sort_order])
+}
+
+model review_reports {
+  id               String    @id @default(cuid())
+  review_id        String
+  reporter_user_id String
+  reason           String
+  details          String?
+  status           String    @default("pending")
+  reviewed_by_id   String?
+  reviewed_at      DateTime?
+  action_taken     String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  review reviews @relation(fields: [review_id], references: [id], onDelete: Cascade)
+
+  @@index([review_id])
+  @@index([reporter_user_id])
+  @@index([status])
+}
+
+// ============================================================
+// SOCIAL: POSTS, LIKES, COMMENTS, FOLLOWS, FAVORITES, COLLECTIONS
+// ============================================================
+
+model posts {
+  id                 String    @id @default(cuid())
+  author_user_id     String
+  author_role        String
+  company_id         String?
+  branch_id          String?
+  professional_id    String?
+  title              String?
+  slug               String?
+  body_plain         String?
+  body_html          String?
+  cover_media_id     String?
+  media_ids          String[]  @default([])
+  tags               String[]  @default([])
+  service_ids        String[]  @default([])
+  category_ids       String[]  @default([])
+  is_promotion       Boolean   @default(false)
+  promotion_start_at DateTime?
+  promotion_end_at   DateTime?
+  view_count         Int       @default(0)
+  like_count         Int       @default(0)
+  comment_count      Int       @default(0)
+  share_count        Int       @default(0)
+  bookmark_count     Int       @default(0)
+  status             String    @default("published")
+  scheduled_at       DateTime?
+  published_at       DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  deleted_at         DateTime?
+
+  author       users              @relation("PostAuthor", fields: [author_user_id], references: [id])
+  company      companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  branch       branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  professional professionals?     @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  media_list   post_media[]
+  services     post_services[]
+  likes        likes[]
+  comments     comments[]
+  favorites    favorites[]
+  collections  collection_items[]
+
+  @@index([author_user_id])
+  @@index([author_role])
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([branch_id])
+  @@index([status])
+  @@index([published_at])
+  @@index([created_at])
+  @@index([like_count])
+  @@index([view_count])
+  @@index([slug])
+}
+
+model post_media {
+  id         String   @id @default(cuid())
+  post_id    String
+  media_id   String
+  media_type String
+  sort_order Int      @default(0)
+  caption    String?
+  created_at DateTime @default(now())
+
+  post posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([post_id])
+  @@index([sort_order])
+}
+
+model post_services {
+  id          String   @id @default(cuid())
+  post_id     String
+  service_id  String
+  category_id String?
+  is_primary  Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  post     posts               @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  service  services            @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  category service_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+
+  @@unique([post_id, service_id])
+  @@index([service_id])
+}
+
+model likes {
+  id         String   @id @default(cuid())
+  user_id    String
+  post_id    String
+  created_at DateTime @default(now())
+
+  user        users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post        posts      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  customers   customers? @relation(fields: [customersId], references: [id])
+  customersId String?
+
+  @@unique([user_id, post_id])
+  @@index([post_id])
+}
+
+model comments {
+  id                String    @id @default(cuid())
+  user_id           String
+  post_id           String
+  parent_comment_id String?
+  body              String
+  like_count        Int       @default(0)
+  reported_count    Int       @default(0)
+  status            String    @default("published")
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
+
+  user        users      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post        posts      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  parent      comments?  @relation("CommentTree", fields: [parent_comment_id], references: [id])
+  children    comments[] @relation("CommentTree")
+  customers   customers? @relation(fields: [customersId], references: [id])
+  customersId String?
+
+  @@index([user_id])
+  @@index([post_id])
+  @@index([parent_comment_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model follows {
+  id               String   @id @default(cuid())
+  follower_user_id String
+  target_type      String
+  target_id        String
+  company_id       String?
+  professional_id  String?
+  created_at       DateTime @default(now())
+
+  follower     users          @relation("Follower", fields: [follower_user_id], references: [id], onDelete: Cascade)
+  company      companies?     @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  professional professionals? @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  customers    customers?     @relation(fields: [customersId], references: [id])
+  customersId  String?
+
+  @@unique([follower_user_id, target_type, target_id])
+  @@index([follower_user_id])
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([target_type, target_id])
+}
+
+model favorites {
+  id              String   @id @default(cuid())
+  user_id         String
+  favorite_type   String
+  entity_id       String
+  company_id      String?
+  branch_id       String?
+  service_id      String?
+  professional_id String?
+  post_id         String?
+  created_at      DateTime @default(now())
+
+  user         users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  company      companies?     @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch       branches?      @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  service      services?      @relation(fields: [service_id], references: [id], onDelete: Cascade)
+  professional professionals? @relation(fields: [professional_id], references: [id], onDelete: Cascade)
+  post         posts?         @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  customers    customers?     @relation(fields: [customersId], references: [id])
+  customersId  String?
+
+  @@unique([user_id, favorite_type, entity_id])
+  @@index([user_id])
+  @@index([favorite_type])
+  @@index([company_id])
+  @@index([service_id])
+  @@index([professional_id])
+  @@index([post_id])
+}
+
+model collections {
+  id             String   @id @default(cuid())
+  user_id        String
+  name           String
+  description    String?
+  cover_media_id String?
+  is_public      Boolean  @default(false)
+  item_count     Int      @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  items collection_items[]
+
+  @@index([user_id])
+  @@index([is_public])
+}
+
+model collection_items {
+  id            String   @id @default(cuid())
+  collection_id String
+  post_id       String
+  sort_order    Int      @default(0)
+  added_at      DateTime @default(now())
+  created_at    DateTime @default(now())
+
+  collection collections @relation(fields: [collection_id], references: [id], onDelete: Cascade)
+  post       posts       @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([collection_id, post_id])
+  @@index([collection_id])
+}
+
+model media_consents {
+  id                     String    @id @default(cuid())
+  user_id                String
+  company_id             String
+  appointment_id         String?
+  consent_type           String
+  allowed_usage          String[]
+  media_ids              String[]  @default([])
+  expires_at             DateTime?
+  signed_at              DateTime
+  revoked_at             DateTime?
+  customer_signature_url String?
+  witness_name           String?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  @@index([user_id])
+  @@index([company_id])
+  @@index([appointment_id])
+}
+
+// ============================================================
+// CONVERSATIONS & MESSAGES
+// ============================================================
+
+model conversations {
+  id              String    @id @default(cuid())
+  company_id      String?
+  appointment_id  String?
+  last_message_id String?
+  last_message_at DateTime?
+  unread_count    Json?
+  is_archived     Boolean   @default(false)
+  type            String    @default("direct")
+  metadata        Json?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  members  conversation_members[]
+  messages messages[]
+
+  @@index([company_id])
+  @@index([appointment_id])
+  @@index([last_message_at])
+  @@index([type])
+}
+
+model conversation_members {
+  id                   String    @id @default(cuid())
+  conversation_id      String
+  user_id              String
+  customer_id          String?
+  joined_at            DateTime  @default(now())
+  left_at              DateTime?
+  last_read_message_id String?
+  last_read_at         DateTime?
+  is_admin             Boolean   @default(false)
+  notifications_muted  Boolean   @default(false)
+
+  conversation conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user         users         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  customer     customers?    @relation(fields: [customer_id], references: [id], onDelete: SetNull)
+
+  @@unique([conversation_id, user_id])
+  @@index([conversation_id])
+  @@index([user_id])
+  @@index([customer_id])
+}
+
+model messages {
+  id              String    @id @default(cuid())
+  conversation_id String
+  sender_user_id  String
+  message_type    String    @default("text")
+  body_plain      String?
+  body_html       String?
+  reply_to_id     String?
+  edited_at       DateTime?
+  deleted_at      DateTime?
+  metadata        Json?
+  created_at      DateTime  @default(now())
+
+  conversation conversations         @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       users                 @relation("MessageSender", fields: [sender_user_id], references: [id])
+  attachments  message_attachments[]
+
+  @@index([conversation_id])
+  @@index([sender_user_id])
+  @@index([created_at])
+  @@index([conversation_id, created_at])
+}
+
+model message_attachments {
+  id         String   @id @default(cuid())
+  message_id String
+  media_id   String
+  media_type String
+  file_name  String?
+  size_bytes Int?
+  sort_order Int      @default(0)
+  created_at DateTime @default(now())
+
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
+
+  @@index([message_id])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model notifications {
+  id                      String    @id @default(cuid())
+  recipient_user_id       String
+  notification_type       String
+  scope_type              String?
+  scope_id                String?
+  company_id              String?
+  branch_id               String?
+  title                   String
+  title_translations      Json?
+  body                    String
+  body_translations       Json?
+  image_media_id          String?
+  deep_link               String?
+  payload                 Json?
+  priority                String    @default("normal")
+  channels                String[]
+  sent_at                 DateTime?
+  read_at                 DateTime?
+  clicked_at              DateTime?
+  dismissed_at            DateTime?
+  expires_at              DateTime?
+  related_notification_id String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  recipient   users      @relation(fields: [recipient_user_id], references: [id], onDelete: Cascade)
+  customers   customers? @relation(fields: [customersId], references: [id])
+  customersId String?
+
+  @@index([recipient_user_id])
+  @@index([notification_type])
+  @@index([company_id])
+  @@index([read_at])
+  @@index([sent_at])
+  @@index([created_at])
+  @@index([recipient_user_id, read_at])
+  @@index([recipient_user_id, created_at])
+}
+
+model notification_preferences {
+  id                        String   @id @default(cuid())
+  user_id                   String   @unique
+  email_marketing           Boolean  @default(false)
+  email_bookings            Boolean  @default(true)
+  email_reviews             Boolean  @default(true)
+  push_marketing            Boolean  @default(false)
+  push_bookings             Boolean  @default(true)
+  push_reviews              Boolean  @default(true)
+  push_messages             Boolean  @default(true)
+  push_system               Boolean  @default(true)
+  sms_bookings              Boolean  @default(false)
+  sms_reminders             Boolean  @default(false)
+  nearby_enabled            Boolean  @default(false)
+  nearby_radius_meters      Int      @default(1000)
+  auto_translate            Boolean  @default(false)
+  reduced_motion            Boolean  @default(false)
+  high_contrast             Boolean  @default(false)
+  show_verified_only        Boolean  @default(false)
+  default_payment_method_id String?
+  do_not_disturb            Json?
+  muted_types               String[] @default([])
+  sound_enabled             Boolean  @default(true)
+  vibration_enabled         Boolean  @default(true)
+  led_enabled               Boolean  @default(true)
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model location_preferences {
+  id                      String   @id @default(cuid())
+  user_id                 String   @unique
+  gps_enabled             Boolean  @default(false)
+  approximate_location    Boolean  @default(false)
+  home_area_id            String?
+  work_area_id            String?
+  home_latitude           Float?
+  home_longitude          Float?
+  work_latitude           Float?
+  work_longitude          Float?
+  search_radius_default_m Int      @default(5000)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model nearby_notification_preferences {
+  id                          String   @id @default(cuid())
+  user_id                     String   @unique
+  enabled                     Boolean  @default(false)
+  distance_threshold_meters   Int      @default(500)
+  min_rating                  Float?
+  category_ids                String[] @default([])
+  favorite_businesses_only    Boolean  @default(false)
+  followed_professionals_only Boolean  @default(false)
+  include_offers              Boolean  @default(true)
+  include_availability        Boolean  @default(true)
+  daily_max_notifications     Int      @default(5)
+  quiet_hours_start           String?
+  quiet_hours_end             String?
+  quiet_hours_timezone        String?
+  cooldown_minutes_business   Int      @default(360)
+  cooldown_minutes_category   Int      @default(120)
+  created_at                  DateTime @default(now())
+  updated_at                  DateTime @updatedAt
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model geofence_candidates {
+  id               String    @id @default(cuid())
+  user_id          String
+  company_id       String?
+  professional_id  String?
+  latitude         Float
+  longitude        Float
+  radius_meters    Int       @default(200)
+  priority_score   Float
+  expiration_at    DateTime?
+  refresh_batch_id String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  @@index([user_id])
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([priority_score])
+  @@index([expiration_at])
+}
+
+model recommendation_events {
+  id                  String    @id @default(cuid())
+  user_id             String
+  recommendation_type String
+  entity_type         String
+  entity_id           String
+  score               Float?
+  reasons             Json?
+  delivered_via       String[]  @default([])
+  clicked_at          DateTime?
+  converted_at        DateTime?
+  dismissed_at        DateTime?
+  created_at          DateTime  @default(now())
+
+  @@index([user_id])
+  @@index([recommendation_type])
+  @@index([entity_type, entity_id])
+  @@index([created_at])
+}
+
+model notification_cooldowns {
+  id             String   @id @default(cuid())
+  user_id        String
+  cooldown_key   String
+  scope_id       String?
+  cooldown_until DateTime
+  last_sent_at   DateTime @default(now())
+  send_count     Int      @default(1)
+  created_at     DateTime @default(now())
+
+  @@unique([user_id, cooldown_key, scope_id])
+  @@index([user_id, cooldown_key, scope_id])
+  @@index([cooldown_until])
+}
+
+model business_nearby_campaigns {
+  id                  String    @id @default(cuid())
+  company_id          String
+  branch_id           String?
+  category_id         String?
+  name                String
+  description         String?
+  promotion_id        String?
+  budget_total        Float?
+  budget_daily        Float?
+  radius_meters       Int       @default(1000)
+  latitude            Float?
+  longitude           Float?
+  target_category_ids String[]  @default([])
+  min_rating_target   Float?
+  is_active           Boolean   @default(false)
+  starts_at           DateTime
+  ends_at             DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  company  companies           @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch   branches?           @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  category service_categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+
+  @@index([company_id])
+  @@index([is_active])
+  @@index([starts_at, ends_at])
+}
+
+// ============================================================
+// PROMOTIONS, COUPONS, PACKAGES, MEMBERSHIPS, GIFT CARDS, LOYALTY
+// ============================================================
+
+model promotions {
+  id                        String    @id @default(cuid())
+  company_id                String
+  branch_id                 String?
+  code                      String?
+  name                      String
+  description               String?
+  cover_media_id            String?
+  promotion_type            String
+  value_percent             Float?
+  value_fixed               Float?
+  minimum_order_amount      Float?
+  maximum_discount          Float?
+  eligible_category_ids     String[]  @default([])
+  eligible_service_ids      String[]  @default([])
+  eligible_professional_ids String[]  @default([])
+  new_customers_only        Boolean   @default(false)
+  first_visit_only          Boolean   @default(false)
+  weekday_only              Int[]     @default([])
+  happy_hour_start          String?
+  happy_hour_end            String?
+  is_active                 Boolean   @default(true)
+  is_public                 Boolean   @default(true)
+  starts_at                 DateTime
+  ends_at                   DateTime?
+  usage_limit               Int?
+  usage_count               Int       @default(0)
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @updatedAt
+
+  company      companies         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  branch       branches?         @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  rules        promotion_rules[]
+  coupon_usage coupon_usage[]
+  coupons      coupons[]
+
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([code])
+  @@index([is_active])
+  @@index([starts_at, ends_at])
+}
+
+model promotion_rules {
+  id           String   @id @default(cuid())
+  promotion_id String
+  rule_type    String
+  rule_json    Json
+  sort_order   Int      @default(0)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  promotion promotions @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
+
+  @@index([promotion_id])
+}
+
+model coupons {
+  id                   String    @id @default(cuid())
+  company_id           String
+  promotion_id         String?
+  code                 String    @unique
+  name                 String
+  description          String?
+  discount_type        String
+  discount_percent     Float?
+  discount_fixed       Float?
+  minimum_order_amount Float?
+  is_single_use        Boolean   @default(true)
+  is_per_user          Boolean   @default(false)
+  max_uses_total       Int?
+  max_uses_per_user    Int?
+  is_active            Boolean   @default(true)
+  valid_from           DateTime
+  valid_until          DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  company   companies      @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  promotion promotions?    @relation(fields: [promotion_id], references: [id], onDelete: SetNull)
+  usage     coupon_usage[]
+
+  @@index([company_id])
+  @@index([code])
+  @@index([is_active])
+  @@index([valid_from, valid_until])
+}
+
+model coupon_usage {
+  id           String   @id @default(cuid())
+  coupon_id    String
+  user_id      String
+  company_id   String
+  promotion_id String?
+  order_id     String?
+  amount_saved Float
+  used_at      DateTime @default(now())
+  created_at   DateTime @default(now())
+
+  coupon    coupons     @relation(fields: [coupon_id], references: [id])
+  user      users       @relation(fields: [user_id], references: [id])
+  company   companies   @relation(fields: [company_id], references: [id])
+  promotion promotions? @relation(fields: [promotion_id], references: [id], onDelete: SetNull)
+
+  @@index([coupon_id])
+  @@index([user_id])
+  @@index([company_id])
+}
+
+model packages {
+  id                   String   @id @default(cuid())
+  company_id           String
+  name                 String
+  description          String?
+  cover_media_id       String?
+  category_id          String?
+  service_ids          String[]
+  total_sessions_count Int
+  validity_days        Int?
+  price                Float
+  currency_code        String
+  discount_percent     Float?
+  discount_fixed       Float?
+  is_active            Boolean  @default(true)
+  is_featured          Boolean  @default(false)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  company   companies           @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  purchases package_purchases[]
+
+  @@index([company_id])
+  @@index([is_active])
+}
+
+model package_purchases {
+  id                 String    @id @default(cuid())
+  package_id         String
+  customer_id        String
+  payment_id         String?
+  sessions_purchased Int
+  sessions_remaining Int
+  price_paid         Float
+  currency_code      String
+  purchased_at       DateTime  @default(now())
+  expires_at         DateTime?
+  status             String    @default("active")
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  package  packages        @relation(fields: [package_id], references: [id])
+  customer customers       @relation(fields: [customer_id], references: [id])
+  usage    package_usage[]
+
+  @@index([package_id])
+  @@index([customer_id])
+  @@index([status])
+}
+
+model package_usage {
+  id                  String   @id @default(cuid())
+  package_purchase_id String
+  appointment_id      String?
+  service_id          String
+  professional_id     String?
+  sessions_used       Int      @default(1)
+  used_at             DateTime @default(now())
+  created_at          DateTime @default(now())
+
+  package_purchase package_purchases @relation(fields: [package_purchase_id], references: [id], onDelete: Cascade)
+  appointment      appointments?     @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  service          services          @relation(fields: [service_id], references: [id])
+
+  @@index([package_purchase_id])
+  @@index([appointment_id])
+}
+
+model memberships {
+  id                String   @id @default(cuid())
+  company_id        String
+  name              String
+  description       String?
+  cover_media_id    String?
+  price_monthly     Float
+  price_yearly      Float
+  currency_code     String
+  trial_days        Int      @default(0)
+  included_services Json?
+  discount_percent  Float?
+  features          Json?
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  company       companies                  @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  subscriptions membership_subscriptions[]
+
+  @@index([company_id])
+  @@index([is_active])
+}
+
+model membership_subscriptions {
+  id                 String    @id @default(cuid())
+  membership_id      String
+  customer_id        String
+  payment_method_id  String?
+  billing_cycle      String
+  price_per_cycle    Float
+  currency_code      String
+  status             String    @default("active")
+  started_at         DateTime  @default(now())
+  current_period_end DateTime?
+  ends_at            DateTime?
+  cancelled_at       DateTime?
+  trial_end_at       DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  membership memberships @relation(fields: [membership_id], references: [id])
+  customer   customers   @relation(fields: [customer_id], references: [id])
+
+  @@index([membership_id])
+  @@index([customer_id])
+  @@index([status])
+}
+
+model gift_cards {
+  id              String    @id @default(cuid())
+  company_id      String?
+  code            String    @unique
+  recipient_name  String?
+  recipient_email String?
+  recipient_phone String?
+  sender_name     String?
+  message         String?
+  cover_media_id  String?
+  initial_amount  Float
+  currency_code   String
+  expires_at      DateTime?
+  is_active       Boolean   @default(true)
+  purchased_at    DateTime  @default(now())
+  purchased_by_id String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  company companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  ledger  gift_card_ledger[]
+
+  @@index([company_id])
+  @@index([code])
+  @@index([is_active])
+  @@index([expires_at])
+}
+
+model gift_card_ledger {
+  id               String   @id @default(cuid())
+  gift_card_id     String
+  transaction_type String
+  amount           Float
+  balance_after    Float
+  currency_code    String
+  reference_id     String?
+  reference_type   String?
+  wallet_id        String?
+  description      String?
+  created_at       DateTime @default(now())
+
+  gift_card gift_cards @relation(fields: [gift_card_id], references: [id], onDelete: Cascade)
+  wallet    wallets?   @relation(fields: [wallet_id], references: [id], onDelete: SetNull)
+
+  @@index([gift_card_id])
+  @@index([transaction_type])
+}
+
+model loyalty_accounts {
+  id               String    @id @default(cuid())
+  customer_id      String    @unique
+  tier             String    @default("bronze")
+  points_balance   Int       @default(0)
+  total_points     Int       @default(0)
+  points_spent     Int       @default(0)
+  points_expiring  Int       @default(0)
+  next_tier_points Int?
+  tier_updated_at  DateTime?
+  last_activity_at DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  customer customers        @relation(fields: [customer_id], references: [id])
+  ledger   loyalty_ledger[]
+
+  @@index([tier])
+}
+
+model loyalty_ledger {
+  id                 String    @id @default(cuid())
+  loyalty_account_id String
+  transaction_type   String
+  points_change      Int
+  balance_after      Int
+  reference_id       String?
+  reference_type     String?
+  expires_at         DateTime?
+  description        String?
+  created_at         DateTime  @default(now())
+
+  loyalty_account loyalty_accounts @relation(fields: [loyalty_account_id], references: [id], onDelete: Cascade)
+
+  @@index([loyalty_account_id])
+  @@index([transaction_type])
+  @@index([expires_at])
+}
+
+model referrals {
+  id                    String    @id @default(cuid())
+  referrer_user_id      String
+  referred_user_id      String    @unique
+  referral_code_used    String
+  status                String    @default("pending")
+  qualifying_event_type String?
+  qualifying_event_id   String?
+  qualified_at          DateTime?
+  reward_type           String?
+  reward_amount         Float?
+  reward_points         Int?
+  reward_granted_at     DateTime?
+  referral_source       String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  referrer users @relation("ReferralReferrer", fields: [referrer_user_id], references: [id])
+  referred users @relation("ReferralReferred", fields: [referred_user_id], references: [id])
+
+  @@index([referrer_user_id])
+  @@index([status])
+  @@index([referral_code_used])
+}
+
+// ============================================================
+// PRODUCTS & INVENTORY
+// ============================================================
+
+model products {
+  id             String   @id @default(cuid())
+  company_id     String
+  category_id    String?
+  sku            String?
+  barcode        String?
+  name           String
+  description    String?
+  cover_media_id String?
+  price          Float
+  cost           Float?
+  currency_code  String
+  is_active      Boolean  @default(true)
+  is_salable     Boolean  @default(true)
+  is_consumable  Boolean  @default(false)
+  tax_percent    Float?
+  tags           String[] @default([])
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  company   companies             @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  inventory inventory_items[]
+  movements inventory_movements[]
+
+  @@index([company_id])
+  @@index([sku])
+  @@index([barcode])
+  @@index([is_active])
+  @@index([name])
+}
+
+model inventory_items {
+  id                String    @id @default(cuid())
+  product_id        String
+  branch_id         String?
+  quantity_on_hand  Int       @default(0)
+  quantity_reserved Int       @default(0)
+  reorder_level     Int       @default(0)
+  reorder_quantity  Int?
+  last_restocked_at DateTime?
+  cost_unit         Float?
+  location_note     String?
+  batch_number      String?
+  expires_at        DateTime?
+  is_active         Boolean   @default(true)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  product   products              @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  branch    branches?             @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  movements inventory_movements[]
+
+  @@unique([product_id, branch_id, batch_number])
+  @@index([product_id])
+  @@index([branch_id])
+  @@index([expires_at])
+}
+
+model inventory_movements {
+  id              String   @id @default(cuid())
+  product_id      String
+  inventory_id    String?
+  branch_id       String?
+  movement_type   String
+  quantity_change Int
+  balance_after   Int
+  reference_id    String?
+  reference_type  String?
+  reason          String?
+  unit_cost       Float?
+  created_by_id   String?
+  created_at      DateTime @default(now())
+
+  product   products         @relation(fields: [product_id], references: [id])
+  inventory inventory_items? @relation(fields: [inventory_id], references: [id], onDelete: SetNull)
+  branch    branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+
+  @@index([product_id])
+  @@index([inventory_id])
+  @@index([movement_type])
+  @@index([created_at])
+}
+
+// ============================================================
+// CONSENT FORMS
+// ============================================================
+
+model consent_forms {
+  id                String   @id @default(cuid())
+  company_id        String
+  name              String
+  description       String?
+  form_type         String
+  content_html      String?
+  content_plain     String
+  fields_json       Json?
+  is_active         Boolean  @default(true)
+  version           Int      @default(1)
+  require_signature Boolean  @default(true)
+  require_photo_id  Boolean  @default(false)
+  expires_days      Int?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  company   companies                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  responses consent_form_responses[]
+
+  @@index([company_id])
+  @@index([is_active])
+}
+
+model consent_form_responses {
+  id              String    @id @default(cuid())
+  consent_form_id String
+  customer_id     String
+  appointment_id  String?
+  response_json   Json
+  signature_url   String?
+  photo_id_url    String?
+  signed_at       DateTime
+  expires_at      DateTime?
+  revoked_at      DateTime?
+  ip_address      String?
+  user_agent      String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  consent_form consent_forms @relation(fields: [consent_form_id], references: [id], onDelete: Cascade)
+  customer     customers     @relation(fields: [customer_id], references: [id])
+  appointment  appointments? @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+
+  @@index([consent_form_id])
+  @@index([customer_id])
+  @@index([appointment_id])
+}
+
+// ============================================================
+// SUBSCRIPTIONS, SUPPORT, DISPUTES, MODERATION, AUDIT, ANALYTICS
+// ============================================================
+
+model subscriptions {
+  id                 String    @id @default(cuid())
+  company_id         String
+  plan_id            String
+  customer_user_id   String?
+  status             String    @default("active")
+  billing_cycle      String
+  price_per_cycle    Float
+  currency_code      String
+  trial_ends_at      DateTime?
+  current_period_end DateTime?
+  started_at         DateTime  @default(now())
+  cancelled_at       DateTime?
+  ends_at            DateTime?
+  payment_method_id  String?
+  external_reference String?
+  metadata           Json?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  company companies          @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  plan    subscription_plans @relation(fields: [plan_id], references: [id])
+
+  @@index([company_id])
+  @@index([plan_id])
+  @@index([status])
+}
+
+model subscription_plans {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  description   String?
+  price_monthly Float
+  price_yearly  Float
+  currency_code String
+  trial_days    Int      @default(0)
+  is_active     Boolean  @default(true)
+  tier_level    Int      @default(1)
+  sort_order    Int      @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  features      subscription_features[]
+  subscriptions subscriptions[]
+
+  @@index([code])
+  @@index([is_active])
+}
+
+model subscription_features {
+  id          String   @id @default(cuid())
+  plan_id     String
+  feature_key String
+  name        String
+  value_json  Json?
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+
+  plan subscription_plans @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+
+  @@index([plan_id])
+  @@index([feature_key])
+}
+
+model commission_rules {
+  id                  String    @id @default(cuid())
+  company_id          String
+  name                String
+  description         String?
+  professional_id     String?
+  service_category_id String?
+  service_id          String?
+  calculation_type    String
+  percent_rate        Float?
+  fixed_amount        Float?
+  tiered_rates        Json?
+  effective_from      DateTime?
+  effective_to        DateTime?
+  is_active           Boolean   @default(true)
+  sort_order          Int       @default(0)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  company     companies     @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  commissions commissions[]
+
+  @@index([company_id])
+  @@index([professional_id])
+  @@index([is_active])
+}
+
+model support_tickets {
+  id                  String    @id @default(cuid())
+  user_id             String
+  company_id          String?
+  subject             String
+  description         String
+  priority            String    @default("normal")
+  category            String
+  status              String    @default("open")
+  assigned_to_id      String?
+  closed_at           DateTime?
+  satisfaction_rating Int?
+  tags                String[]  @default([])
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  messages support_messages[]
+
+  @@index([user_id])
+  @@index([company_id])
+  @@index([status])
+  @@index([priority])
+  @@index([created_at])
+}
+
+model support_messages {
+  id               String   @id @default(cuid())
+  ticket_id        String
+  author_user_id   String
+  author_type      String
+  body             String
+  attachment_ids   String[] @default([])
+  is_internal_note Boolean  @default(false)
+  created_at       DateTime @default(now())
+
+  ticket support_tickets @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id])
+  @@index([created_at])
+}
+
+model disputes {
+  id                 String    @id @default(cuid())
+  company_id         String
+  reporter_user_id   String
+  disputed_type      String
+  disputed_id        String
+  payment_id         String?
+  appointment_id     String?
+  reason             String
+  details            String?
+  evidence_media_ids String[]  @default([])
+  status             String    @default("open")
+  disputed_amount    Float?
+  currency_code      String?
+  resolution         String?
+  resolution_amount  Float?
+  resolved_by_id     String?
+  resolved_at        DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  company companies @relation(fields: [company_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id])
+  @@index([reporter_user_id])
+  @@index([status])
+  @@index([disputed_type, disputed_id])
+}
+
+model moderation_reports {
+  id                 String    @id @default(cuid())
+  reporter_user_id   String
+  target_type        String
+  target_id          String
+  reason_type        String
+  details            String?
+  evidence_media_ids String[]  @default([])
+  status             String    @default("pending")
+  reviewed_by_id     String?
+  reviewed_at        DateTime?
+  action_taken       String?
+  action_details     String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  @@index([target_type, target_id])
+  @@index([reporter_user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model audit_logs {
+  id             String   @id @default(cuid())
+  actor_user_id  String
+  actor_role     String?
+  action         String
+  entity_type    String
+  entity_id      String?
+  company_id     String?
+  branch_id      String?
+  old_value      Json?
+  new_value      Json?
+  ip_address     String?
+  user_agent     String?
+  session_id     String?
+  correlation_id String?
+  request_path   String?
+  request_method String?
+  metadata       Json?
+  created_at     DateTime @default(now())
+
+  actor users @relation("AuditActor", fields: [actor_user_id], references: [id])
+
+  @@index([actor_user_id])
+  @@index([action])
+  @@index([entity_type, entity_id])
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([created_at])
+}
+
+model analytics_events {
+  id              String   @id @default(cuid())
+  event_name      String
+  event_category  String
+  user_id         String?
+  anonymous_id    String?
+  company_id      String?
+  branch_id       String?
+  professional_id String?
+  service_id      String?
+  appointment_id  String?
+  properties      Json?
+  latitude        Float?
+  longitude       Float?
+  screen_name     String?
+  referrer        String?
+  utm_source      String?
+  utm_medium      String?
+  utm_campaign    String?
+  utm_content     String?
+  session_id      String?
+  device_type     String?
+  os_name         String?
+  app_version     String?
+  client_ip       String?
+  created_at      DateTime @default(now())
+
+  @@index([event_name])
+  @@index([event_category])
+  @@index([user_id])
+  @@index([company_id])
+  @@index([created_at])
+  @@index([event_name, created_at])
+}
+
+model daily_analytics_snapshots {
+  id                    String   @id @default(cuid())
+  snapshot_date         DateTime
+  company_id            String
+  branch_id             String?
+  professional_id       String?
+  metric_key            String
+  metric_value          Float
+  metric_label          String?
+  category              String
+  currency_code         String?
+  comparison_date_value Float?
+  trend_direction       String?
+  trend_percent         Float?
+  created_at            DateTime @default(now())
+
+  @@unique([snapshot_date, company_id, branch_id, professional_id, metric_key])
+  @@index([snapshot_date])
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([professional_id])
+  @@index([metric_key])
+}
+
+// ============================================================
+// MEDIA
+// ============================================================
+
+model media {
+  id                 String    @id @default(cuid())
+  uploader_user_id   String
+  company_id         String?
+  branch_id          String?
+  original_file_name String
+  stored_file_name   String
+  storage_key        String
+  storage_bucket     String
+  storage_provider   String    @default("minio")
+  mime_category      String
+  mime_type          String
+  size_bytes         Int
+  width_pixels       Int?
+  height_pixels      Int?
+  duration_seconds   Float?
+  blurhash           String?
+  dominant_color_hex String?
+  variants           Json?
+  alt_text           String?
+  caption            String?
+  tags               String[]  @default([])
+  checksum_sha256    String?
+  is_public          Boolean   @default(true)
+  license_type       String?
+  copyright_holder   String?
+  status             String    @default("uploaded")
+  processed_at       DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  resource_links resource_media[]
+
+  @@unique([storage_bucket, storage_key])
+  @@index([uploader_user_id])
+  @@index([company_id])
+  @@index([branch_id])
+  @@index([mime_category])
+  @@index([storage_bucket, storage_key])
+  @@index([status])
+  @@index([created_at])
+  @@index([is_public])
+}
+
+// ============================================================
+// AUTH TOKENS & VERIFICATION
+// ============================================================
+
+model password_reset_tokens {
+  id         String    @id @default(cuid())
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  ip_address String?
+  user_agent String?
+  created_at DateTime  @default(now())
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+}
+
+model email_verification_tokens {
+  id          String    @id @default(cuid())
+  user_id     String
+  email       String
+  token_hash  String    @unique
+  expires_at  DateTime
+  verified_at DateTime?
+  created_at  DateTime  @default(now())
+
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+}
+
+model phone_otp_tokens {
+  id            String    @id @default(cuid())
+  user_id       String?
+  phone         String
+  code_hash     String
+  purpose       String    @default("verify")
+  expires_at    DateTime
+  verified_at   DateTime?
+  attempt_count Int       @default(0)
+  send_count    Int       @default(1)
+  ip_address    String?
+  created_at    DateTime  @default(now())
+
+  user users? @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([phone])
+  @@index([purpose])
+  @@index([expires_at])
+}
+
+// ============================================================
+// MISSING §203 MODELS + MODERATION SUPPORT TABLES (Task 1 T1.2)
+// ============================================================
+
+model resource_media {
+  id          String   @id @default(cuid())
+  resource_id String
+  media_id    String
+  sort_order  Int      @default(0)
+  caption     String?
+  created_at  DateTime @default(now())
+
+  resource resources @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+  media    media     @relation(fields: [media_id], references: [id], onDelete: Cascade)
+
+  @@unique([resource_id, media_id, sort_order])
+  @@index([resource_id])
+  @@index([media_id])
+}
+
+model customer_preferred_resources {
+  id          String   @id @default(cuid())
+  customer_id String
+  resource_id String
+  rank_order  Int      @default(0)
+  note        String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  customer customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  resource resources @relation(fields: [resource_id], references: [id], onDelete: Cascade)
+
+  @@unique([customer_id, resource_id])
+  @@index([customer_id])
+  @@index([resource_id])
+}
+
+model user_strikes {
+  id            String    @id @default(cuid())
+  user_id       String
+  severity      String    @default("warning")
+  reason_type   String
+  reason_text   String?
+  report_id     String?
+  created_by_id String?
+  expires_at    DateTime?
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  user users @relation("UserStrike", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([is_active])
+  @@index([severity])
+  @@index([expires_at])
+}
+
+model moderation_appeals {
+  id                 String    @id @default(cuid())
+  target_type        String
+  target_id          String
+  reporter_user_id   String
+  strike_id          String?
+  reason_reversal    String
+  evidence_media_ids String[]  @default([])
+  status             String    @default("pending")
+  reviewed_by_id     String?
+  reviewed_at        DateTime?
+  resolution         String?
+  resolution_notes   String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  @@index([target_type, target_id])
+  @@index([reporter_user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model country_taxes {
+  id                  String    @id @default(cuid())
+  country_id          String
+  name                String
+  tax_code            String?
+  tax_type            String    @default("vat")
+  rate_percent        Float
+  applies_to_services Boolean   @default(true)
+  applies_to_products Boolean   @default(true)
+  effective_from      DateTime?
+  effective_to        DateTime?
+  is_default          Boolean   @default(false)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  country countries @relation(fields: [country_id], references: [id], onDelete: Cascade)
+
+  @@index([country_id])
+  @@index([tax_type])
+  @@index([is_default])
+}
+
+model bank_accounts {
+  id                  String   @id @default(cuid())
+  owner_type          String
+  owner_id            String
+  bank_name           String?
+  account_number      String?
+  account_holder      String?
+  routing_number      String?
+  iban                String?
+  swift_bic           String?
+  currency_code       String
+  is_verified         Boolean  @default(false)
+  verification_doc_id String?
+  payout_enabled      Boolean  @default(true)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@index([owner_type, owner_id])
+  @@index([currency_code])
+  @@index([is_verified])
+  @@index([payout_enabled])
+}

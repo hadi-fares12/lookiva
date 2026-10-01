@@ -1,0 +1,42 @@
+# Node
+node_modules/
+.pnpm-store/
+.next/
+dist/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Flutter / Android
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.gradle/
+android/.gradle/
+ios/Pods/
+
+# Builds
+*.apk
+*.aab
+*.ipa
+
+# Secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Archives - do not upload generated project ZIPs
+*.zip

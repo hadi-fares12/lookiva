@@ -1,0 +1,40 @@
+ARG APP=customer-web
+FROM node:22-alpine AS base
+ARG APP
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_MAP_STYLE_URL
+ARG NEXT_PUBLIC_MEDIA_BASE_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_MAP_STYLE_URL=${NEXT_PUBLIC_MAP_STYLE_URL}
+ENV NEXT_PUBLIC_MEDIA_BASE_URL=${NEXT_PUBLIC_MEDIA_BASE_URL}
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY packages ./packages
+COPY apps/${APP}/package.json apps/${APP}/package.json
+RUN pnpm install --frozen-lockfile --filter ./apps/${APP}... --prod=false
+COPY apps/${APP} ./apps/${APP}
+RUN pnpm --filter ./apps/${APP} build
+
+FROM node:22-alpine AS runtime
+ARG APP
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_MAP_STYLE_URL
+ARG NEXT_PUBLIC_MEDIA_BASE_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_MAP_STYLE_URL=${NEXT_PUBLIC_MAP_STYLE_URL}
+ENV NEXT_PUBLIC_MEDIA_BASE_URL=${NEXT_PUBLIC_MEDIA_BASE_URL}
+WORKDIR /app
+ENV NODE_ENV=production
+ENV APP_NAME=${APP}
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/apps/${APP} ./apps/${APP}
+COPY --from=base /app/packages ./packages
+COPY --from=base /app/package.json /app/pnpm-workspace.yaml ./
+USER node
+CMD ["sh", "-c", "pnpm --filter ./apps/${APP_NAME} start"]

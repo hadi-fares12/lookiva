@@ -1,0 +1,39 @@
+{
+  "name": "@lookiva/admin-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start -p 3003",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.3",
+    "@types/react": "^18.2.48",
+    "@types/node": "^20.11.0",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8.4.33",
+    "autoprefixer": "^10.4.17",
+    "next-intl": "^3.5.4",
+    "axios": "^1.6.5",
+    "@lookiva/design-tokens": "workspace:*",
+    "@lookiva/localization": "workspace:*",
+    "@lookiva/api-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@lookiva/typescript-config": "workspace:*",
+    "@lookiva/eslint-config": "workspace:*",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.2.0",
+    "vitest": "^1.2.2",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.2.1",
+    "jsdom": "^24.0.0",
+    "@types/testing-library__jest-dom": "^6.0.0"
+  }
+}

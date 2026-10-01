@@ -1,0 +1,18 @@
+{
+  "name": "@lookiva/eslint-config",
+  "version": "0.1.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "base.js",
+    "nest.js",
+    "next.js"
+  ],
+  "scripts": {
+    "lint": "echo \"no lint needed for eslint-config package\""
+  },
+  "peerDependencies": {
+    "eslint": "^8.57.0 || ^9.0.0",
+    "typescript": "^5.0.0"
+  }
+}

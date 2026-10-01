@@ -1,0 +1,15 @@
+{
+  "name": "@lookiva/api-contracts",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@lookiva/shared-types": "workspace:*",
+    "@lookiva/shared-validation": "workspace:*"
+  }
+}

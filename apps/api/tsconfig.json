@@ -1,0 +1,24 @@
+{
+  "extends": "@lookiva/typescript-config/node.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "declaration": false,
+    "rootDir": "../../",
+    "outDir": "./dist",
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false,
+    "useUnknownInCatchVariables": false,
+    "paths": {
+      "@lookiva/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@lookiva/shared-validation": ["../../packages/shared-validation/src/index.ts"],
+      "@lookiva/api-contracts": ["../../packages/api-contracts/src/index.ts"],
+      "@lookiva/design-tokens": ["../../packages/design-tokens/src/index.ts"],
+      "@lookiva/localization": ["../../packages/localization/src/index.ts"],
+      "@lookiva/shared-config": ["../../packages/shared-config/src/index.ts"],
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

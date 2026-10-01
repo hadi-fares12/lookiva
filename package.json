@@ -1,0 +1,34 @@
+{
+  "name": "lookiva-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "settings:apply": "node scripts/apply-settings.js all",
+    "settings:root": "node scripts/apply-settings.js root",
+    "settings:api": "node scripts/apply-settings.js api",
+    "settings:web": "node scripts/apply-settings.js customer && node scripts/apply-settings.js business && node scripts/apply-settings.js admin",
+    "typecheck": "node scripts/apply-settings.js all && pnpm --filter @lookiva/api typecheck && pnpm --filter @lookiva/customer-web typecheck && pnpm --filter @lookiva/business-web typecheck && pnpm --filter @lookiva/admin-web typecheck",
+    "build": "node scripts/apply-settings.js all && pnpm --filter @lookiva/api build && pnpm --filter @lookiva/customer-web build && pnpm --filter @lookiva/business-web build && pnpm --filter @lookiva/admin-web build",
+    "test": "pnpm --filter @lookiva/api test:unit && pnpm --filter @lookiva/customer-web test",
+    "dev:api": "node scripts/apply-settings.js api && pnpm --filter @lookiva/api dev",
+    "dev:customer": "node scripts/apply-settings.js customer && pnpm --filter @lookiva/customer-web dev",
+    "dev:business": "node scripts/apply-settings.js business && pnpm --filter @lookiva/business-web dev",
+    "dev:admin": "node scripts/apply-settings.js admin && pnpm --filter @lookiva/admin-web dev",
+    "setup": "node scripts/apply-settings.js all && pnpm --filter @lookiva/api prisma:generate && pnpm --filter @lookiva/api prisma:migrate && pnpm --filter @lookiva/api prisma:seed",
+    "verify": "bash scripts/verify.sh",
+    "verify:static": "STATIC_ONLY=1 bash scripts/release-gate.sh",
+    "release:gate": "bash scripts/release-gate.sh",
+    "build:workers": "node scripts/apply-settings.js workers && pnpm --filter @lookiva/workers build",
+    "build:flutter:customer": "cd apps/customer-mobile && flutter pub get && flutter build apk --release --dart-define=LOOKIVA_API_URL=http://192.168.1.120:8000/api/v1",
+    "build:flutter:business": "cd apps/business-mobile && flutter pub get && flutter build apk --release --dart-define=LOOKIVA_API_URL=http://192.168.1.120:8000/api/v1",
+    "build:flutter": "pnpm build:flutter:customer && pnpm build:flutter:business"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

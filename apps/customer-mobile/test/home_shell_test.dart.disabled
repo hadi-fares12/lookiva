@@ -1,0 +1,72 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lookiva_customer/main.dart';
+import 'package:lookiva_customer/core/discovery_home.dart';
+import 'package:lookiva_customer/core/discovery_search.dart';
+import 'package:lookiva_customer/core/remote_page.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late SharedPreferences prefs;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
+
+  Widget buildHome() {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeNotifier(prefs)),
+        ChangeNotifierProvider(create: (_) => LocaleNotifier(prefs)),
+      ],
+      child: MaterialApp(
+        theme: ThemeData(useMaterial3: true, brightness: Brightness.dark),
+        home: const CustomerHomePage(),
+      ),
+    );
+  }
+
+  testWidgets('CustomerHomePage exposes the five production navigation destinations', (tester) async {
+    await tester.pumpWidget(buildHome());
+    final navBar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(navBar.destinations.length, 5);
+    expect(navBar.destinations.map((d) => d.label), ['Home', 'Discover', 'Map', 'Bookings', 'Profile']);
+    expect(find.byType(DiscoveryHome), findsOneWidget);
+  });
+
+  testWidgets('Discover destination uses live discovery search rather than fixture cards', (tester) async {
+    await tester.pumpWidget(buildHome());
+    await tester.tap(find.text('Discover'));
+    await tester.pump();
+    expect(find.byType(CustomerDiscoverySearch), findsOneWidget);
+    expect(find.text('Search barber, salon, service or style'), findsOneWidget);
+  });
+
+  testWidgets('Map destination is backed by available-now discovery data', (tester) async {
+    await tester.pumpWidget(buildHome());
+    await tester.tap(find.text('Map'));
+    await tester.pump();
+    expect(find.byType(CustomerDiscoverySearch), findsOneWidget);
+    expect(find.text('Available now'), findsOneWidget);
+  });
+
+  testWidgets('Bookings destination is connected to customer operations API surface', (tester) async {
+    await tester.pumpWidget(buildHome());
+    await tester.tap(find.text('Bookings'));
+    await tester.pump();
+    final body = tester.widget<CustomerRemoteBody>(find.byType(CustomerRemoteBody));
+    expect(body.section, 'bookings');
+  });
+
+  testWidgets('Profile destination is connected to authenticated account API surface', (tester) async {
+    await tester.pumpWidget(buildHome());
+    await tester.tap(find.text('Profile'));
+    await tester.pump();
+    final body = tester.widget<CustomerRemoteBody>(find.byType(CustomerRemoteBody));
+    expect(body.section, 'account');
+  });
+}

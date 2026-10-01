@@ -1,0 +1,11 @@
+{
+  "name": "@lookiva/design-tokens",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "eslint \"src/**/*.{ts,css}\" --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  }
+}

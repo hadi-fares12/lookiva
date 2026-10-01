@@ -1,0 +1,4516 @@
+# ULTIMATE MASTER BUILD PROMPT
+
+You are the principal software architect, senior product engineer, senior NestJS backend engineer, senior PostgreSQL/PostGIS engineer, senior Flutter engineer, senior Next.js/React engineer, DevOps engineer, security engineer, QA engineer, data engineer, UX/UI designer and technical product owner responsible for building this complete application.
+
+Your task is NOT to return:
+
+- only architecture
+- only mockups
+- only database tables
+- only wireframes
+- only frontend pages
+- only a roadmap
+- TODO placeholders
+- fake APIs
+- disconnected demo screens
+- a partial MVP falsely described as complete
+
+Your task is to:
+
+# BUILD THE ACTUAL WORKING APPLICATION REPOSITORY
+
+Build the frontend applications, backend, database schema, migrations, APIs, permissions, realtime services, media handling, analytics, tests, documentation and local development setup.
+
+Do not stop after scaffolding.
+
+Do not claim a feature is finished unless the implementation actually exists and relevant tests/builds pass.
+
+When a minor decision is unspecified, choose the safest, cleanest, fastest and most scalable modern solution and continue.
+
+Only require external input for credentials that genuinely cannot be generated locally, such as:
+
+- production payment provider secrets
+- production Google/Apple OAuth credentials
+- SMS provider credentials
+- WhatsApp Business credentials
+- production push credentials
+- proprietary map-provider key if selected
+
+When a credential is missing:
+
+1. Build the complete provider abstraction.
+2. Build a local/test implementation.
+3. Add configuration to `.env.example`.
+4. Document the production activation process.
+5. Continue building the rest of the system.
+
+Do not stop the project because one external integration is unavailable.
+
+---
+
+# 1. PRODUCT VISION
+
+Build a premium international discovery, booking, social-content and business-management platform for:
+
+- men's barbers
+- women's salons
+- unisex salons
+- hairstylists
+- hair colorists
+- beard specialists
+- nail professionals
+- makeup artists
+- beauty centers
+- spas
+- skincare professionals
+- bridal professionals
+- freelancers
+- home-service beauty professionals
+
+Initial launch market:
+
+# Lebanon
+
+But never hard-code Lebanon into the architecture.
+
+The platform must later support other countries, currencies, regions, languages, taxes, payment methods and regulatory configurations without redesigning the core system.
+
+---
+
+# 2. PRODUCT POSITIONING
+
+Primary message:
+
+# Discover your look. Find the artist. Book instantly.
+
+Alternative:
+
+# See the work. Choose the artist. Know the price. Book the look.
+
+The product must NOT feel like an old salon directory.
+
+It should combine the best concepts of:
+
+- TikTok/Reels
+- Instagram portfolios
+- Google Maps
+- modern marketplaces
+- booking platforms
+- WhatsApp-style communication
+- professional appointment software
+- salon operating systems
+- CRM
+- loyalty systems
+- business analytics
+
+---
+
+# 3. CORE DATA RELATIONSHIP
+
+The platform revolves around:
+
+```text
+CONTENT
+↓
+PROFESSIONAL
+↓
+SERVICE
+↓
+COMPANY
+↓
+BRANCH
+↓
+CHAIR / RESOURCE
+↓
+PRICE
+↓
+AVAILABILITY
+↓
+BOOKING
+↓
+PAYMENT
+↓
+COMPLETION
+↓
+VERIFIED REVIEW
+↓
+REBOOK / FOLLOW
+```
+
+---
+
+# 4. REQUIRED APPLICATIONS
+
+Build:
+
+## Customer Mobile App
+
+Flutter.
+
+Platforms:
+
+- Android
+- iOS
+
+## Business Mobile App
+
+Flutter.
+
+For:
+
+- salon owners
+- professionals
+- managers
+- receptionists
+- staff
+
+## Customer Web/PWA
+
+Next.js + React + TypeScript.
+
+Use for:
+
+- SEO
+- shareable profiles
+- web booking
+- discovery
+- public pages
+- users who do not want to install app
+
+## Business Web Dashboard
+
+Next.js + React + TypeScript.
+
+Optimized for:
+
+- desktop
+- tablets
+- reception desks
+- owners
+
+## Super Admin Dashboard
+
+Next.js + React + TypeScript.
+
+## Backend
+
+NestJS + TypeScript.
+
+## Database
+
+PostgreSQL + PostGIS.
+
+## Supporting Infrastructure
+
+- Redis
+- background workers
+- object storage
+- CDN-ready media
+- WebSockets/realtime
+- Docker Compose
+
+All applications must use one authoritative backend/domain model.
+
+---
+
+# 5. RECOMMENDED REPOSITORY
+
+```text
+/apps
+    /api
+    /workers
+    /customer-web
+    /business-web
+    /admin-web
+    /customer-mobile
+    /business-mobile
+
+/packages
+    /api-contracts
+    /shared-types
+    /shared-config
+    /shared-validation
+    /design-tokens
+    /localization
+    /eslint-config
+    /typescript-config
+
+/infrastructure
+
+/docs
+
+/scripts
+```
+
+Use a monorepo.
+
+---
+
+# 6. BACKEND STACK
+
+Use:
+
+- Node.js
+- NestJS
+- TypeScript
+- PostgreSQL
+- PostGIS
+- Prisma
+- Prisma migrations
+- Redis
+- BullMQ or equivalent
+- WebSockets/Socket.IO
+- Swagger/OpenAPI
+- secure authentication
+- rotating refresh tokens
+
+---
+
+# 7. ONE-COMMAND LOCAL SETUP
+
+A clean developer environment should be able to run commands similar to:
+
+```text
+docker compose up -d
+pnpm install
+pnpm setup
+pnpm dev
+```
+
+The setup command should:
+
+- validate environment
+- start/verify PostgreSQL
+- enable PostGIS
+- generate ORM client
+- execute migrations
+- seed development data
+- initialize object-storage buckets
+- verify Redis
+- prepare workers
+- print useful development credentials
+
+Flutter run commands must also be documented.
+
+---
+
+# 8. AUTOMATIC DATABASE CREATION
+
+The developer must NOT manually create dozens of tables.
+
+Create schema in code and use migrations.
+
+Provide:
+
+- development seed
+- test seed
+- production-safe migrations
+
+Never use destructive automatic schema synchronization in production.
+
+---
+
+# 9. COUNTRY STRUCTURE
+
+Model:
+
+```text
+Country
+→ Region/Governorate
+→ District
+→ City/Town
+→ Area
+```
+
+Country configuration should support:
+
+- ISO code
+- calling code
+- currencies
+- languages
+- timezone
+- address rules
+- tax rules
+- enabled status
+
+Seed Lebanon initially.
+
+---
+
+# 10. LANGUAGES
+
+Launch with:
+
+- English
+- Arabic
+- French
+
+Arabic must have FULL RTL.
+
+Do not hard-code visible UI strings.
+
+Use localization keys.
+
+Support translated:
+
+- UI
+- validation
+- emails
+- notifications
+- category names
+- services
+- public business content
+- dates
+- numbers
+- currencies
+
+---
+
+# 11. GLOBAL LANGUAGE CONTROL
+
+Every major page should have easy language access.
+
+Example:
+
+```text
+[Logo]            [Theme] [🌐 EN] [Notifications] [Profile]
+```
+
+Allow instant switching:
+
+```text
+English
+العربية
+Français
+```
+
+Arabic must switch layouts immediately to RTL.
+
+Persist user preference.
+
+---
+
+# 12. DESIGN SYSTEM
+
+Use a premium modern 2026-style visual language.
+
+Avoid generic Bootstrap-style UI.
+
+Use:
+
+- large media
+- strong typography
+- rounded surfaces
+- modern cards
+- smooth bottom sheets
+- responsive tables
+- clear spacing
+- subtle animations
+- skeleton loaders
+- accessibility
+- dark/light support
+
+---
+
+# 13. DEFAULT THEME — MIDNIGHT GOLD
+
+Main surfaces:
+
+```text
+#080808
+#101010
+#151515
+```
+
+Gold accents:
+
+```text
+#C9A227
+#D4AF37
+#E4C35A
+```
+
+Use gold for:
+
+- selected states
+- important CTAs
+- active navigation
+- premium indicators
+- selected chair/resource
+- subtle decorative elements
+
+Do not make the whole app gold.
+
+---
+
+# 14. SILVER LIGHT THEME
+
+Light backgrounds:
+
+```text
+#FFFFFF
+#F7F7F8
+#ECEDEF
+```
+
+Text:
+
+```text
+#111111
+#242424
+```
+
+Silver accents:
+
+```text
+#A7ABB2
+#C5C8CE
+```
+
+Gold can remain a restrained brand accent.
+
+---
+
+# 15. THEME SWITCHER
+
+Support:
+
+- Midnight Gold
+- Silver Light
+- Follow System
+
+Place accessible theme icon in top bar.
+
+Persist theme per user.
+
+Guests use local storage/device preference.
+
+---
+
+# 16. PLATFORM BRAND SETTINGS
+
+Super Admin can configure:
+
+- app name
+- dark logo
+- light logo
+- favicon
+- app icon references
+- default theme
+- enabled themes
+- primary accent
+
+Simple branding changes should not require recompilation where technically reasonable.
+
+---
+
+# 17. GLOBAL PAGE QUALITY RULE
+
+EVERY PAGE MUST SUPPORT:
+
+- real backend data
+- proper loading state
+- skeleton where useful
+- empty state
+- network error
+- retry
+- permission denied
+- responsive design
+- English
+- Arabic RTL
+- French
+- Midnight Gold
+- Silver Light
+- accessibility
+- relevant tests
+
+A page is not complete merely because it renders.
+
+---
+
+# 18. USER TYPES
+
+Support:
+
+- Guest
+- Customer
+- Professional
+- Freelancer
+- Owner
+- Branch Manager
+- Receptionist
+- Employee
+- Accountant
+- Content Manager
+- Support Agent
+- Moderator
+- Platform Admin
+- Super Admin
+
+---
+
+# 19. RBAC
+
+Implement:
+
+- roles
+- permissions
+- role_permissions
+- user_role_scopes
+- optional overrides
+
+Scopes:
+
+- platform
+- company
+- branch
+
+Do not authorize simply with:
+
+```text
+if role === "admin"
+```
+
+---
+
+# 20. AUTHENTICATION
+
+Support architecture for:
+
+- email/password
+- phone/password
+- OTP
+- Google
+- Apple
+
+Features:
+
+- register
+- login
+- logout
+- password reset
+- email verification
+- phone verification
+- refresh rotation
+- active sessions
+- revoke device
+- logout everywhere
+- optional 2FA
+- rate limiting
+- brute-force protection
+
+---
+
+# CUSTOMER APPLICATION
+
+# 21. SPLASH PAGE
+
+Show:
+
+- logo
+- branded animation
+
+During startup:
+
+- restore session
+- restore theme
+- restore language
+- validate token
+- route correctly
+
+Keep startup fast.
+
+---
+
+# 22. ONBOARDING PAGE
+
+Slides:
+
+1. Discover nearby places.
+2. See real professional work.
+3. Book professionals and chairs.
+4. Get real availability.
+5. Receive optional nearby recommendations.
+
+Buttons:
+
+- Skip
+- Next
+- Get Started
+
+---
+
+# 23. LANGUAGE PAGE
+
+Allow:
+
+- English
+- Arabic
+- French
+
+Instant preview.
+
+---
+
+# 24. LOGIN PAGE
+
+Support:
+
+- phone/email
+- password
+- OTP
+- Google
+- Apple
+
+Actions:
+
+- Login
+- Register
+- Forgot Password
+
+---
+
+# 25. REGISTRATION PAGE
+
+Fields:
+
+- first name
+- last name
+- phone
+- email
+- password
+- language
+- optional photo
+
+Terms/privacy acceptance.
+
+---
+
+# 26. LOCATION PERMISSION PAGE
+
+Explain why location improves discovery.
+
+Options:
+
+- Allow
+- Choose Area
+- Not Now
+
+Browsing must still work without permission.
+
+---
+
+# 27. NEARBY RECOMMENDATION OPT-IN
+
+Separate explicit permission.
+
+Explain:
+
+> Receive useful recommendations when a highly relevant salon or professional is nearby.
+
+Options:
+
+- Enable
+- Not Now
+
+---
+
+# 28. CUSTOMER HOME PAGE
+
+Top:
+
+```text
+[Logo] [Current Area ▼] [Theme] [Language] [Bell] [Avatar]
+```
+
+Search:
+
+```text
+Search barber, salon, service, style...
+```
+
+Sections:
+
+- For You
+- Near You
+- Available Now
+- Trending
+- Top Rated
+- Best Value
+- Last-Minute
+- Offers
+- New Near You
+- Following
+- Recently Viewed
+- Recommended
+
+Lazy-load sections.
+
+---
+
+# 29. DISCOVER / REELS PAGE
+
+Vertical media feed.
+
+Show:
+
+- video/image
+- professional avatar
+- professional
+- company
+- service
+- price
+- duration
+- rating
+- distance
+- tags
+
+Actions:
+
+- Like
+- Save
+- Comment
+- Share
+- Follow
+- Report
+- Book This Look
+
+---
+
+# 30. BOOK THIS LOOK
+
+When user taps it:
+
+Preselect:
+
+- professional
+- service
+- branch when known
+- linked media
+- price/duration
+
+Proceed directly to availability.
+
+Do not force repeated search.
+
+---
+
+# 31. SEARCH PAGE
+
+Search:
+
+- business
+- branch
+- professional
+- category
+- service
+- style
+- tag
+- area
+- city
+
+Examples:
+
+```text
+fade
+barber near me
+haircut under $15
+available tonight
+صالون نسائي
+حلاق رجالي
+coiffeur femme
+```
+
+Include:
+
+- recent searches
+- suggested searches
+- clear history
+
+---
+
+# 32. FILTERS
+
+Support:
+
+- distance
+- price
+- rating
+- reviews
+- open now
+- available now
+- available today
+- category
+- service
+- professional
+- home service
+- verified
+- promotion
+- payment
+- parking
+- accessibility
+- earliest slot
+
+Sorting:
+
+- nearest
+- rating
+- reviews
+- low price
+- high price
+- earliest
+- trending
+- newest
+
+---
+
+# 33. MAP PAGE
+
+Show:
+
+- current location
+- businesses
+- professionals where relevant
+- selected preview card
+
+Support:
+
+- Search This Area
+- list/map toggle
+
+---
+
+# 34. NEARBY PAGE
+
+Distance options:
+
+- 250 m
+- 500 m
+- 1 km
+- 5 km
+- custom
+
+Show:
+
+- business
+- rating
+- distance
+- price
+- availability
+
+---
+
+# 35. AVAILABLE NOW PAGE
+
+Real server-backed openings only.
+
+Windows:
+
+- Now
+- 30 minutes
+- 1 hour
+- 2 hours
+- Today
+
+Result:
+
+```text
+Hadi
+280 m
+Haircut $10
+Chair 2
+Available in 20 min
+```
+
+---
+
+# 36. BUSINESS PUBLIC PROFILE
+
+Show:
+
+- logo
+- cover
+- intro video
+- verification
+- rating
+- reviews
+- distance
+- open/closed
+- branches
+- services
+- professionals
+- media
+- offers
+- facilities
+- languages
+- parking
+- payments
+- policies
+- map
+- hours
+
+Actions:
+
+- Book
+- Follow
+- Favorite
+- Chat
+- WhatsApp
+- Call
+- Directions
+- Share
+
+---
+
+# 37. BRANCH PAGE
+
+Show:
+
+- location
+- map
+- opening hours
+- professionals
+- services
+- chairs
+- offers
+- contact
+
+---
+
+# 38. PROFESSIONAL PROFILE
+
+Show:
+
+- avatar
+- name
+- specialty
+- experience
+- bio
+- languages
+- portfolio
+- Reels
+- services
+- pricing
+- rating
+- verified work
+- followers
+- branches
+- next availability
+
+Actions:
+
+- Book
+- Follow
+- Favorite
+- Message
+- Share
+
+---
+
+# 39. VERIFIED WORK
+
+A professional portfolio post created from a completed real appointment may show:
+
+# Verified Work
+
+This distinguishes authentic portfolio content from generic uploads.
+
+---
+
+# 40. SERVICE DETAILS
+
+Show:
+
+- description
+- media
+- price
+- duration
+- deposit
+- cancellation rule
+- available professionals
+- branches
+- related looks
+
+---
+
+# 41. BOOKING — BRANCH
+
+Show:
+
+- branch
+- address
+- distance
+- next availability
+
+---
+
+# 42. BOOKING — PROFESSIONAL
+
+Allow:
+
+- specific professional
+- Any Available Professional
+
+Show:
+
+- avatar
+- specialty
+- rating
+- next availability
+
+---
+
+# 43. BOOKING — DATE
+
+Modern calendar.
+
+Clearly mark:
+
+- available
+- limited
+- unavailable
+
+---
+
+# 44. BOOKING — TIME
+
+Group slots:
+
+- Morning
+- Afternoon
+- Evening
+
+Authoritative availability comes from server.
+
+---
+
+# 45. CHAIR / RESOURCE SELECTION
+
+THIS IS CORE.
+
+Show cards:
+
+```text
+Chair 1
+Hadi's Preferred Chair
+Available
+
+Chair 2
+Shared
+Available
+
+Chair 3
+Window Side
+Available
+
+Chair 4
+Maintenance
+```
+
+Resource may contain:
+
+- icon
+- photo
+- name
+- number
+- floor
+- zone
+- attributes
+- surcharge
+- current professional avatar
+- availability
+
+---
+
+# 46. CHAIR ICONS
+
+Each chair/resource supports:
+
+- generic chair icon
+- barber icon
+- custom icon
+- uploaded photo
+
+If assigned to a professional, show their avatar.
+
+Fallback:
+
+1. professional photo
+2. custom avatar
+3. initials
+4. generic professional icon
+
+---
+
+# 47. CHAIR ATTRIBUTES
+
+Allow attributes such as:
+
+- Window
+- Private
+- VIP
+- Kids
+- Wheelchair Accessible
+- Quiet Area
+- Near Entrance
+- Premium
+
+Customers can optionally filter/prefer attributes.
+
+---
+
+# 48. BOOKING CHAIR MODES
+
+Per branch:
+
+## Automatic
+
+System assigns chair.
+
+## Optional
+
+Customer may choose.
+
+## Required
+
+Customer must select.
+
+---
+
+# 49. BOOKING NOTES / INSPIRATION
+
+Allow:
+
+- notes
+- inspiration photo
+- short video
+
+---
+
+# 50. EXACT LOOK REQUEST
+
+Customer can choose a Reel/photo and request a quotation.
+
+Professional can answer:
+
+```text
+Estimated Price: $35
+Duration: 60 min
+Professional: Hadi
+Chair: Chair 3
+Suggested Slot: Tuesday 4:30 PM
+```
+
+Customer may accept and book.
+
+---
+
+# 51. BOOKING SUMMARY
+
+Show:
+
+- business
+- branch
+- professional
+- services
+- chair
+- date/time
+- duration
+- subtotal
+- discounts
+- resource surcharge
+- tax
+- deposit
+- amount due later
+- cancellation terms
+
+---
+
+# 52. PAYMENT PAGE
+
+Support:
+
+- Cash
+- Card
+- Online
+- Wallet
+- future local payment integrations
+
+Do not show success before server confirmation.
+
+---
+
+# 53. BOOKING SUCCESS
+
+Show:
+
+- booking number
+- branch
+- professional
+- chair
+- date/time
+- directions
+
+Buttons:
+
+- Add to Calendar
+- Directions
+- Message
+- View Booking
+
+---
+
+# 54. BOOKINGS PAGE
+
+Tabs:
+
+- Upcoming
+- Completed
+- Cancelled
+
+Actions:
+
+- View
+- Reschedule
+- Cancel
+- Rebook
+- Directions
+- Review
+
+---
+
+# 55. BOOKING DETAILS
+
+Show:
+
+- complete timeline
+- service snapshot
+- professional
+- chair
+- financial information
+- payment status
+- notes
+- media
+- status history
+
+---
+
+# 56. RESCHEDULE
+
+Reuse real availability engine.
+
+Allow changing:
+
+- date
+- time
+- professional
+- chair where permitted
+
+Show financial difference before confirmation.
+
+---
+
+# 57. CANCELLATION
+
+Show:
+
+- cancellation policy
+- refund
+- deposit impact
+
+Require reason.
+
+---
+
+# 58. WAITLIST
+
+Allow:
+
+- professional
+- service
+- preferred chair
+- date
+- time range
+
+When opening appears, notify customer.
+
+---
+
+# 59. LIVE WALK-IN QUEUE
+
+Add a queue system.
+
+Businesses can enable:
+
+# Join Queue
+
+Customer sees:
+
+```text
+2 people ahead
+Estimated wait: 18 minutes
+```
+
+Customer can:
+
+- Join
+- Leave
+- View Position
+
+Notify when almost ready.
+
+---
+
+# 60. "I'M FREE NOW" MODE
+
+Customer presses:
+
+# I'm Free Now
+
+System finds best nearby options based on:
+
+- travel time
+- price
+- rating
+- desired service
+- professional availability
+- chair availability
+- queue length
+- user preferences
+
+Example:
+
+```text
+Hadi Barber
+6 minutes away
+Chair 2 available in 15 minutes
+Haircut $10
+```
+
+---
+
+# 61. QR CHECK-IN
+
+Every branch can display a QR.
+
+Customer scans when arriving.
+
+Booking becomes:
+
+```text
+checked_in
+```
+
+Reception sees check-in in realtime.
+
+Optional NFC-ready architecture later.
+
+---
+
+# 62. RUNNING LATE
+
+Customer can press:
+
+# Running Late
+
+Allow them to indicate expected delay.
+
+Business sees:
+
+```text
+Customer running 8 minutes late.
+```
+
+Apply configured grace period.
+
+---
+
+# 63. ARRIVAL REMINDERS
+
+With user permission, estimate when they should leave.
+
+Example:
+
+> Your appointment is at 5:00 PM. Travel time is approximately 20 minutes.
+
+Avoid excessive continuous tracking.
+
+---
+
+# 64. GROUP BOOKINGS
+
+Support one booking containing multiple people.
+
+Examples:
+
+- friends
+- family
+- groom party
+- bridal party
+
+Allow:
+
+- multiple customers/guests
+- several services
+- several professionals
+- several chairs
+- parallel times
+- one or split payments
+
+---
+
+# 65. FAMILY PROFILES
+
+A parent/account holder can create dependent profiles.
+
+Useful for:
+
+- children
+- family members
+
+No separate login required for each dependent.
+
+---
+
+# 66. BRIDAL / EVENT BOOKING
+
+Dedicated event workflow.
+
+Fields:
+
+- event date
+- location
+- number of people
+- services
+- professionals
+- travel
+- start/end times
+- deposits
+- milestone payments
+- notes
+- group chat
+
+---
+
+# 67. HOME SERVICE
+
+Support:
+
+- service radius
+- travel fee
+- minimum spend
+- service areas
+- travel time
+- availability
+
+---
+
+# 68. HOME-SERVICE ROUTING
+
+Prevent booking mobile professionals in geographically impossible sequences.
+
+Account for:
+
+- appointment end
+- travel time
+- next customer
+
+---
+
+# 69. CROSS-BRANCH TRAVEL BUFFER
+
+If a professional works at multiple branches, automatically add travel buffer when switching locations.
+
+---
+
+# 70. SERVICE DEPENDENCIES
+
+Support optional prerequisites.
+
+Example:
+
+```text
+Consultation required before Coloring.
+```
+
+---
+
+# 71. PARALLEL SERVICES
+
+Architecture should eventually support parallel services.
+
+Example:
+
+- hair color processing
+- nails at same time
+
+With different professionals/resources.
+
+---
+
+# 72. PROFESSIONAL SUBSTITUTION
+
+If Hadi becomes unavailable:
+
+Offer alternatives.
+
+Example:
+
+```text
+Hadi is unavailable.
+Ali is available at the same time.
+Same service: $10.
+```
+
+Never change professional without customer approval when a specific professional was booked.
+
+---
+
+# 73. EMERGENCY SCHEDULE CLOSURE
+
+Owner can:
+
+- close branch
+- mark professional unavailable
+- close resource
+
+Affected customers receive structured reschedule/cancel options.
+
+---
+
+# 74. FAVORITES
+
+Tabs:
+
+- businesses
+- professionals
+- services
+- posts
+- collections
+
+---
+
+# 75. COLLECTIONS
+
+Customer creates:
+
+- Wedding Ideas
+- Summer Cuts
+- Hair Colors
+- Favorite Looks
+
+---
+
+# 76. FOLLOWING
+
+Follow:
+
+- business
+- professional
+
+Receive:
+
+- new content
+- new availability
+- offers
+
+---
+
+# 77. CHAT
+
+Realtime.
+
+Support:
+
+- text
+- image
+- video
+- booking card
+- quote
+- location
+- attachment
+
+Statuses:
+
+- sent
+- delivered
+- read
+
+---
+
+# 78. NOTIFICATIONS
+
+Types:
+
+- booking
+- reminder
+- chat
+- payment
+- refund
+- nearby
+- waitlist
+- offer
+- last-minute
+- followed professional
+- new content
+- review reply
+
+Deep-link to relevant page.
+
+---
+
+# 79. SMART NEARBY DISCOVERY
+
+With explicit user opt-in, notify when relevant salons/professionals are nearby.
+
+Example:
+
+```text
+Hadi Barber is 280 m away.
+
+⭐ 4.9
+Haircut from $12
+Hadi available at 6:30 PM.
+
+[Book Now]
+```
+
+---
+
+# 80. NEARBY RECOMMENDATION ENGINE
+
+Rank using:
+
+- distance
+- current availability
+- rating
+- review quality
+- followed professional
+- previous visits
+- favorite salon
+- price preference
+- service preference
+- promotion
+- opening hours
+- notification cooldown
+
+Do not merely select nearest business.
+
+---
+
+# 81. DYNAMIC GEOFENCES
+
+Do not register every salon.
+
+Backend/device must maintain only a prioritized subset of relevant nearby geofences.
+
+Refresh based on movement/area changes.
+
+Avoid continuous high-power GPS polling.
+
+---
+
+# 82. NEARBY PRIVACY
+
+Businesses must NEVER see live customer coordinates.
+
+They may see only aggregate campaign results.
+
+---
+
+# 83. NEARBY SETTINGS
+
+Customer controls:
+
+- enabled
+- distance
+- categories
+- favorite businesses
+- followed professionals
+- offers
+- availability
+- daily max
+- quiet hours
+
+---
+
+# 84. OFFERS PAGE
+
+Sections:
+
+- Nearby
+- Last Minute
+- Followed Businesses
+- Platform Offers
+
+---
+
+# 85. REVIEWS
+
+Only completed appointments create:
+
+# Verified Appointment Reviews
+
+Rate:
+
+- Result
+- Cleanliness
+- Professionalism
+- Punctuality
+- Value
+- Service
+
+Allow:
+
+- text
+- photo
+- video
+
+---
+
+# 86. REVIEW MODERATION
+
+Business may:
+
+- reply
+- report
+
+Business cannot directly remove negative reviews.
+
+---
+
+# 87. BEFORE/AFTER CUSTOMER HISTORY
+
+With explicit customer consent, store previous look references.
+
+Customer can later choose:
+
+# Same as last time
+
+Professional can view approved previous look.
+
+---
+
+# 88. PHOTO/VIDEO CONSENT
+
+When a salon wants to publish customer before/after content, store explicit consent.
+
+Allow customer to revoke future public use according to configured rules.
+
+---
+
+# 89. PRIVATE INSPIRATION MEDIA
+
+Customer can choose whether uploaded reference media is:
+
+- retained
+- automatically removed after configured period
+
+---
+
+# 90. CUSTOMER PROFILE
+
+Include:
+
+- avatar
+- personal details
+- bookings
+- favorites
+- following
+- language
+- theme
+- notifications
+- nearby
+- wallet
+- loyalty
+- packages
+- memberships
+- gift cards
+- privacy
+- security
+- support
+
+---
+
+# 91. STYLE PREFERENCES
+
+Optional privacy-controlled preferences:
+
+- favorite services
+- favorite professional
+- preferred chair
+- preferred price range
+- style interests
+
+---
+
+# BUSINESS APPLICATION
+
+# 92. BUSINESS ONBOARDING
+
+Steps:
+
+1. Account
+2. Business Type
+3. Company
+4. Branch
+5. GPS
+6. Services
+7. Professionals
+8. Chairs/Resources
+9. Schedules
+10. Payments
+11. Policies
+12. Media
+13. Verification
+14. Publish
+
+Save progress.
+
+---
+
+# 93. BUSINESS TYPES
+
+Admin configurable.
+
+Examples:
+
+- Barber
+- Men's Salon
+- Women's Salon
+- Unisex
+- Nail
+- Beauty
+- Spa
+- Makeup
+- Bridal
+- Freelancer
+- Home Service
+
+---
+
+# 94. GPS SETUP
+
+Support:
+
+- Current Location
+- Address Search
+- Place Search
+- Drag Pin
+- Manual Coordinates
+- Building
+- Floor
+- Landmark
+
+Store PostGIS location.
+
+---
+
+# 95. BUSINESS DASHBOARD
+
+The first screen should answer:
+
+1. How many bookings today?
+2. How many confirmed?
+3. How many completed?
+4. How much is booked?
+5. How much is completed?
+6. How much is actually collected?
+7. How much cash?
+8. How much card?
+9. How much online?
+10. How much is outstanding?
+11. Which professional is busiest?
+12. Which chair is free?
+13. What is the next booking?
+14. Which slots can be promoted?
+15. Are there cancellations/no-shows?
+
+---
+
+# 96. DASHBOARD CARDS
+
+Example:
+
+```text
+TODAY
+
+Appointments          24
+Confirmed             18
+Checked In             2
+In Service             2
+Completed             14
+Cancelled              3
+No Show                1
+
+Booked Revenue       $320
+Completed Revenue    $240
+Collected            $220
+Outstanding           $20
+
+Cash                 $150
+Card                  $50
+Online                $20
+
+Refunds                $0
+Discounts             $15
+Tips                   $8
+```
+
+Every important card should drill down.
+
+---
+
+# 97. FINANCIAL DEFINITIONS
+
+Use consistent centralized definitions everywhere.
+
+## Booked Revenue
+
+Value of active confirmed bookings.
+
+## Completed Revenue
+
+Value of completed services.
+
+## Collected Revenue
+
+Actual successful payment transactions.
+
+## Cash
+
+Successful transactions with payment method = CASH.
+
+## Outstanding
+
+Still owed.
+
+## Refund
+
+Money returned.
+
+## Net
+
+Financial result after configured deductions.
+
+---
+
+# 98. IMPORTANT CASH RULE
+
+Example:
+
+Hadi has:
+
+```text
+10 confirmed bookings
+$10 each
+```
+
+Then:
+
+```text
+Booked Revenue = $100
+```
+
+But if only 7 customers have paid cash:
+
+```text
+Cash = $70
+Outstanding = $30
+```
+
+Never show:
+
+```text
+Cash = $100
+```
+
+just because $100 was booked.
+
+---
+
+# 99. PROFESSIONAL ANALYTICS
+
+For each professional show:
+
+- bookings
+- confirmed
+- completed
+- upcoming
+- customers
+- booked revenue
+- completed revenue
+- collected revenue
+- outstanding
+- cash
+- card
+- online
+- tips
+- discounts
+- average ticket
+- utilization
+- customer rating
+- commission
+
+---
+
+# 100. EASY PROFESSIONAL SELECTION
+
+Dashboard selector:
+
+```text
+All Professionals ▼
+```
+
+Allow:
+
+- All
+- Hadi
+- Ali
+- Sarah
+- etc.
+
+Selecting one updates all metrics.
+
+---
+
+# 101. PROFESSIONAL CARDS
+
+Example:
+
+```text
+[Hadi]
+10 bookings
+$100 booked
+$80 collected
+
+[Ali]
+7 bookings
+$85 booked
+$75 collected
+```
+
+Tap to filter.
+
+---
+
+# 102. MULTI-PROFESSIONAL COMPARISON
+
+Allow selecting multiple employees.
+
+Example:
+
+```text
+              Hadi      Ali
+
+Bookings        10        8
+Completed        8        7
+Booked         $100      $96
+Collected       $80      $84
+Cash            $60      $54
+Avg Ticket      $10      $12
+```
+
+---
+
+# 103. DATE FILTERS
+
+Provide:
+
+- Today
+- Yesterday
+- Last 7 Days
+- This Week
+- Last Week
+- This Month
+- Last Month
+- This Year
+- Custom From/To
+
+All dashboard metrics update together.
+
+---
+
+# 104. BRANCH ANALYTICS
+
+Selector:
+
+```text
+All Branches ▼
+```
+
+Allow:
+
+- all
+- each branch
+
+Compare:
+
+- bookings
+- revenue
+- collected
+- cash
+- customers
+- utilization
+
+---
+
+# 105. PAYMENT BREAKDOWN
+
+Example:
+
+```text
+Cash         $650
+Card         $180
+Online        $90
+Wallet        $20
+
+Total        $940
+```
+
+Derived from payment ledger.
+
+---
+
+# 106. MULTI-CURRENCY
+
+Support Lebanon-style multiple currencies.
+
+Example:
+
+```text
+USD Cash       $150
+LBP Cash       8,500,000 LBP
+```
+
+Do not add raw currencies together.
+
+If primary-currency reporting is enabled, use stored exchange-rate snapshot.
+
+Historical values must not change when today's rate changes.
+
+---
+
+# 107. CASH DRAWER / CASH SESSION
+
+Support:
+
+- opening cash
+- cash sales
+- refunds
+- expenses
+- adjustments
+- expected drawer
+- actual drawer
+- difference
+
+Permissions required.
+
+---
+
+# 108. REVENUE BY SERVICE
+
+Show:
+
+- bookings
+- completed
+- booked revenue
+- collected
+- average price
+
+---
+
+# 109. PROFESSIONAL COMMISSION
+
+Support:
+
+- percentage
+- fixed
+- per-service
+- product commission
+- custom rule
+
+Example:
+
+```text
+Service Revenue      $100
+Hadi Commission       $40
+Business Share        $60
+```
+
+---
+
+# 110. PROFESSIONAL PAYOUT
+
+Show:
+
+- eligible revenue
+- commission
+- tips
+- adjustments
+- amount due
+- paid/unpaid
+- payout history
+
+---
+
+# 111. COMPANY NET
+
+Optional owner-only analytics:
+
+```text
+Gross Revenue
+- Discounts
+- Refunds
+- Platform Commission
+- Professional Commission
+- Taxes
+= Business Net
+```
+
+---
+
+# 112. FORECAST
+
+Clearly label:
+
+# Expected / Booked Revenue
+
+Never confuse it with collected revenue.
+
+---
+
+# 113. LIVE FLOOR / CHAIR BOARD
+
+Critical page.
+
+Show cards:
+
+```text
+Chair 1
+[Hadi Avatar]
+In Service
+Until 3:30
+
+Chair 2
+AVAILABLE
+
+Chair 3
+[Ali Avatar]
+Reserved
+4:00 PM
+
+Chair 4
+Maintenance
+```
+
+Realtime updates.
+
+---
+
+# 114. SALON FLOOR DESIGNER
+
+Add a visual floor-plan editor.
+
+Business owner can drag:
+
+- chairs
+- washing stations
+- nail tables
+- rooms
+- entrance
+- reception
+- waiting zone
+
+onto a canvas.
+
+Store:
+
+- x/y position
+- size
+- rotation
+- zone
+
+Reception can use actual visual floor view.
+
+---
+
+# 115. RESOURCE TYPES
+
+Support:
+
+- Barber Chair
+- Styling Chair
+- Washing Station
+- Coloring Station
+- Nail Table
+- Pedicure Chair
+- Makeup Station
+- Treatment Bed
+- Treatment Room
+- Massage Room
+- Bridal Room
+- VIP Room
+- Equipment
+- Custom
+
+---
+
+# 116. RESOURCE DETAILS
+
+Store:
+
+- type
+- branch
+- name
+- number
+- icon
+- image
+- floor
+- zone
+- status
+- public/private
+- customer selectable
+- shared/dedicated
+- allowed professionals
+- allowed services
+- surcharge
+- attributes
+
+---
+
+# 117. RESOURCE STATUS
+
+Use:
+
+- available
+- held
+- reserved
+- occupied
+- cleaning
+- blocked
+- maintenance
+- inactive
+
+Do not rely only on color.
+
+---
+
+# 118. PROFESSIONAL → RESOURCE
+
+Support many-to-many.
+
+Professional may have:
+
+- dedicated chair
+- default chair
+- multiple chairs
+- shared chair
+- branch-specific resources
+
+---
+
+# 119. RESOURCE CONCURRENCY
+
+Never allow:
+
+- same professional double booking
+- same exclusive chair double booking
+- same exclusive room/equipment double booking
+
+Use PostgreSQL-level protection.
+
+Redis temporary holds are not final authority.
+
+---
+
+# 120. MULTI-RESOURCE SERVICES
+
+A service may require:
+
+- Chair
+- Washing Station
+- Coloring Station
+
+All requirements must be available.
+
+---
+
+# 121. RESOURCE STAGES
+
+Architecture should support:
+
+```text
+2:00–2:30 Chair 3
+2:30–2:45 Wash Station 1
+2:45–4:00 Chair 3
+```
+
+---
+
+# 122. RESOURCE MAINTENANCE
+
+Track:
+
+- maintenance status
+- maintenance history
+- cost
+- downtime
+- notes
+
+---
+
+# 123. BUSINESS CALENDAR
+
+Views:
+
+- Day
+- Week
+- Month
+- Staff
+- Chair
+- Resource
+
+Actions:
+
+- create
+- walk-in
+- check-in
+- start
+- complete
+- reschedule
+- cancel
+- drag/drop
+- change professional
+- change resource
+- block time
+- no-show
+
+Server validates all changes.
+
+---
+
+# 124. DIGITAL QUEUE DISPLAY
+
+Optional TV/tablet view.
+
+Show:
+
+- queue number
+- chair
+- ready/waiting status
+
+Do not expose unnecessary personal information.
+
+---
+
+# 125. WALK-IN MANAGEMENT
+
+Walk-ins use the same calendar/resource engine.
+
+No separate conflicting availability system.
+
+---
+
+# 126. CUSTOMER CRM
+
+Business sees authorized information:
+
+- profile
+- visit history
+- spending
+- services
+- favorite professional
+- preferred chair
+- no-show count
+- packages
+- loyalty
+- notes
+- communication history
+
+---
+
+# 127. INTERNAL CUSTOMER NOTES
+
+Role-protected notes.
+
+Example:
+
+```text
+Usually books Hadi.
+Prefers Chair 3.
+```
+
+Sensitive notes require stricter handling.
+
+---
+
+# 128. STAFF MANAGEMENT
+
+Support:
+
+- owner
+- manager
+- receptionist
+- barber
+- stylist
+- colorist
+- nail technician
+- makeup artist
+- therapist
+- accountant
+- custom role
+
+---
+
+# 129. PROFESSIONAL PORTABILITY
+
+A professional may work:
+
+- at one business
+- at multiple approved branches
+- eventually at multiple businesses
+
+Professional identity should not be permanently tied to only one salon.
+
+Define data ownership carefully for:
+
+- portfolio
+- reviews
+- followers
+- salon-owned content
+
+---
+
+# 130. TEMPORARY / GUEST PROFESSIONAL
+
+Support visiting artists working for limited dates.
+
+---
+
+# 131. STAFF ATTENDANCE
+
+Optional module:
+
+- clock in
+- clock out
+- breaks
+- actual status
+
+Can influence current availability if enabled.
+
+---
+
+# 132. SERVICES
+
+Service includes:
+
+- translations
+- description
+- category
+- price type
+- price
+- price range
+- currency
+- duration
+- prep
+- cleanup
+- tax
+- deposit
+- cancellation
+- branches
+- professionals
+- resource requirements
+- media
+- active flag
+
+---
+
+# 133. BUSINESS CONTENT
+
+Tabs:
+
+- Posts
+- Reels
+- Portfolio
+- Drafts
+
+Create media linked to:
+
+- professional
+- branch
+- service
+- price
+- duration
+
+---
+
+# 134. CONTENT MODERATION
+
+Support reports:
+
+- spam
+- impersonation
+- abuse
+- inappropriate content
+- stolen content
+- copyright
+- fake business
+
+---
+
+# 135. PROMOTIONS
+
+Support:
+
+- %
+- fixed
+- first visit
+- student
+- weekday
+- happy hour
+- last-minute
+- bundles
+- specific professional
+- specific branch
+
+---
+
+# 136. LAST-MINUTE AUTOMATION
+
+If a cancellation creates an empty slot:
+
+- offer to waitlist
+- optionally create last-minute deal
+- notify opted-in relevant nearby users
+
+---
+
+# 137. LOYALTY
+
+Support:
+
+- points
+- visits
+- spend-based rewards
+- VIP tiers
+- birthday offer if appropriately consented
+
+---
+
+# 138. PACKAGES
+
+Examples:
+
+- 5 haircuts
+- 10 blow dries
+- monthly beard package
+- bridal package
+
+Track remaining sessions and expiry.
+
+---
+
+# 139. MEMBERSHIPS
+
+Recurring benefit plans.
+
+---
+
+# 140. GIFT CARDS
+
+Support:
+
+- amount
+- recipient
+- message
+- code
+- balance
+- expiry
+
+---
+
+# 141. REFERRALS
+
+Unique links/codes.
+
+Reward only after qualifying completed transaction.
+
+Fraud controls.
+
+---
+
+# 142. RETAIL PRODUCTS
+
+Allow businesses to optionally sell:
+
+- shampoo
+- styling products
+- haircare
+- accessories
+
+Posts/services may link products used.
+
+---
+
+# 143. INVENTORY
+
+Optional advanced module:
+
+- products
+- consumables
+- quantity
+- low stock
+- supplier
+- purchase
+- service consumption
+
+Do not make inventory mandatory for booking MVP.
+
+---
+
+# 144. AFTERCARE
+
+Professionals can send aftercare instructions after service.
+
+Do not position ordinary beauty advice as medical guidance.
+
+---
+
+# 145. DIGITAL CONSENT FORMS
+
+Businesses may create forms for:
+
+- treatment consent
+- media consent
+- consultation
+- service-specific acknowledgment
+
+Support digital acknowledgement/signature where appropriate.
+
+---
+
+# 146. IMPORT WIZARD
+
+Help existing salons migrate.
+
+Import CSV/XLSX:
+
+- customers
+- professionals
+- services
+- prices
+- schedules
+
+Validate before commit.
+
+Show errors.
+
+Allow preview.
+
+---
+
+# 147. DATA EXPORT
+
+Authorized business users can export:
+
+- customers
+- bookings
+- services
+- transactions
+- reports
+
+Respect privacy and permissions.
+
+---
+
+# 148. CALENDAR SYNCHRONIZATION
+
+Optional professional calendar integration architecture for:
+
+- Google Calendar
+- Apple Calendar
+- Outlook
+
+External busy time can block availability according to settings.
+
+Avoid duplicate loops.
+
+---
+
+# 149. PUBLIC BOOKING WIDGET
+
+Provide embeddable booking widget for salon websites.
+
+---
+
+# 150. DEEP LINKS
+
+Every public entity should have shareable links:
+
+- salon
+- professional
+- Reel
+- service
+- promotion
+- booking flow
+
+If app installed:
+
+open app.
+
+Otherwise:
+
+open web/PWA.
+
+---
+
+# 151. QR CODES
+
+Generate QR codes for:
+
+- business profile
+- professional
+- chair
+- check-in
+- review
+- rebook
+- promotion
+
+---
+
+# 152. TOURIST MODE
+
+Allow quick guest browsing.
+
+Useful for visitors.
+
+Support:
+
+- language
+- nearby
+- available today
+- minimal friction booking
+
+---
+
+# 153. ACCESSIBILITY FILTERS
+
+Businesses may indicate:
+
+- wheelchair access
+- elevator
+- ground floor
+- accessible chair
+- other supported accommodations
+
+---
+
+# 154. PRIVACY OPTIONS FOR SERVICES
+
+Business can optionally mark features such as:
+
+- private room
+- women-only session
+- private-area appointment
+
+without exposing unnecessary customer-sensitive data.
+
+---
+
+# 155. SPECIAL OPENING HOURS
+
+Support:
+
+- public holidays
+- Ramadan hours
+- temporary opening
+- one-off closures
+- special event hours
+
+---
+
+# FINANCE AND PAYMENTS
+
+# 156. PAYMENT PROVIDER ABSTRACTION
+
+Support:
+
+- Cash
+- Card
+- Online
+- Wallet
+- local providers later
+
+Test provider required locally.
+
+---
+
+# 157. DEPOSITS
+
+Rules:
+
+- none
+- fixed
+- percentage
+- full payment
+
+May vary by service.
+
+---
+
+# 158. REFUNDS
+
+Support:
+
+- full
+- partial
+- deposit
+- credit/wallet
+
+Keep immutable ledger.
+
+---
+
+# 159. TIPS
+
+Support tips separately from service revenue.
+
+---
+
+# 160. SPLIT PAYMENTS
+
+Support group bookings where:
+
+- one person pays everything
+- deposit paid centrally
+- individuals pay separately
+
+---
+
+# 161. RECEIPTS / INVOICES
+
+Generate customer receipts.
+
+Store immutable payment values.
+
+---
+
+# 162. TAX ENGINE
+
+Country/configuration based.
+
+Do not hard-code Lebanon tax logic globally.
+
+---
+
+# 163. BUSINESS SETTLEMENT
+
+If platform collects funds:
+
+Track:
+
+- gross collection
+- commission
+- refunds
+- business amount
+- payout status
+
+---
+
+# 164. FINANCIAL LEDGER
+
+Create immutable ledger entries for:
+
+- payment
+- refund
+- discount
+- commission
+- tax
+- tip
+- wallet adjustment
+- business settlement
+- payout adjustment
+
+---
+
+# 165. BOOKING FINANCIAL SNAPSHOT
+
+At booking confirmation preserve:
+
+- service name
+- service price
+- duration
+- discount
+- taxes
+- chair surcharge
+- deposit
+- currency
+- professional
+- chair
+- branch
+- commission rule
+- cancellation terms
+
+Later configuration changes must NOT rewrite historical bookings.
+
+---
+
+# 166. VERSIONED BOOKING SNAPSHOT
+
+This is mandatory.
+
+Booking history must preserve the exact state at booking time.
+
+Future changes to:
+
+- service name
+- price
+- professional profile
+- chair configuration
+- tax
+- policies
+
+must not corrupt historical reporting.
+
+---
+
+# 167. EXCHANGE RATE SNAPSHOT
+
+For converted multi-currency transactions, store rate used at payment time.
+
+Never recalculate history using a current rate.
+
+---
+
+# 168. ANALYTICS RECONCILIATION
+
+Examples:
+
+```text
+Collected Revenue
+=
+successful non-refunded payment ledger entries
+```
+
+```text
+Cash
+=
+successful CASH ledger entries
+```
+
+Analytics/precomputed data must reconcile to raw ledger.
+
+Alert if mismatch occurs.
+
+---
+
+# ADMIN APPLICATION
+
+# 169. ADMIN DASHBOARD
+
+Show:
+
+- users
+- businesses
+- branches
+- professionals
+- bookings
+- GMV
+- platform revenue
+- subscription revenue
+- refunds
+- disputes
+- verification queue
+- moderation queue
+- system health
+
+---
+
+# 170. USERS
+
+Allow:
+
+- search
+- view
+- suspend
+- reactivate
+- inspect audit history where authorized
+
+---
+
+# 171. BUSINESSES
+
+Allow:
+
+- view
+- approve
+- reject
+- suspend
+- reactivate
+- inspect branches
+- inspect professionals
+- inspect services
+
+---
+
+# 172. VERIFICATION
+
+States:
+
+- draft
+- submitted
+- reviewing
+- approved
+- rejected
+- suspended
+
+---
+
+# 173. BOOKINGS
+
+Global search/filter.
+
+---
+
+# 174. PAYMENTS
+
+Global:
+
+- payments
+- refunds
+- commissions
+- failed transactions
+
+---
+
+# 175. MODERATION
+
+Queues:
+
+- reviews
+- media
+- accounts
+- copyright
+- spam
+- abuse
+
+---
+
+# 176. CATEGORIES
+
+Admin manages:
+
+- hierarchy
+- translations
+- icons
+- order
+- active state
+
+---
+
+# 177. COUNTRIES
+
+Manage:
+
+- countries
+- regions
+- cities
+- currencies
+- tax settings
+- timezone
+- language
+
+---
+
+# 178. LANGUAGE ADMIN
+
+Show:
+
+- translation keys
+- missing translations
+- enabled locales
+- RTL flag
+
+---
+
+# 179. THEMES
+
+Manage:
+
+- theme availability
+- logo
+- colors
+- platform branding
+
+---
+
+# 180. SUBSCRIPTION PLANS
+
+Examples:
+
+- Free
+- Pro
+- Business
+- custom
+
+Features/limits stored in database.
+
+---
+
+# 181. PLATFORM COMMISSION
+
+Rules may depend on:
+
+- country
+- company
+- category
+- subscription
+- booking source
+- promotion
+
+---
+
+# 182. SUPPORT
+
+Ticket system.
+
+---
+
+# 183. DISPUTES
+
+Support:
+
+- booking disputes
+- payment disputes
+- refund disputes
+- review disputes
+
+Maintain evidence and history.
+
+---
+
+# 184. AUDIT LOG
+
+Track:
+
+- actor
+- action
+- entity
+- old value
+- new value
+- company/branch
+- session/request metadata
+- timestamp
+
+---
+
+# 185. FEATURE FLAGS
+
+Super Admin can progressively enable:
+
+- countries
+- modules
+- payment providers
+- AI
+- inventory
+- memberships
+- new marketplace features
+
+without forcing every user to receive unfinished functionality.
+
+---
+
+# 186. REMOTE CONFIGURATION
+
+Allow server-driven configuration for:
+
+- home sections
+- limits
+- category ordering
+- theme settings
+- notification rules
+- minimum app version
+- marketplace policies
+
+---
+
+# 187. MINIMUM APP VERSION
+
+Configure:
+
+- minimum supported version
+- recommended version
+
+Allow mandatory update only when genuinely necessary.
+
+---
+
+# AI FEATURES
+
+# 188. AI MUST BE OPTIONAL
+
+Core system works fully without AI.
+
+---
+
+# 189. NATURAL LANGUAGE SEARCH
+
+Example:
+
+```text
+I need a fade near me after 5 PM under $15.
+```
+
+Convert to structured search.
+
+---
+
+# 190. IMAGE STYLE SEARCH
+
+Customer uploads inspiration.
+
+Find:
+
+- similar portfolio work
+- relevant professionals
+- services
+- available slots
+
+---
+
+# 191. RECOMMENDATIONS
+
+Use:
+
+- location
+- preferences
+- favorites
+- follows
+- price
+- availability
+- booking history
+
+Respect user controls.
+
+---
+
+# 192. BUSINESS INSIGHTS
+
+Examples:
+
+- low occupancy period
+- good promotion opportunity
+- underused chair
+- high cancellation period
+- returning-customer trend
+
+Do not auto-change prices without explicit owner rules.
+
+---
+
+# SECURITY
+
+# 193. SECURITY REQUIREMENTS
+
+Implement:
+
+- strong password hashing
+- input validation
+- authorization guards
+- refresh-token rotation
+- rate limiting
+- brute-force protection
+- secure uploads
+- MIME validation
+- XSS protection
+- CSRF where relevant
+- SQL injection protection
+- secure secrets
+- webhook signatures
+- audit trails
+- 2FA options
+
+---
+
+# 194. FRAUD / ABUSE
+
+Protect against:
+
+- fake reviews
+- fake bookings
+- referral abuse
+- spam
+- payment fraud patterns
+- fake businesses
+- account automation abuse
+
+---
+
+# 195. GRANULAR ACCOUNT RESTRICTIONS
+
+Admin should be able to:
+
+- suspend bookings
+- suspend payouts
+- suspend publishing
+- suspend messaging
+- fully suspend account
+
+without always disabling everything.
+
+---
+
+# PRIVACY
+
+# 196. PRIVACY
+
+Support:
+
+- consent
+- notification choices
+- location permissions
+- marketing preferences
+- data export
+- account deletion
+
+---
+
+# 197. SENSITIVE INFORMATION
+
+Restrict sensitive:
+
+- treatment notes
+- allergy/sensitivity notes
+- private media
+- verification documents
+- personal addresses
+
+Use explicit permissions and appropriate encryption/access control.
+
+---
+
+# PERFORMANCE
+
+# 198. PERFORMANCE REQUIREMENTS
+
+Use:
+
+- cursor pagination
+- server filtering
+- DB indexes
+- PostGIS indexes
+- Redis
+- connection pooling
+- background workers
+- CDN
+- optimized image sizes
+- adaptive video
+- lazy loading
+- efficient queries
+- query limits
+
+Never send huge database tables to clients.
+
+---
+
+# 199. WEAK NETWORK
+
+Mobile should support:
+
+- cache
+- retry
+- skeletons
+- resumable media upload where practical
+- offline indicator
+
+Never show booking/payment success without server confirmation.
+
+---
+
+# 200. MEDIA
+
+Use object storage.
+
+Never store full videos in PostgreSQL.
+
+Generate:
+
+- thumbnail
+- small
+- medium
+- large
+- video thumbnail
+- optimized video variants
+
+---
+
+# 201. REALTIME
+
+Use realtime for:
+
+- chat
+- calendar
+- floor board
+- bookings
+- holds
+- notifications
+- queue
+- staff state
+
+Support multiple backend instances.
+
+---
+
+# 202. BACKGROUND JOBS
+
+Use queues for:
+
+- push
+- emails
+- SMS
+- WhatsApp
+- reminders
+- media processing
+- search indexing
+- analytics aggregation
+- scheduled campaigns
+
+---
+
+# DATABASE
+
+# 203. REQUIRED MODELS
+
+At minimum include models for:
+
+```text
+users
+user_profiles
+user_preferences
+sessions
+
+roles
+permissions
+role_permissions
+user_role_scopes
+
+countries
+regions
+districts
+cities
+areas
+languages
+currencies
+
+platform_settings
+theme_settings
+feature_flags
+remote_config
+
+companies
+company_settings
+company_verification
+
+branches
+branch_locations
+branch_hours
+branch_exceptions
+
+professionals
+professional_profiles
+professional_branches
+professional_services
+professional_schedules
+professional_schedule_exceptions
+
+service_categories
+services
+service_translations
+service_branch_settings
+service_dependencies
+service_stages
+
+resource_types
+resources
+resource_media
+resource_attributes
+professional_resources
+service_resource_requirements
+resource_blocks
+resource_maintenance
+floor_plans
+floor_plan_items
+
+customers
+customer_profiles
+customer_addresses
+customer_preferences
+customer_dependents
+customer_preferred_resources
+
+appointments
+appointment_participants
+appointment_services
+appointment_resources
+appointment_holds
+appointment_status_history
+appointment_notes
+appointment_media
+booking_snapshots
+booking_financial_snapshots
+
+queues
+queue_entries
+
+payments
+payment_transactions
+refunds
+financial_ledger
+cash_sessions
+cash_movements
+exchange_rate_snapshots
+
+commissions
+professional_payouts
+professional_payout_items
+
+wallets
+wallet_ledger
+
+reviews
+review_ratings
+review_media
+review_reports
+
+posts
+post_media
+post_services
+likes
+comments
+follows
+favorites
+collections
+collection_items
+media_consents
+
+conversations
+conversation_members
+messages
+message_attachments
+
+notifications
+notification_preferences
+
+location_preferences
+nearby_notification_preferences
+geofence_candidates
+recommendation_events
+notification_cooldowns
+business_nearby_campaigns
+
+promotions
+promotion_rules
+coupons
+coupon_usage
+
+packages
+package_purchases
+package_usage
+
+memberships
+membership_subscriptions
+
+gift_cards
+gift_card_ledger
+
+loyalty_accounts
+loyalty_ledger
+
+referrals
+
+products
+inventory_items
+inventory_movements
+
+consent_forms
+consent_form_responses
+
+subscriptions
+subscription_plans
+subscription_features
+
+commission_rules
+
+support_tickets
+support_messages
+disputes
+
+moderation_reports
+
+audit_logs
+
+analytics_events
+daily_analytics_snapshots
+```
+
+Normalize/add supporting tables when appropriate.
+
+---
+
+# 204. DATABASE INDEXES
+
+Add suitable indexes for:
+
+- email
+- phone
+- role
+- company
+- branch
+- professional
+- service
+- resource
+- appointment start/end
+- status
+- geolocation
+- payment reference
+- posts
+- reviews
+- conversation/time
+- unread notifications
+
+---
+
+# API
+
+# 205. API VERSIONING
+
+Use:
+
+```text
+/api/v1
+```
+
+Document with Swagger/OpenAPI.
+
+Consistent:
+
+- request validation
+- response shape
+- errors
+- status codes
+
+---
+
+# ANALYTICS
+
+# 206. BUSINESS ANALYTICS CHARTS
+
+Include useful charts:
+
+- revenue trend
+- bookings trend
+- professionals
+- services
+- payment methods
+- status mix
+- chair utilization
+- new vs returning customers
+
+Do not overload dashboards with meaningless charts.
+
+---
+
+# 207. DRILLDOWN
+
+Every KPI should allow drilldown where reasonable.
+
+Example:
+
+```text
+Cash $150
+```
+
+→ list cash transactions.
+
+```text
+Confirmed 18
+```
+
+→ confirmed bookings.
+
+---
+
+# 208. ANALYTICS PERMISSIONS
+
+Examples:
+
+```text
+dashboard.view_basic
+dashboard.view_financial
+dashboard.view_company_total
+cash.view
+payments.view
+refunds.view
+commissions.view
+professional_revenue.view
+business_net.view
+```
+
+Receptionist should not automatically see owner-only profit information.
+
+---
+
+# 209. ANALYTICS EXAMPLE TEST
+
+Seed:
+
+```text
+Hadi
+10 confirmed haircuts
+$10 each
+```
+
+Initially:
+
+```text
+Booked = $100
+Collected = $0
+Cash = $0
+Outstanding = $100
+```
+
+After 7 cash payments:
+
+```text
+Booked = $100
+Completed = $70 if those 7 are completed
+Collected = $70
+Cash = $70
+Outstanding = $30
+```
+
+After all paid cash:
+
+```text
+Collected = $100
+Cash = $100
+Outstanding = $0
+```
+
+Automated tests required.
+
+---
+
+# TESTING
+
+# 210. REQUIRED TEST TYPES
+
+Create:
+
+- unit tests
+- integration tests
+- API tests
+- DB tests
+- permissions tests
+- booking concurrency tests
+- resource tests
+- payment tests
+- financial reconciliation tests
+- localization tests
+- Flutter tests
+- React tests
+- E2E tests
+- nearby/geofence tests
+- queue tests
+- performance tests
+
+---
+
+# 211. BOOKING CONCURRENCY TEST
+
+Two users simultaneously request:
+
+```text
+Hadi
+Chair 3
+4:30 PM
+```
+
+Exactly one succeeds.
+
+The second gets a clear conflict response.
+
+---
+
+# 212. FULL CUSTOMER E2E
+
+Test:
+
+1. Launch.
+2. Choose English.
+3. Choose Midnight Gold.
+4. Register.
+5. Enable location.
+6. Discover Hadi.
+7. Watch Reel.
+8. Book This Look.
+9. Select service.
+10. Select branch.
+11. Select Hadi.
+12. Select date.
+13. Select time.
+14. Select Chair 3.
+15. Create hold.
+16. Pay test deposit.
+17. Confirm.
+18. Notification.
+19. QR check-in.
+20. Floor board updates.
+21. Start service.
+22. Complete.
+23. Pay remaining amount.
+24. Review.
+25. Follow Hadi.
+26. Rebook.
+27. Switch Arabic.
+28. Verify RTL.
+29. Switch Silver Light.
+30. Verify theme.
+
+---
+
+# 213. NEARBY E2E
+
+Test:
+
+1. Enable nearby.
+2. Follow Hadi.
+3. Simulate entering area.
+4. Relevance score passes.
+5. Check server availability.
+6. Hadi available.
+7. Chair available.
+8. No cooldown.
+9. Not quiet hours.
+10. Send notification.
+11. Deep-link.
+12. Re-enter shortly.
+13. Do NOT send duplicate spam.
+
+---
+
+# 214. GROUP BOOKING TEST
+
+Test:
+
+- 4 participants
+- multiple services
+- 3 professionals
+- 3 chairs
+- parallel times
+- shared deposit
+- split remainder
+
+Ensure no resource conflicts.
+
+---
+
+# 215. QUEUE TEST
+
+Test:
+
+- join queue
+- position update
+- estimated wait
+- notification when nearly ready
+- convert queue entry to appointment/service
+- remove/expire abandoned queue entry
+
+---
+
+# 216. MULTI-CURRENCY TEST
+
+Payment A:
+
+```text
+$20 USD
+```
+
+Payment B:
+
+```text
+2,000,000 LBP
+```
+
+Never add raw values.
+
+Use separate currency totals and stored conversion snapshot if primary-currency reporting is enabled.
+
+---
+
+# CI/CD
+
+# 217. CI
+
+Run:
+
+- lint
+- format validation
+- typecheck
+- backend tests
+- web tests
+- migration validation
+- production builds
+- Flutter checks where environment supports them
+
+---
+
+# MONITORING
+
+# 218. OBSERVABILITY
+
+Implement architecture for:
+
+- structured logging
+- correlation IDs
+- crash reporting
+- traces
+- API latency
+- slow DB queries
+- failed jobs
+- queue metrics
+- booking failures
+- payment failures
+- media failures
+
+---
+
+# 219. SYSTEM HEALTH PAGE
+
+Admin should monitor:
+
+- API
+- DB
+- Redis
+- queues
+- WebSocket
+- storage
+- media processing
+- payment integrations
+- notification provider health
+
+---
+
+# BACKUPS
+
+# 220. BACKUP STRATEGY
+
+Document:
+
+- database backups
+- recovery
+- object storage durability
+- restore testing
+- retention policy
+
+---
+
+# PHASES
+
+# PHASE 0 — FOUNDATION
+
+Build:
+
+- monorepo
+- Docker
+- PostgreSQL/PostGIS
+- Redis
+- storage
+- API
+- workers
+- auth
+- RBAC
+- themes
+- language/RTL
+- logging
+- CI
+- common design systems
+
+---
+
+# PHASE 1 — CUSTOMER MARKETPLACE
+
+Build:
+
+- Splash
+- Onboarding
+- Auth
+- Home
+- Search
+- Filters
+- Map
+- Nearby
+- Available Now
+- Business Profile
+- Professional Profile
+- Service Details
+
+---
+
+# PHASE 2 — BUSINESS FOUNDATION
+
+Build:
+
+- business onboarding
+- branches
+- GPS
+- staff
+- services
+- resources
+- chairs
+- schedules
+- permissions
+
+---
+
+# PHASE 3 — BOOKING ENGINE
+
+Build:
+
+- availability
+- resource allocation
+- chair selection
+- booking holds
+- concurrency
+- booking lifecycle
+- reschedule
+- cancellation
+- walk-ins
+- check-in
+- QR
+- queue
+- group bookings
+- floor board
+
+---
+
+# PHASE 4 — SOCIAL / MEDIA
+
+Build:
+
+- images
+- videos
+- Reels
+- portfolios
+- Verified Work
+- follows
+- likes
+- favorites
+- collections
+- comments
+- Book This Look
+
+---
+
+# PHASE 5 — TRUST / PRIVACY
+
+Build:
+
+- verification
+- reviews
+- media consent
+- moderation
+- reports
+- customer privacy controls
+
+---
+
+# PHASE 6 — PAYMENTS / FINANCE
+
+Build:
+
+- provider abstraction
+- deposits
+- cash
+- card/test provider
+- refunds
+- ledger
+- tips
+- commissions
+- payouts
+- multi-currency
+- receipts
+- financial snapshots
+
+---
+
+# PHASE 7 — ANALYTICS
+
+Build:
+
+- dashboard
+- professional analytics
+- branch analytics
+- chair analytics
+- service analytics
+- cash reports
+- payment breakdown
+- forecasts
+- reconciliation
+- exports
+
+---
+
+# PHASE 8 — BUSINESS OPERATIONS
+
+Build:
+
+- CRM
+- staff
+- attendance
+- advanced calendar
+- floor designer
+- resource maintenance
+- multi-branch
+- imports
+- exports
+- calendar integration hooks
+
+---
+
+# PHASE 9 — RETENTION
+
+Build:
+
+- chat
+- notifications
+- nearby geofencing
+- waitlist
+- Available Now
+- promotions
+- last-minute
+- loyalty
+- packages
+- memberships
+- gift cards
+- referrals
+
+---
+
+# PHASE 10 — ADVANCED BUSINESS
+
+Build:
+
+- inventory
+- retail products
+- consent forms
+- home-service routing
+- event/bridal
+- split payments
+- public widget
+- QR utilities
+
+---
+
+# PHASE 11 — SUPER ADMIN
+
+Build all administration modules.
+
+---
+
+# PHASE 12 — OPTIONAL AI
+
+Build provider interfaces for:
+
+- natural-language search
+- image style matching
+- recommendations
+- translation assistance
+- analytics insights
+- scheduling suggestions
+
+Core product must work with AI disabled.
+
+---
+
+# PHASE 13 — HARDENING
+
+Perform:
+
+- security review
+- privacy review
+- DB index review
+- concurrency review
+- financial reconciliation
+- performance review
+- accessibility review
+- RTL review
+- theme review
+- mobile review
+- web review
+- poor-network testing
+
+Fix all discovered critical issues.
+
+---
+
+# DEFINITION OF DONE
+
+A feature/page is complete ONLY when:
+
+1. UI exists.
+2. Backend exists where required.
+3. DB schema exists where required.
+4. Migration exists.
+5. Authorization works.
+6. Validation works.
+7. Real data is connected.
+8. Loading state works.
+9. Empty state works.
+10. Error state works.
+11. Retry works.
+12. English works.
+13. Arabic RTL works.
+14. French works.
+15. Midnight Gold works.
+16. Silver Light works.
+17. Responsive layout works.
+18. Relevant tests pass.
+19. Production build succeeds where environment allows.
+20. No critical TODO remains.
+
+---
+
+# FINAL EXECUTION INSTRUCTION
+
+Start by inspecting the repository.
+
+If it is empty:
+
+create the complete project.
+
+If code already exists:
+
+preserve useful working code and integrate safely.
+
+Then execute all phases sequentially.
+
+Do NOT stop after:
+
+- architecture
+- scaffolding
+- schema generation
+- mockups
+- frontend screens
+
+Automatically:
+
+- install dependencies
+- generate schema
+- create migrations
+- run migrations
+- seed demo data
+- run tests
+- run typechecks
+- run builds
+- inspect failures
+- fix failures
+- rerun tests
+- rerun builds
+
+Continue until the strongest genuinely working state achievable in the environment is reached.
+
+---
+
+# REQUIRED DEVELOPMENT SEED
+
+Seed:
+
+Business:
+
+**Demo Barber**
+
+Branch:
+
+**Hazmieh**
+
+Professionals:
+
+- Hadi
+- Ali
+- Sarah
+
+Resources:
+
+- Chair 1
+- Chair 2
+- Chair 3
+- Chair 4
+
+Relationships:
+
+```text
+Chair 1 → Hadi preferred
+Chair 2 → Shared
+Chair 3 → Hadi allowed
+Chair 4 → Maintenance
+```
+
+Service:
+
+```text
+Haircut
+$10
+30 minutes
+```
+
+And:
+
+```text
+Haircut + Beard
+$15
+45 minutes
+```
+
+Seed enough appointments/payments to demonstrate analytics.
+
+---
+
+# FINAL COMPLETION REPORT
+
+At the end report FACTUALLY:
+
+1. Customer Flutter pages implemented.
+2. Business Flutter pages implemented.
+3. Customer Web/PWA pages implemented.
+4. Business Web pages implemented.
+5. Admin pages implemented.
+6. Backend modules implemented.
+7. Database schema/migrations implemented.
+8. Booking engine status.
+9. Chair/resource system status.
+10. Floor designer status.
+11. Queue/check-in status.
+12. Group/bridal status.
+13. Nearby/geofencing status.
+14. Social/Reels status.
+15. Payment status.
+16. Finance/ledger status.
+17. Dashboard/analytics status.
+18. Multi-currency status.
+19. Language/RTL status.
+20. Theme status.
+21. Security status.
+22. Test results.
+23. Build results.
+24. Demo credentials.
+25. Exact local startup commands.
+26. External credentials still required.
+27. Genuine remaining limitations.
+
+Never exaggerate.
+
+If something is incomplete, explicitly mark it incomplete.
+
+# BUILD THE COMPLETE WORKING APPLICATION.

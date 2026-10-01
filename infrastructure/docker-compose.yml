@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: lookiva-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lookiva}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lookiva_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-lookiva}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - lookiva_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lookiva} -d ${POSTGRES_DB:-lookiva}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: lookiva-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-lookiva_redis_dev} --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - lookiva_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-lookiva_redis_dev}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: lookiva-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lookiva_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lookiva_minio_dev}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - lookiva_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lookiva_postgres_data:
+  lookiva_redis_data:
+  lookiva_minio_data:
