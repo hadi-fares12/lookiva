@@ -446,7 +446,7 @@ export class DiscoveryService {
     }
 
     if (lat != null && lon != null) {
-      let withGeo: any[] = [];
+      const withGeo: any[] = [];
       try {
         const geoResults = await this.prisma.$queryRawUnsafe<any[]>(
           `SELECT b.company_id, b.id as branch_id, bl.point,
@@ -940,7 +940,9 @@ export class DiscoveryService {
           select: { company_id: true },
         });
         for (const p of promoPosts) if (p.company_id) offersCompaniesIds.add(p.company_id);
-      } catch {}
+      } catch {
+        // Offers remain available from discounted services when promotional posts cannot be read.
+      }
       try {
         const promoServices = await this.prisma.services.findMany({
           where: {
@@ -950,7 +952,9 @@ export class DiscoveryService {
           select: { company_id: true },
         });
         for (const s of promoServices) offersCompaniesIds.add(s.company_id);
-      } catch {}
+      } catch {
+        // Promotional posts can still populate the section if discounted services cannot be read.
+      }
       let offerItems: any[] = [];
       if (offersCompaniesIds.size > 0) {
         const offers = await this.prisma.companies.findMany({
