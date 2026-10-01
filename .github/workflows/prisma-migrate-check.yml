@@ -73,19 +73,9 @@ jobs:
 
       - name: Format check Prisma schema
         working-directory: apps/api
-        run: pnpm exec prisma format --check
-
-      - name: Run Prisma diff against empty shadow DB
-        working-directory: apps/api
-        env:
-          DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
-          DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
         run: |
-          pnpm exec prisma migrate diff \
-            --from-empty \
-            --to-schema-datamodel prisma/schema.prisma \
-            --script \
-            --exit-code
+          pnpm exec prisma format --schema prisma/schema.prisma
+          git diff --exit-code -- prisma/schema.prisma
 
       - name: Apply all migrations to shadow DB (sanity check)
         working-directory: apps/api
@@ -100,6 +90,17 @@ jobs:
           DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
           DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
         run: pnpm exec prisma migrate status
+
+      - name: Verify migrated database matches Prisma schema
+        working-directory: apps/api
+        env:
+          DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+          DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+        run: |
+          pnpm exec prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
 
       - name: Generate Prisma client (compile check)
         working-directory: apps/api
