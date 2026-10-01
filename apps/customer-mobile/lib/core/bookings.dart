@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'lookiva_api.dart';
+import 'device_location.dart';
 import 'l10n.dart';
 
 class CustomerBookingsList extends StatefulWidget {
@@ -37,7 +39,7 @@ class _CustomerBookingsListState extends State<CustomerBookingsList> {
             child: Row(
               children: [
                 _chip(ct(context, 'all'), null),
-                _chip(ct(context, 'upcoming'), 'confirmed'),
+                _chip(ct(context, 'upcoming'), 'upcoming'),
                 _chip(ct(context, 'completed'), 'completed'),
                 _chip(ct(context, 'cancelled'), 'cancelled'),
               ],
@@ -212,6 +214,38 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
     }
   }
 
+  Future<void> _selfCheckIn() async {
+    setState(() => _working = true);
+    try {
+      final position = await DeviceLocation.current();
+      await LookivaApi.instance.patch(
+        '/customer-ops/bookings/${widget.id}/self-check-in',
+        data: {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        },
+      );
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ct(context, 'checkInSuccess'))),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final key = DeviceLocation.messageKey(error);
+      final isLocationError = key != 'locationUnavailable' ||
+          error.toString().contains('location_');
+      final message = isLocationError
+          ? ct(context, key)
+          : LookivaApi.instance.friendlyError(error);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -251,6 +285,48 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
               Text('${b['status'] ?? '—'} • ${b['starts_at'] ?? '—'}', style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 16),
               _section(ct(context, 'branch'), [branch['name'], branch['address_line_1']]),
+              if (['pending', 'confirmed', 'checked_in'].contains(b['status']))
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          ct(context, 'bookingQr'),
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 12),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: QrImageView(
+                              data: 'lookiva://appointment/${widget.id}',
+                              version: QrVersions.auto,
+                              size: 180,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          ct(context, 'bookingQrHint'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (['pending', 'confirmed'].contains(b['status']))
+                FilledButton.icon(
+                  onPressed: _working ? null : _selfCheckIn,
+                  icon: const Icon(Icons.location_on_rounded),
+                  label: Text(
+                    _working ? ct(context, 'working') : ct(context, 'selfCheckIn'),
+                  ),
+                ),
               _listSection(ct(context, 'services'), b['services'], 'service', 'name'),
               _listSection(ct(context, 'professionals'), b['participants'], 'professional', 'display_name'),
               _listSection(ct(context, 'resources'), b['resources'], 'resource', 'name'),
