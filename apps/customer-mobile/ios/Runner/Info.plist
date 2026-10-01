@@ -43,12 +43,12 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
-				    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>LOOKIVA uses your location to show nearby salons and enable secure self check-in.</string>
 </dict>
 			</array>
 		</dict>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LOOKIVA uses your location to show nearby salons and enable secure self check-in.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
