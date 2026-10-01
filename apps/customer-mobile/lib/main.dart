@@ -826,8 +826,9 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
       );
       if (mounted) context.go('/home');
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = LookivaApi.instance.friendlyError(error));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
