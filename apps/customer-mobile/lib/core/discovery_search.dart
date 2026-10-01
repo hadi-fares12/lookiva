@@ -147,7 +147,7 @@ class _ResultCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.14),
+          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
           foregroundColor: Theme.of(context).colorScheme.primary,
           child: Icon(_icon(item['entityType']?.toString())),
         ),
