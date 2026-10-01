@@ -44,10 +44,10 @@ export function Header() {
         <button
           onClick={goSearch}
           className="flex-1 md:flex-none md:w-80 lg:w-96 h-10 rounded-radius-md border border-border-subtle bg-surface-1 hover:bg-surface-2 inline-flex items-center gap-2 px-3 text-sm text-muted transition-colors"
-          aria-label={t('common.search')}
+          aria-label={t('common.actions.search')}
         >
           <Search className="w-4 h-4 shrink-0" />
-          <span className="truncate">{t('common.searchPlaceholder')}</span>
+          <span className="truncate">{t('common.actions.searchPlaceholder')}</span>
         </button>
 
         <div className="flex-1 md:hidden" />
