@@ -15,7 +15,7 @@ export class CustomerOpsService {
     const customer = await this.customerForUser(userId);
     const now = new Date();
     const [upcoming, completed, wallet, loyalty, packages, memberships, unreadNotifications] = await Promise.all([
-      this.prisma.appointments.count({ where: { customer_id: customer.id, starts_at: { gte: now }, status: { notIn: ['cancelled', 'no_show', 'completed'] } } }),
+      this.prisma.appointments.count({ where: { customer_id: customer.id, starts_at: { gte: now }, status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] } } }),
       this.prisma.appointments.count({ where: { customer_id: customer.id, status: 'completed' } }),
       this.prisma.wallets.findUnique({ where: { customer_id: customer.id } }),
       this.prisma.loyalty_accounts.findUnique({ where: { customer_id: customer.id } }),
@@ -30,7 +30,7 @@ export class CustomerOpsService {
     const customer = await this.customerForUser(userId);
     const statusFilter =
       status === 'upcoming'
-        ? { status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress', 'rescheduled'] } }
+        ? { status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] } }
         : status === 'cancelled'
           ? { status: { in: ['cancelled', 'cancelled_by_customer', 'cancelled_by_business', 'cancelled_by_system'] } }
           : status
