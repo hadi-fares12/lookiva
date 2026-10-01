@@ -1,0 +1,50 @@
+name: Sync Flutter Locks
+
+on:
+  push:
+    branches:
+      - chatgpt/mobile-core-capabilities-2026-10-02
+    paths:
+      - "apps/customer-mobile/pubspec.yaml"
+      - "apps/business-mobile/pubspec.yaml"
+      - ".github/workflows/sync-flutter-locks.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/mobile-core-capabilities-2026-10-02
+          fetch-depth: 0
+
+      - name: Setup stable Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve customer dependencies
+        working-directory: apps/customer-mobile
+        run: flutter pub get
+
+      - name: Resolve business dependencies
+        working-directory: apps/business-mobile
+        run: flutter pub get
+
+      - name: Commit refreshed lockfiles
+        shell: bash
+        run: |
+          git add apps/customer-mobile/pubspec.lock apps/business-mobile/pubspec.lock
+          if git diff --cached --quiet; then
+            echo "Flutter lockfiles already synchronized."
+            exit 0
+          fi
+          git config user.name "lookiva-ci"
+          git config user.email "lookiva-ci@users.noreply.github.com"
+          git commit -m "build: refresh Flutter lockfiles"
+          git push origin HEAD:chatgpt/mobile-core-capabilities-2026-10-02
