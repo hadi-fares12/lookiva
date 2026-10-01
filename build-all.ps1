@@ -8,7 +8,7 @@ Write-Host "Project root: $ROOT" -ForegroundColor Gray
 $env:LOOKIVA_ROOT = $ROOT
 $env:PUB_CACHE = "$ROOT\.pub-cache"
 $GRADLE_USER_HOME = "$env:USERPROFILE\.gradle"
-$API_URL = "http://192.168.1.120:8000/api/v1"
+$API_URL = if ($env:LOOKIVA_API_URL) { $env:LOOKIVA_API_URL } elseif ($env:MOBILE_API_URL) { $env:MOBILE_API_URL } else { "http://10.0.2.2:4000/api/v1" }
 
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
     Write-Error "flutter not found in PATH. Ensure Flutter SDK is installed and in PATH."
