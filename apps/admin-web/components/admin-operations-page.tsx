@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { adminFetch } from '@/lib/api';
 
@@ -61,13 +61,13 @@ export function AdminOperationsPage({section}:{section:string}){
   const [notice,setNotice]=useState('');
   const [busy,setBusy]=useState('');
 
-  const load=async()=>{
+  const load=useCallback(async()=>{
     setLoading(true);setError('');
     try{setData(await adminFetch(cfg.endpoint));}
     catch(e){setError(e instanceof Error?e.message:t('loadError'));}
     finally{setLoading(false);}
-  };
-  useEffect(()=>{void load();},[section]);
+  },[cfg.endpoint,t]);
+  useEffect(()=>{void load();},[load]);
 
   const rows=useMemo(()=>rowsOf(section,data).slice(0,100),[section,data]);
   const cols=useMemo(()=>{
