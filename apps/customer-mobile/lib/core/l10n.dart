@@ -117,7 +117,18 @@ const _strings = <String, Map<String, String>>{
     'item': 'Item',
     'items': 'items',
     'noDiscovery': 'No discovery results yet',
-    'bookThisService': 'Book this service'
+    'bookThisService': 'Book this service',
+    'nearMe': 'Near me',
+    'reviewsCount': 'reviews',
+    'fromPrice': 'From',
+    'locationServicesDisabled': 'Turn on location services to use nearby discovery.',
+    'locationPermissionDenied': 'Location permission is required for nearby discovery.',
+    'locationPermissionForever': 'Location permission is disabled in system settings.',
+    'locationUnavailable': 'Current location is unavailable. Try again.',
+    'bookingQr': 'Booking QR',
+    'bookingQrHint': 'Show this QR to salon staff for fast check-in.',
+    'selfCheckIn': 'Check in now',
+    'checkInSuccess': 'Check-in completed.'
   },
   'ar': {
     'splashTagline': 'الجمال والعناية بأسلوب فاخر',
@@ -233,7 +244,18 @@ const _strings = <String, Map<String, String>>{
     'item': 'عنصر',
     'items': 'عناصر',
     'noDiscovery': 'لا توجد نتائج اكتشاف بعد',
-    'bookThisService': 'احجز هذه الخدمة'
+    'bookThisService': 'احجز هذه الخدمة',
+    'nearMe': 'بالقرب مني',
+    'reviewsCount': 'تقييمات',
+    'fromPrice': 'ابتداءً من',
+    'locationServicesDisabled': 'فعّل خدمات الموقع لاستخدام البحث القريب.',
+    'locationPermissionDenied': 'إذن الموقع مطلوب لعرض الأماكن القريبة.',
+    'locationPermissionForever': 'إذن الموقع معطّل من إعدادات النظام.',
+    'locationUnavailable': 'تعذر تحديد موقعك الحالي. حاول مجدداً.',
+    'bookingQr': 'رمز QR للحجز',
+    'bookingQrHint': 'اعرض هذا الرمز لموظف الصالون لتسجيل الوصول بسرعة.',
+    'selfCheckIn': 'تسجيل الوصول الآن',
+    'checkInSuccess': 'تم تسجيل الوصول.'
   },
   'fr': {
     'splashTagline': 'Beauté et bien-être premium',
@@ -351,7 +373,18 @@ const _strings = <String, Map<String, String>>{
     'item': 'Élément',
     'items': 'éléments',
     'noDiscovery': 'Aucun résultat pour le moment',
-    'bookThisService': 'Réserver ce service'
+    'bookThisService': 'Réserver ce service',
+    'nearMe': 'Près de moi',
+    'reviewsCount': 'avis',
+    'fromPrice': 'À partir de',
+    'locationServicesDisabled': 'Activez la localisation pour la découverte à proximité.',
+    'locationPermissionDenied': 'L’autorisation de localisation est requise.',
+    'locationPermissionForever': 'La localisation est désactivée dans les réglages système.',
+    'locationUnavailable': 'Localisation actuelle indisponible. Réessayez.',
+    'bookingQr': 'QR de réservation',
+    'bookingQrHint': 'Montrez ce QR au salon pour un enregistrement rapide.',
+    'selfCheckIn': 'M’enregistrer maintenant',
+    'checkInSuccess': 'Enregistrement effectué.'
   },
 };
 
