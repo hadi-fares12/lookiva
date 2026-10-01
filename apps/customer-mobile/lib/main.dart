@@ -296,6 +296,13 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const CustomerLoginPage(),
     ),
     GoRoute(
+      path: '/search',
+      builder: (context, state) => const Scaffold(
+        appBar: null,
+        body: CustomerDiscoverySearch(),
+      ),
+    ),
+    GoRoute(
       path: '/account/:section',
       builder: (context, state) => CustomerRemotePage(
         section: state.pathParameters['section'] ?? 'account',
@@ -691,7 +698,7 @@ class CustomerMapTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerDiscoverySearch(availableNow: true);
+    return const CustomerDiscoverySearch(availableNow: true, startNearMe: true);
   }
 }
 
