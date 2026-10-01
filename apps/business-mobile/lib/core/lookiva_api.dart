@@ -291,6 +291,14 @@ class LookivaBusinessApi {
             error.type == DioExceptionType.sendTimeout);
   }
 
+  Future<void> forgotPassword(String email) async {
+    await _dio.post<dynamic>(
+      '/auth/forgot-password',
+      data: {'email': email.trim().toLowerCase()},
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+  }
+
   Future<dynamic> getForCompany(
     String suffix, {
     Map<String, dynamic>? query,
