@@ -122,10 +122,12 @@ class LookivaApi {
     if (error is DioException) {
       final body = error.response?.data;
       final unwrapped = _unwrap(body);
-      if (unwrapped is Map && unwrapped['message'] != null)
+      if (unwrapped is Map && unwrapped['message'] != null) {
         return unwrapped['message'].toString();
-      if (body is Map && body['message'] != null)
+      }
+      if (body is Map && body['message'] != null) {
         return body['message'].toString();
+      }
       if (error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.connectionError) {
         return 'Unable to reach LOOKIVA. Check your connection and server URL.';
@@ -153,8 +155,9 @@ class LookivaApi {
     final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
     final access = data['accessToken']?.toString();
     final refresh = data['refreshToken']?.toString();
-    if (access == null || refresh == null)
+    if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
+    }
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -177,8 +180,9 @@ class LookivaApi {
     final access = await _storage.read(key: _accessKey);
     final refresh = await _storage.read(key: _refreshKey);
     if ((access == null || access.isEmpty) &&
-        (refresh == null || refresh.isEmpty))
+        (refresh == null || refresh.isEmpty)) {
       return false;
+    }
     try {
       await me();
       return true;
@@ -190,8 +194,9 @@ class LookivaApi {
           return true;
         }
       } catch (refreshError) {
-        if (_isOffline(refreshError) && access != null && access.isNotEmpty)
+        if (_isOffline(refreshError) && access != null && access.isNotEmpty) {
           return true;
+        }
       }
       await clearSession();
       return false;
