@@ -18,8 +18,8 @@ $DIST_MANIFEST  = "$PROD\manifest.json"
 
 $env:LOOKIVA_ROOT = $ROOT
 $env:PUB_CACHE = "$ROOT\.pub-cache"
-$API_URL = if ($env:LOOKIVA_API_URL) { $env:LOOKIVA_API_URL } else { "http://192.168.1.120:8000/api/v1" }
-$ServerPort = if ($env:LOOKIVA_PORT) { $env:LOOKIVA_PORT } else { 8000 }
+$API_URL = if ($env:LOOKIVA_API_URL) { $env:LOOKIVA_API_URL } elseif ($env:MOBILE_API_URL) { $env:MOBILE_API_URL } else { "" }
+$ServerPort = if ($env:LOOKIVA_PORT) { $env:LOOKIVA_PORT } elseif ($env:API_PORT) { $env:API_PORT } else { 4000 }
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " LOOKIVA Production Suite Build -> $PROD" -ForegroundColor Cyan
@@ -27,6 +27,7 @@ Write-Host " API_URL  (embedded in apps) = $API_URL" -ForegroundColor Gray
 Write-Host " SERVER PORT (when launched) = $ServerPort" -ForegroundColor Gray
 Write-Host "============================================================" -ForegroundColor Cyan
 
+if (-not $API_URL) { throw "LOOKIVA_API_URL or MOBILE_API_URL is required. Example: `$env:LOOKIVA_API_URL = 'http://192.168.1.50:4000/api/v1'" }
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) { throw "flutter not in PATH" }
 if (-not (Get-Command node    -ErrorAction SilentlyContinue)) { throw "node not in PATH" }
 

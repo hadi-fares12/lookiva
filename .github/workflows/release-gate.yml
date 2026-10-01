@@ -35,6 +35,9 @@ jobs:
       MINIO_SECRET_KEY: test-secret-value
       PUBLIC_CUSTOMER_WEB_URL: http://localhost:3001
       CORS_ORIGINS: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_MEDIA_BASE_URL: http://localhost:9000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

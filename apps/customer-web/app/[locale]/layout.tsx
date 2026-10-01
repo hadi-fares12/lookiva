@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import type { Locale } from '@/i18n/routing';
@@ -9,6 +9,8 @@ import { Header } from '@/components/header';
 import { BottomNav } from '@/components/bottom-nav';
 import { Toaster } from 'sonner';
 import '../globals.css';
+
+export const viewport = { themeColor: '#D4AF37' };
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -35,7 +37,6 @@ export async function generateMetadata({
       'LOOKIVA', 'beauty', 'wellness', 'hair', 'spa', 'barber',
       'Beirut', 'Lebanon', 'booking', 'salon near me',
     ],
-    themeColor: '#D4AF37',
     openGraph: {
       title,
       description,
@@ -61,7 +62,9 @@ export default async function LocaleLayout({
     notFound();
   }
 
-  const messages = await getMessages();
+  setRequestLocale(locale);
+
+  const messages = await getMessages({ locale });
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
 
   return (

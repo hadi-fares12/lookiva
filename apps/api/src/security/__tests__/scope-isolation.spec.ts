@@ -29,7 +29,7 @@ function userWithScope(input: {
 
 describe('business scope isolation', () => {
   it('does not treat a branch scope as company-wide in booking', () => {
-    const service = new BookingV2Service({} as never) as any;
+    const service = new BookingV2Service({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.BranchManager,
       scopeType: ScopeType.Branch,
@@ -43,7 +43,7 @@ describe('business scope isolation', () => {
   });
 
   it('does not treat a branch scope as company-wide in finance', () => {
-    const service = new FinanceV2Service({} as never) as any;
+    const service = new FinanceV2Service({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.BranchManager,
       scopeType: ScopeType.Branch,
@@ -91,7 +91,7 @@ describe('appointment operational access', () => {
   it('allows a professional only when they participate in the appointment', async () => {
     const count = vi.fn().mockResolvedValue(1);
     const tx = { appointment_participants: { count } } as any;
-    const service = new BookingV2Service({} as never) as any;
+    const service = new BookingV2Service({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.Professional,
       scopeType: ScopeType.Company,
@@ -115,7 +115,7 @@ describe('appointment operational access', () => {
 
   it('rejects a non-participating professional', async () => {
     const tx = { appointment_participants: { count: vi.fn().mockResolvedValue(0) } } as any;
-    const service = new BookingV2Service({} as never) as any;
+    const service = new BookingV2Service({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.Professional,
       scopeType: ScopeType.Company,

@@ -1,0 +1,138 @@
+name: Build Test Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_api_url:
+        description: "API URL embedded in Next.js web builds"
+        required: true
+        default: "http://localhost:4000/api/v1"
+        type: string
+      mobile_api_url:
+        description: "API URL embedded in Android APKs (10.0.2.2 = Windows host from Android emulator)"
+        required: true
+        default: "http://10.0.2.2:4000/api/v1"
+        type: string
+      media_url:
+        description: "Media URL embedded in web builds"
+        required: true
+        default: "http://localhost:9000"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  web-api:
+    name: API + Workers + Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_PUBLIC_API_URL: ${{ inputs.web_api_url }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ inputs.web_api_url }}
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${{ inputs.media_url }}
+      PUBLIC_CUSTOMER_WEB_URL: http://localhost:3001
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Static audit
+        run: python3 scripts/static_audit.py
+
+      - name: Generate Prisma client
+        run: pnpm --filter @lookiva/api prisma:generate
+
+      - name: Typecheck
+        run: |
+          pnpm typecheck
+          pnpm --filter @lookiva/workers typecheck
+
+      - name: Build API and all Next.js apps
+        run: pnpm build
+
+      - name: Build workers
+        run: pnpm --filter @lookiva/workers build
+
+      - name: Package web/API build output
+        run: |
+          mkdir -p artifact/api artifact/workers artifact/customer-web artifact/business-web artifact/admin-web
+          cp -R apps/api/dist/. artifact/api/
+          cp -R apps/workers/dist/. artifact/workers/
+          cp -R apps/customer-web/.next/. artifact/customer-web/
+          cp -R apps/business-web/.next/. artifact/business-web/
+          cp -R apps/admin-web/.next/. artifact/admin-web/
+          cp apps/api/package.json artifact/api/
+          cp apps/workers/package.json artifact/workers/
+          cp apps/customer-web/package.json artifact/customer-web/
+          cp apps/business-web/package.json artifact/business-web/
+          cp apps/admin-web/package.json artifact/admin-web/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lookiva-web-api-build
+          path: artifact/
+          retention-days: 7
+          if-no-files-found: error
+
+  android:
+    name: Android test APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup stable Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Customer dependencies/analyze/test
+        working-directory: apps/customer-mobile
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter test
+
+      - name: Build customer test APK
+        working-directory: apps/customer-mobile
+        run: flutter build apk --debug --dart-define=LOOKIVA_API_URL="${{ inputs.mobile_api_url }}"
+
+      - name: Business dependencies/analyze/test
+        working-directory: apps/business-mobile
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter test
+
+      - name: Build business test APK
+        working-directory: apps/business-mobile
+        run: flutter build apk --debug --dart-define=LOOKIVA_API_URL="${{ inputs.mobile_api_url }}"
+
+      - name: Stage APKs
+        run: |
+          mkdir -p apk
+          cp apps/customer-mobile/build/app/outputs/flutter-apk/app-debug.apk apk/LOOKIVA-Customer-Test.apk
+          cp apps/business-mobile/build/app/outputs/flutter-apk/app-debug.apk apk/LOOKIVA-Business-Test.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lookiva-android-test-apks
+          path: apk/
+          retention-days: 7
+          if-no-files-found: error

@@ -77,7 +77,7 @@ const SLIDES: SlideDef[] = [
 ];
 
 export default function OnboardingPage() {
-  const t = useTranslations('common');
+  const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
   const [swiper, setSwiper] = React.useState<SwiperClass | null>(null);
@@ -116,7 +116,7 @@ export default function OnboardingPage() {
           onClick={skip}
           className="absolute end-0 top-2 inline-flex items-center gap-1 h-9 px-4 rounded-radius-full bg-surface-1 border border-border-subtle text-sm text-secondary hover:text-primary hover:bg-surface-2 transition-colors"
         >
-          {t('actions.skip')}
+          {t('common.actions.skip')}
         </button>
       </div>
 
@@ -145,10 +145,10 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                   <h2 className="text-2xl md:text-3xl font-bold text-primary mb-4 leading-tight">
-                    {t(slide.titleKey as any) || slide.titleDefault}
+                    {t(slide.titleKey as any)}
                   </h2>
                   <p className="text-secondary text-sm md:text-base leading-relaxed max-w-md">
-                    {t(slide.subKey as any) || slide.subDefault}
+                    {t(slide.subKey as any)}
                   </p>
                 </div>
               </SwiperSlide>
@@ -163,7 +163,7 @@ export default function OnboardingPage() {
             onClick={next}
             className="h-12 px-6 md:px-7 rounded-radius-full bg-gradient-to-r from-accent-gold-1 to-accent-gold-2 text-surface-0 font-semibold text-sm md:text-base inline-flex items-center gap-2 hover:from-accent-gold-2 hover:to-accent-gold-3 transition-all shadow-shadow-3 active:scale-[0.98]"
           >
-            {isLast ? t('common.verified') ? 'Get Started' : t('actions.next') : t('actions.next')}
+            {isLast ? t('onboarding.getStarted') : t('common.actions.next')}
             {!isLast && <ArrowRight className="w-4 h-4" />}
             {isLast && <ArrowRight className="w-4 h-4" />}
           </button>

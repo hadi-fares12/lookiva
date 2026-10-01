@@ -61,7 +61,7 @@ const PARKING_OPTIONS = [
   { id: 'parking_free', labelKey: 'filter.facility.parking_free', defaultLabel: 'Free Parking' },
   { id: 'parking_paid', labelKey: 'filter.facility.parking_paid', defaultLabel: 'Paid Parking' },
   { id: 'valet', labelKey: 'filter.facility.valet', defaultLabel: 'Valet Parking' },
-  { id: 'street', label: 'Street Parking' },
+  { id: 'street', labelKey: 'filter.facility.street', defaultLabel: 'Street Parking' },
 ];
 
 const ACCESSIBILITY_OPTIONS = [
@@ -644,7 +644,7 @@ export default function FiltersPage() {
             <div className="flex items-center justify-between py-1">
               <div>
                 <p className="text-sm font-medium text-primary">{tf('verified')}</p>
-                <p className="text-xs text-muted mt-0.5">{t('common.verified')} businesses only</p>
+                <p className="text-xs text-muted mt-0.5">{t('common.actions.verified')} businesses only</p>
               </div>
               <ToggleSwitch checked={state.verified} onChange={(v) => update('verified', v)} />
             </div>

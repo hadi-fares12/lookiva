@@ -132,8 +132,9 @@ void main() {
         ),
       ),
     );
-    final button = tester.widget<ElevatedButton>(find.byType(ElevatedButton));
-    final bg = button.style?.backgroundColor?.resolve({});
+    final buttonContext = tester.element(find.byType(ElevatedButton));
+    final style = ElevatedButtonTheme.of(buttonContext).style;
+    final bg = style?.backgroundColor?.resolve(<WidgetState>{});
     expect(bg, const Color(0xFFD4AF37));
   });
 

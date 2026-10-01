@@ -408,7 +408,8 @@
       "parking_paid": "Parking payant",
       "valet": "Voiturier",
       "shower": "Douche disponible",
-      "changing": "Vestiaire"
+      "changing": "Vestiaire",
+      "street": "Stationnement dans la rue"
     }
   },
   "profile": {
@@ -1182,5 +1183,28 @@
     "locationDescription": "Utilisez votre position actuelle pour trouver de vrais créneaux disponibles selon les horaires et conflits de réservation.",
     "noOpenings": "Aucun créneau disponible dans cette période",
     "noOpeningsDescription": "Essayez une plage horaire plus large ou revenez dans quelques instants."
+  },
+  "onboarding": {
+    "getStarted": "Commencer",
+    "slide1": {
+      "title": "Découvrez les établissements près de vous",
+      "subtitle": "Trouvez les salons, spas et barbiers les mieux notés autour de vous, classés et vérifiés par de vrais clients."
+    },
+    "slide2": {
+      "title": "Découvrez le vrai travail des professionnels",
+      "subtitle": "Parcourez portfolios, reels et avant/après pour savoir exactement à quoi vous attendre."
+    },
+    "slide3": {
+      "title": "Réservez pros et fauteuils instantanément",
+      "subtitle": "Choisissez un service, un professionnel, un fauteuil et une heure, puis bloquez votre créneau en un geste."
+    },
+    "slide4": {
+      "title": "Des disponibilités réelles, toujours",
+      "subtitle": "Plus besoin d’appeler. Consultez les horaires, l’attente et les créneaux disponibles le jour même."
+    },
+    "slide5": {
+      "title": "Des recommandations près de vous",
+      "subtitle": "Des suggestions adaptées à vos goûts, votre budget et votre localisation. Explorez maintenant."
+    }
   }
 }

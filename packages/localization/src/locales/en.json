@@ -408,7 +408,8 @@
       "parking_paid": "Paid Parking",
       "valet": "Valet Parking",
       "shower": "Shower Available",
-      "changing": "Changing Room"
+      "changing": "Changing Room",
+      "street": "Street Parking"
     }
   },
   "profile": {
@@ -1182,5 +1183,28 @@
     "locationDescription": "Use your current location to find genuine live openings based on working schedules and booking conflicts.",
     "noOpenings": "No live openings in this window",
     "noOpeningsDescription": "Try a wider time window or check again shortly."
+  },
+  "onboarding": {
+    "getStarted": "Get Started",
+    "slide1": {
+      "title": "Discover places nearby",
+      "subtitle": "Find top-rated salons, spas, and barbershops around you — ranked and verified by real guests."
+    },
+    "slide2": {
+      "title": "See real professional work",
+      "subtitle": "Browse portfolio photos, reels, and before/afters so you always know what to expect."
+    },
+    "slide3": {
+      "title": "Book pros & chairs instantly",
+      "subtitle": "Choose a service, professional, chair and time. Lock your slot with one tap."
+    },
+    "slide4": {
+      "title": "Real availability — always",
+      "subtitle": "No more phone calls. See live opening hours, wait times and same-day slots."
+    },
+    "slide5": {
+      "title": "Nearby recommendations",
+      "subtitle": "Personalized picks tailored to your taste, budget and location. Explore now."
+    }
   }
 }

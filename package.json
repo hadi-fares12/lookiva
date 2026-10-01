@@ -23,9 +23,10 @@
     "verify:static": "STATIC_ONLY=1 bash scripts/release-gate.sh",
     "release:gate": "bash scripts/release-gate.sh",
     "build:workers": "node scripts/apply-settings.js workers && pnpm --filter @lookiva/workers build",
-    "build:flutter:customer": "cd apps/customer-mobile && flutter pub get && flutter build apk --release --dart-define=LOOKIVA_API_URL=http://192.168.1.120:8000/api/v1",
-    "build:flutter:business": "cd apps/business-mobile && flutter pub get && flutter build apk --release --dart-define=LOOKIVA_API_URL=http://192.168.1.120:8000/api/v1",
-    "build:flutter": "pnpm build:flutter:customer && pnpm build:flutter:business"
+    "build:flutter:customer": "node scripts/build-flutter.js customer",
+    "build:flutter:business": "node scripts/build-flutter.js business",
+    "build:flutter": "node scripts/build-flutter.js all",
+    "lint": "pnpm --filter @lookiva/api lint && pnpm --filter @lookiva/workers lint && pnpm --filter @lookiva/customer-web lint && pnpm --filter @lookiva/business-web lint && pnpm --filter @lookiva/admin-web lint"
   },
   "engines": {
     "node": ">=20"

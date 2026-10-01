@@ -663,7 +663,7 @@ export class BookingV2Service {
 
       const ownCustomerId = await this.findOptionalCustomerId(tx, user.id);
       const canManageQueue = this.hasManagementBusinessScope(user, branch.company_id, branch.id);
-      let customerId = dto.customerId ?? ownCustomerId;
+      const customerId = dto.customerId ?? ownCustomerId;
       if (!customerId) {
         throw new BadRequestException('A customerId is required when staff joins a customer to the queue');
       }
@@ -822,7 +822,7 @@ export class BookingV2Service {
 
     const ownCustomerId = await this.findOptionalCustomerId(tx, user.id);
     const canManageBooking = this.hasManagementBusinessScope(user, company.id, branch.id);
-    let customerId = dto.customerId ?? ownCustomerId;
+    const customerId = dto.customerId ?? ownCustomerId;
     if (!customerId) {
       throw new BadRequestException('A customerId is required when staff creates a booking');
     }

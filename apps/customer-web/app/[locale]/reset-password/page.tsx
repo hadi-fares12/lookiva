@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import axios from '@/lib/axios';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const locale = useLocale(); const t=useTranslations('resetPassword');
   const params = useSearchParams();
   const token = params.get('token') ?? '';
@@ -41,5 +41,20 @@ export default function ResetPasswordPage() {
         {!done && <Link href={`/${locale}/forgot-password`} className="mt-5 inline-block text-sm font-semibold text-accent-gold-2">{t('another')}</Link>}
       </section>
     </main>
+  );
+}
+
+
+export default function ResetPasswordPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <main className="mx-auto flex min-h-[65vh] max-w-md items-center justify-center px-4">
+          <div className="text-sm text-secondary">Loading…</div>
+        </main>
+      }
+    >
+      <ResetPasswordContent />
+    </React.Suspense>
   );
 }

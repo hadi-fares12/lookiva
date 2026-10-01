@@ -48,6 +48,10 @@ class LookivaApi {
   static String? _cachedBaseUrl;
 
   static Future<void> setApiBaseUrl(String url) async {
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+    if (isRelease) {
+      throw StateError('API URL overrides are disabled in release builds');
+    }
     final prefs = await SharedPreferences.getInstance();
     final cleaned = url.replaceAll(RegExp(r'/$'), '');
     await prefs.setString(_prefApiUrl, cleaned);
@@ -67,6 +71,20 @@ class LookivaApi {
   }
 
   static Future<String> _resolveBaseUrl() async {
+    const configured = String.fromEnvironment('LOOKIVA_API_URL');
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+
+    if (isRelease) {
+      if (configured.isEmpty) {
+        throw StateError(
+          'LOOKIVA_API_URL must be supplied for production builds using --dart-define.',
+        );
+      }
+      final clean = configured.replaceAll(RegExp(r'/$'), '');
+      _cachedBaseUrl = clean;
+      return clean;
+    }
+
     if (_cachedBaseUrl != null && _cachedBaseUrl!.isNotEmpty) {
       return _cachedBaseUrl!;
     }
@@ -75,19 +93,12 @@ class LookivaApi {
       _cachedBaseUrl = stored;
       return stored;
     }
-    const configured = String.fromEnvironment('LOOKIVA_API_URL');
     if (configured.isNotEmpty) {
       final clean = configured.replaceAll(RegExp(r'/$'), '');
       _cachedBaseUrl = clean;
       return clean;
     }
-    const isRelease = bool.fromEnvironment('dart.vm.product');
-    if (isRelease) {
-      throw StateError(
-        'LOOKIVA_API_URL must be supplied for production builds using --dart-define, '
-        'or configured via the developer settings screen.',
-      );
-    }
+
     final fallback = Platform.isAndroid
         ? 'http://10.0.2.2:4000/api/v1'
         : 'http://localhost:4000/api/v1';
@@ -122,10 +133,12 @@ class LookivaApi {
     if (error is DioException) {
       final body = error.response?.data;
       final unwrapped = _unwrap(body);
-      if (unwrapped is Map && unwrapped['message'] != null)
+      if (unwrapped is Map && unwrapped['message'] != null) {
         return unwrapped['message'].toString();
-      if (body is Map && body['message'] != null)
+      }
+      if (body is Map && body['message'] != null) {
         return body['message'].toString();
+      }
       if (error.type == DioExceptionType.connectionTimeout ||
           error.type == DioExceptionType.connectionError) {
         return 'Unable to reach LOOKIVA. Check your connection and server URL.';
@@ -153,8 +166,9 @@ class LookivaApi {
     final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
     final access = data['accessToken']?.toString();
     final refresh = data['refreshToken']?.toString();
-    if (access == null || refresh == null)
+    if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
+    }
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -177,8 +191,9 @@ class LookivaApi {
     final access = await _storage.read(key: _accessKey);
     final refresh = await _storage.read(key: _refreshKey);
     if ((access == null || access.isEmpty) &&
-        (refresh == null || refresh.isEmpty))
+        (refresh == null || refresh.isEmpty)) {
       return false;
+    }
     try {
       await me();
       return true;
@@ -190,8 +205,9 @@ class LookivaApi {
           return true;
         }
       } catch (refreshError) {
-        if (_isOffline(refreshError) && access != null && access.isNotEmpty)
+        if (_isOffline(refreshError) && access != null && access.isNotEmpty) {
           return true;
+        }
       }
       await clearSession();
       return false;

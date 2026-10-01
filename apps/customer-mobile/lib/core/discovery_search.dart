@@ -144,10 +144,10 @@ class _ResultCard extends StatelessWidget {
       if (item['minPrice'] != null) 'From ${item['currencyCode'] ?? ''} ${item['minPrice']}',
     ].where((e) => e.trim().isNotEmpty).join(' • ');
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.14),
+          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .14),
           foregroundColor: Theme.of(context).colorScheme.primary,
           child: Icon(_icon(item['entityType']?.toString())),
         ),
@@ -187,9 +187,9 @@ class _SearchLoading extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: List.generate(
           6,
-          (_) => Card(
+          (_) => const Card(
             margin: const EdgeInsets.only(bottom: 10),
-            child: const Padding(padding: EdgeInsets.all(24), child: LinearProgressIndicator()),
+            child: Padding(padding: EdgeInsets.all(24), child: LinearProgressIndicator()),
           ),
         ),
       );

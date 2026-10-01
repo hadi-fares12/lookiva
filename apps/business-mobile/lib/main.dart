@@ -54,10 +54,10 @@ ThemeData _buildMidnightGold() {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withOpacity(0.06)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
       ),
     ),
-    dividerColor: Colors.white.withOpacity(0.08),
+    dividerColor: Colors.white.withValues(alpha: 0.08),
     fontFamily: 'Inter',
     textTheme: const TextTheme(
       displayLarge: TextStyle(
@@ -86,7 +86,7 @@ ThemeData _buildMidnightGold() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: _goldPrimary,
-        side: BorderSide(color: _goldPrimary.withOpacity(0.4)),
+        side: BorderSide(color: _goldPrimary.withValues(alpha: 0.4)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -97,11 +97,11 @@ ThemeData _buildMidnightGold() {
       hintStyle: const TextStyle(color: Color(0xFF71717A)),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -134,7 +134,7 @@ ThemeData _buildSilverLight() {
       brightness: Brightness.light,
       primary: _goldPrimary,
       onPrimary: const Color(0xFF111111),
-      primaryContainer: _goldVariant2.withOpacity(0.15),
+      primaryContainer: _goldVariant2.withValues(alpha: 0.15),
       onPrimaryContainer: const Color(0xFF242424),
       secondary: _silverPrimary,
       onSecondary: const Color(0xFF242424),
@@ -157,10 +157,10 @@ ThemeData _buildSilverLight() {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.black.withOpacity(0.05)),
+        side: BorderSide(color: Colors.black.withValues(alpha: 0.05)),
       ),
     ),
-    dividerColor: Colors.black.withOpacity(0.08),
+    dividerColor: Colors.black.withValues(alpha: 0.08),
     fontFamily: 'Inter',
     textTheme: const TextTheme(
       displayLarge: TextStyle(
@@ -192,7 +192,7 @@ ThemeData _buildSilverLight() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: _goldPrimary,
-        side: BorderSide(color: _goldPrimary.withOpacity(0.4)),
+        side: BorderSide(color: _goldPrimary.withValues(alpha: 0.4)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -203,11 +203,11 @@ ThemeData _buildSilverLight() {
       hintStyle: const TextStyle(color: Color(0xFFA1A1AA)),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+        borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+        borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -469,7 +469,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   color: _goldPrimary,
                   shadows: [
                     Shadow(
-                      color: _goldPrimary.withOpacity(0.25),
+                      color: _goldPrimary.withValues(alpha: 0.25),
                       blurRadius: 24,
                     ),
                   ],
@@ -541,6 +541,8 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
   }
 
   Future<void> _onLogoTapped() async {
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+    if (isRelease) return;
     final now = DateTime.now();
     if (_lastLogoTap != null && now.difference(_lastLogoTap!).inSeconds > 2) {
       _logoTapCount = 0;
@@ -576,13 +578,13 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
             TextField(
               controller: controller,
               decoration: const InputDecoration(
-                hintText: 'http://192.168.1.120:8000/api/v1',
+                hintText: 'http://192.168.1.50:4000/api/v1',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             const Text(
-              'Example: http://192.168.1.120:8000/api/v1\n'
+              'Example: http://192.168.1.50:4000/api/v1\n'
               'Android emulator default: http://10.0.2.2:4000/api/v1\n\n'
               'Tip: Tap the LOOKIVA logo 7 times on this screen to open.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
@@ -647,10 +649,11 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
       );
       if (mounted) context.go('/dashboard');
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = LookivaBusinessApi.instance.friendlyError(error),
         );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -713,12 +716,12 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.error.withOpacity(.10),
+                        ).colorScheme.error.withValues(alpha: .10),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: Theme.of(
                             context,
-                          ).colorScheme.error.withOpacity(.35),
+                          ).colorScheme.error.withValues(alpha: .35),
                         ),
                       ),
                       child: Text(
@@ -950,7 +953,7 @@ class _BusinessDashboardPageState extends State<BusinessDashboardPage> {
                     (d) => NavigationRailDestination(
                       icon: d.icon,
                       selectedIcon: d.selectedIcon,
-                      label: Text(d.label!),
+                      label: Text(d.label),
                     ),
                   )
                   .toList(),

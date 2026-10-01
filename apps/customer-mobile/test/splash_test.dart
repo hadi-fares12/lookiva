@@ -15,6 +15,11 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
+  Future<void> disposeSplash(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 150));
+  }
+
   Widget buildSplash() {
     return MultiProvider(
       providers: [
@@ -58,6 +63,7 @@ void main() {
     final text = tester.widget<Text>(finder);
     expect(text.style?.color, const Color(0xFFD4AF37));
     expect(text.style?.fontWeight, FontWeight.w900);
+    await disposeSplash(tester);
   });
 
   testWidgets('SplashScreen renders Premium Beauty & Wellness tagline',
@@ -65,6 +71,7 @@ void main() {
     await tester.pumpWidget(buildSplash());
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Premium Beauty & Wellness'), findsOneWidget);
+    await disposeSplash(tester);
   });
 
   testWidgets('SplashScreen shows gold CircularProgressIndicator',
@@ -78,5 +85,6 @@ void main() {
       progress.valueColor,
       const AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)),
     );
+    await disposeSplash(tester);
   });
 }

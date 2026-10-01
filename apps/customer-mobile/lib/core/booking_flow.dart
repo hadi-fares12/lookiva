@@ -40,6 +40,7 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
     setState(() { _loading = true; _message = null; });
     try {
       final raw = await LookivaApi.instance.get('/services/${widget.serviceId}');
+      if (!mounted) return;
       if (raw is! Map) throw StateError(ct(context,'serviceNotFound'));
       final service = Map<String, dynamic>.from(raw);
       final company = service['company'];
@@ -78,7 +79,7 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_start));
-    if (time == null) return;
+    if (time == null || !mounted) return;
     setState(() => _start = DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
 
@@ -101,6 +102,7 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
         if (_professionalId != null) 'professionalId': _professionalId,
         if (_resourceId != null) 'resourceIds': _resourceId,
       });
+      if (!mounted) return;
       if (availability is Map && availability['available'] == false) {
         throw StateError(ct(context,'unavailable'));
       }
@@ -115,6 +117,7 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
       };
       setState(() => _message = ct(context,'holding'));
       final hold = await LookivaApi.instance.post('/booking-v2/holds', data: common);
+      if (!mounted) return;
       final holdMap = hold is Map ? Map<String, dynamic>.from(hold) : <String, dynamic>{};
       final holdToken = holdMap['hold_token']?.toString() ?? holdMap['holdToken']?.toString();
       if (holdToken == null || holdToken.isEmpty) throw StateError(ct(context,'holdFailed'));
@@ -162,14 +165,14 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
           Text('${service['duration_minutes'] ?? 30} min • ${service['base_price'] ?? '—'} ${service['currency_code'] ?? ''}', style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
-            value: _branchId,
+            initialValue: _branchId,
             decoration: InputDecoration(labelText: ct(context,'branch')),
             items: _branches.map((b) => DropdownMenuItem(value: b['id']?.toString(), child: Text(b['name']?.toString() ?? ct(context,'branch')))).toList(),
             onChanged: (v) async { setState(() => _branchId = v); if (v != null) await _loadResources(v); },
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _professionalId,
+            initialValue: _professionalId,
             decoration: InputDecoration(labelText: ct(context,'professional')),
             items: [
               DropdownMenuItem<String>(value: null, child: Text(ct(context,'anyProfessional'))),
@@ -181,13 +184,13 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(ct(context,'dateTime')),
-            subtitle: Text(MaterialLocalizations.of(context).formatFullDate(_start) + ' • ' + MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(_start))),
+            subtitle: Text('${MaterialLocalizations.of(context).formatFullDate(_start)} • ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(_start))}'),
             trailing: const Icon(Icons.edit_calendar_rounded),
             onTap: _pickDateTime,
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _resourceId,
+            initialValue: _resourceId,
             decoration: InputDecoration(labelText: ct(context,'chairResource')),
             items: [
               DropdownMenuItem<String>(value: null, child: Text(ct(context,'anyResource'))),
