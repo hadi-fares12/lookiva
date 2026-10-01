@@ -316,6 +316,11 @@ class LookivaBusinessApi {
     return _unwrap(response.data);
   }
 
+  Future<dynamic> patch(String path, {Object? data}) async {
+    final response = await _dio.patch<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
   Future<void> logout() async {
     try {
       await _dio.post<dynamic>('/auth/logout');
