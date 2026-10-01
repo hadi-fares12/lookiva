@@ -42,7 +42,7 @@ export default function LocationPermissionPage() {
 
   function notNow() {
     localStorage.setItem(AREA_KEY, JSON.stringify(DEFAULT_AREA));
-    toast.success(tCommon('verified') ? DEFAULT_AREA.name : 'Default area set', {
+    toast.success(DEFAULT_AREA.name, {
       description: `Using ${DEFAULT_AREA.name} as default. Change anytime from the header.`,
     });
     goHome();
@@ -118,7 +118,7 @@ export default function LocationPermissionPage() {
               </div>
               <div className="flex-1 pt-1">
                 <p className="text-sm md:text-base text-primary font-semibold">
-                  {t(`homeSections.${b.key}` as any) || b.default}
+                  {t(b.titleKey as any)}
                 </p>
                 <p className="text-xs md:text-sm text-muted mt-0.5 leading-relaxed">
                   {b.default}
