@@ -50,11 +50,20 @@ export class SocialV2Service {
       });
 
       for (const [index, mediaId] of (dto.mediaIds ?? []).entries()) {
+        const media = await tx.media.findFirst({
+          where: {
+            id: mediaId,
+            uploader_user_id: user.id,
+            ...(dto.companyId ? { OR: [{ company_id: dto.companyId }, { company_id: null }] } : {}),
+          },
+          select: { id: true, mime_category: true },
+        });
+        if (!media) throw new ForbiddenException('One or more media items do not belong to this account/company');
         await tx.post_media.create({
           data: {
             post_id: post.id,
             media_id: mediaId,
-            media_type: 'image',
+            media_type: media.mime_category === 'video' ? 'video' : 'image',
             sort_order: index,
           },
         });
