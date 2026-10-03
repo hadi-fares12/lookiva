@@ -22,6 +22,14 @@ export class CustomerOpsController {
   @Get('bookings/:id')
   booking(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.ops.booking(user.id, id); }
 
+  @Post('conversations')
+  startConversation(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { companyId: string; appointmentId?: string },
+  ) {
+    return this.ops.startConversation(user.id, body.companyId, body.appointmentId);
+  }
+
   @Get('conversations')
   conversations(@CurrentUser() user: AuthenticatedUser) { return this.ops.conversations(user.id); }
 
