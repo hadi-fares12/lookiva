@@ -14,6 +14,7 @@ import 'core/booking_flow.dart';
 import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
+import 'core/customer_map.dart';
 import 'core/l10n.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
@@ -293,7 +294,11 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/login',
-      builder: (context, state) => const CustomerLoginPage(),
+      builder: (context, state) => CustomerLoginPage(nextPath: state.uri.queryParameters['next']),
+    ),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => const Scaffold(appBar: null, body: CustomerDiscoverySearch()),
     ),
     GoRoute(
       path: '/account/:section',
@@ -450,14 +455,12 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
     final onboardingSeen = prefs.getBool('cust_onboarding_seen') ?? false;
-    final hasSession = await LookivaApi.instance.restoreSession();
+    unawaited(LookivaApi.instance.restoreSession());
     if (!mounted) return;
     if (!onboardingSeen) {
       context.go('/onboarding');
-    } else if (hasSession) {
-      context.go('/home');
     } else {
-      context.go('/login');
+      context.go('/home');
     }
   }
 
@@ -569,7 +572,7 @@ class OnboardingPage extends StatelessWidget {
                 onPressed: () async {
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setBool('cust_onboarding_seen', true);
-                  if (context.mounted) context.go('/login');
+                  if (context.mounted) context.go('/home');
                 },
                 child: Text(ct(context, 'getStarted')),
               ),
@@ -655,7 +658,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           IconButton(
             tooltip: ct(context, 'notifications'),
             icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () => context.push('/account/notifications'),
+            onPressed: () async {
+              final signedIn = await LookivaApi.instance.hasSession();
+              if (!context.mounted) return;
+              context.push(signedIn ? '/account/notifications' : '/login?next=%2Faccount%2Fnotifications');
+            },
           ),
           const SizedBox(width: 4),
         ],
@@ -672,7 +679,18 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) async {
+          if (i >= 3) {
+            final signedIn = await LookivaApi.instance.hasSession();
+            if (!mounted) return;
+            if (!signedIn) {
+              final next = i == 3 ? '/bookings' : '/account/profile';
+              context.push('/login?next=${Uri.encodeComponent(next)}');
+              return;
+            }
+          }
+          if (mounted) setState(() => _index = i);
+        },
         destinations: _destinations(context),
       ),
     );
@@ -690,13 +708,12 @@ class CustomerMapTab extends StatelessWidget {
   const CustomerMapTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const CustomerDiscoverySearch(availableNow: true);
-  }
+  Widget build(BuildContext context) => const CustomerNearbyMap();
 }
 
 class CustomerLoginPage extends StatefulWidget {
-  const CustomerLoginPage({super.key});
+  final String? nextPath;
+  const CustomerLoginPage({super.key, this.nextPath});
 
   @override
   State<CustomerLoginPage> createState() => _CustomerLoginPageState();
@@ -826,7 +843,7 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
         _password.text,
         rememberMe: _rememberMe,
       );
-      if (mounted) context.go('/home');
+      if (mounted) context.go(widget.nextPath?.startsWith('/') == true ? widget.nextPath! : '/home');
     } catch (error) {
       if (mounted) {
         setState(() => _error = LookivaApi.instance.friendlyError(error));
