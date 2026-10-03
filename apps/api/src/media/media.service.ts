@@ -38,6 +38,8 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 type MediaRecord = {
   id: string;
   uploader_user_id: string;
+  company_id?: string | null;
+  branch_id?: string | null;
   storage_key: string;
   original_file_name: string;
   stored_file_name: string;
