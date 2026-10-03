@@ -27,6 +27,7 @@ import { SendPhoneOtpDto } from './dto/send-phone-otp.dto';
 import { VerifyPhoneOtpDto } from './dto/verify-phone-otp.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 function extractIp(req: unknown): string | undefined {
   const r = req as Record<string, unknown>;
@@ -106,6 +107,17 @@ export class AuthController {
       message: 'Token refreshed',
       ...tokens,
     };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change password for the authenticated account' })
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    return { message: 'Password changed successfully. Other sessions were revoked.' };
   }
 
   @Post('logout')
