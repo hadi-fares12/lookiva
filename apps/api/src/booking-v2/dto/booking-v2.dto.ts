@@ -220,3 +220,13 @@ export class CreateGroupBookingDto {
   @Type(() => GroupBookingParticipantDto)
   participants!: GroupBookingParticipantDto[];
 }
+
+
+export class RejectAppointmentDto {
+  @IsString()
+  reason!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
