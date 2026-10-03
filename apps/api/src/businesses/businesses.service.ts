@@ -1,12 +1,116 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PatchBusinessDto } from './dto/businesses.dto';
+import { CreateBusinessApplicationDto, PatchBusinessDto } from './dto/businesses.dto';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class BusinessesService {
   private readonly logger = new Logger(BusinessesService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+
+  async createApplication(dto: CreateBusinessApplicationDto) {
+    const email = dto.ownerEmail.trim().toLowerCase();
+    const phone = dto.ownerPhone?.trim() || null;
+    const existing = await this.prisma.users.findFirst({
+      where: { OR: [{ email }, ...(phone ? [{ phone }] : [])] },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('An account already exists for this email or phone');
+
+    const country = await this.prisma.countries.findFirst({
+      where: { id: dto.countryId, is_active: true },
+      select: { id: true },
+    });
+    if (!country) throw new BadRequestException('Country is invalid or inactive');
+
+    const categoryCount = await this.prisma.service_categories.count({
+      where: { id: { in: dto.categoryIds }, is_active: true },
+    });
+    if (categoryCount !== new Set(dto.categoryIds).size) {
+      throw new BadRequestException('One or more business categories are invalid');
+    }
+
+    const slugBase = dto.businessName.toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'business';
+    let slug = slugBase;
+    let suffix = 1;
+    while (await this.prisma.companies.findUnique({ where: { slug } })) {
+      slug = `${slugBase}-${++suffix}`;
+    }
+
+    const placeholderPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+
+    return this.prisma.$transaction(async (tx) => {
+      const owner = await tx.users.create({
+        data: {
+          email,
+          phone,
+          password_hash: placeholderPassword,
+          full_name: dto.ownerFullName.trim(),
+          is_active: false,
+        },
+      });
+
+      const company = await tx.companies.create({
+        data: {
+          owner_user_id: owner.id,
+          country_id: dto.countryId,
+          category_ids: Array.from(new Set(dto.categoryIds)),
+          display_name: dto.businessName.trim(),
+          slug,
+          description_short: dto.description?.trim() || null,
+          website_url: dto.websiteUrl || null,
+          is_verified: false,
+          is_active: false,
+          booking_enabled: false,
+        },
+      });
+
+      const branch = await tx.branches.create({
+        data: {
+          company_id: company.id,
+          country_id: dto.countryId,
+          name: dto.businessName.trim(),
+          slug: 'main',
+          address_line_1: dto.addressLine1?.trim() || null,
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          phone,
+          email,
+          whatsapp: dto.whatsapp?.trim() || phone,
+          instagram_handle: dto.instagramHandle?.trim() || null,
+          is_main: true,
+          is_active: false,
+          booking_enabled: false,
+        },
+      });
+
+      const verification = await tx.company_verification.create({
+        data: {
+          company_id: company.id,
+          submitted_by_user_id: owner.id,
+          legal_business_name: dto.businessName.trim(),
+          registration_number: dto.registrationNumber?.trim() || null,
+          tax_id_number: dto.taxIdNumber?.trim() || null,
+          owner_full_name: dto.ownerFullName.trim(),
+          documents: dto.documentMediaIds ?? [],
+          notes: dto.notes?.trim() || null,
+          status: 'pending',
+        },
+      });
+
+      return {
+        applicationId: verification.id,
+        companyId: company.id,
+        status: verification.status,
+        message: 'Business application submitted for administrator review',
+        branchId: branch.id,
+      };
+    });
+  }
 
   private haversineDistance(
     lat1: number,
