@@ -147,6 +147,148 @@ export class BusinessOpsService {
     return this.prisma.branches.findMany({ where: { company_id: companyId, deleted_at: null, ...(access.allBranches ? {} : { id: { in: access.branchIds } }) }, orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }] });
   }
 
+  async createBranch(user: AuthenticatedUser, companyId: string, dto: CreateBranchDto) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Creating branches requires company-level access');
+
+    const company = await this.prisma.companies.findUnique({
+      where: { id: companyId },
+      select: { id: true, country_id: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+
+    const baseSlug = slugify(dto.name);
+    let slug = baseSlug;
+    let suffix = 1;
+    while (await this.prisma.branches.findFirst({ where: { company_id: companyId, slug } })) {
+      slug = `${baseSlug}-${++suffix}`;
+    }
+
+    const branch = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.branches.create({
+        data: {
+          company_id: companyId,
+          country_id: company.country_id,
+          name: dto.name.trim(),
+          slug,
+          address_line_1: dto.addressLine1?.trim() || null,
+          phone: dto.phone?.trim() || null,
+          whatsapp: dto.whatsapp?.trim() || null,
+          instagram_handle: dto.instagramHandle?.trim() || null,
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          booking_enabled: dto.bookingEnabled ?? true,
+          walk_ins_enabled: dto.walkInsEnabled ?? true,
+          home_service_enabled: dto.homeServiceEnabled ?? false,
+          is_active: true,
+        },
+      });
+
+      if (dto.latitude != null && dto.longitude != null) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO branch_locations (id, branch_id, address, point, created_at, updated_at)
+           VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), NOW(), NOW())
+           ON CONFLICT (branch_id) DO UPDATE
+           SET address = EXCLUDED.address, point = EXCLUDED.point, updated_at = NOW()`,
+          crypto.randomUUID(),
+          created.id,
+          dto.addressLine1?.trim() || null,
+          dto.longitude,
+          dto.latitude,
+        );
+      }
+
+      return created;
+    });
+
+    await this.auditMutation(user, companyId, 'branch.create', 'branch', branch.id, undefined, branch, branch.id);
+    return branch;
+  }
+
+  async updateBranch(user: AuthenticatedUser, companyId: string, branchId: string, dto: UpdateBranchDto) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    const existing = await this.prisma.branches.findFirst({
+      where: { id: branchId, company_id: companyId, deleted_at: null },
+    });
+    if (!existing) throw new NotFoundException('Branch not found');
+
+    const latitude = dto.latitude !== undefined ? dto.latitude : existing.latitude;
+    const longitude = dto.longitude !== undefined ? dto.longitude : existing.longitude;
+    const address = dto.addressLine1 !== undefined ? dto.addressLine1.trim() || null : existing.address_line_1;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.branches.update({
+        where: { id: branchId },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.addressLine1 !== undefined ? { address_line_1: address } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.whatsapp !== undefined ? { whatsapp: dto.whatsapp.trim() || null } : {}),
+          ...(dto.instagramHandle !== undefined ? { instagram_handle: dto.instagramHandle.trim() || null } : {}),
+          ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
+          ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
+          ...(dto.bookingEnabled !== undefined ? { booking_enabled: dto.bookingEnabled } : {}),
+          ...(dto.walkInsEnabled !== undefined ? { walk_ins_enabled: dto.walkInsEnabled } : {}),
+          ...(dto.homeServiceEnabled !== undefined ? { home_service_enabled: dto.homeServiceEnabled } : {}),
+          ...(dto.isActive !== undefined ? { is_active: dto.isActive } : {}),
+        },
+      });
+
+      if (latitude != null && longitude != null) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO branch_locations (id, branch_id, address, point, created_at, updated_at)
+           VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), NOW(), NOW())
+           ON CONFLICT (branch_id) DO UPDATE
+           SET address = EXCLUDED.address, point = EXCLUDED.point, updated_at = NOW()`,
+          crypto.randomUUID(),
+          branchId,
+          address,
+          longitude,
+          latitude,
+        );
+      } else {
+        await tx.branch_locations.upsert({
+          where: { branch_id: branchId },
+          create: { branch_id: branchId, address },
+          update: { address },
+        });
+      }
+      return row;
+    });
+
+    await this.auditMutation(user, companyId, 'branch.update', 'branch', branchId, existing, updated, branchId);
+    return updated;
+  }
+
+  async deleteBranch(user: AuthenticatedUser, companyId: string, branchId: string) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Deleting branches requires company-level access');
+    const existing = await this.prisma.branches.findFirst({
+      where: { id: branchId, company_id: companyId, deleted_at: null },
+    });
+    if (!existing) throw new NotFoundException('Branch not found');
+    if (existing.is_main) throw new BadRequestException('The main branch cannot be deleted');
+
+    const activeAppointments = await this.prisma.appointments.count({
+      where: {
+        branch_id: branchId,
+        status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] },
+        ends_at: { gt: new Date() },
+      },
+    });
+    if (activeAppointments > 0) {
+      throw new BadRequestException('Branch has active or future appointments and cannot be deleted');
+    }
+
+    const updated = await this.prisma.branches.update({
+      where: { id: branchId },
+      data: { is_active: false, booking_enabled: false, deleted_at: new Date() },
+    });
+    await this.auditMutation(user, companyId, 'branch.delete', 'branch', branchId, existing, updated, branchId);
+    return { id: branchId, deleted: true };
+  }
+
   customers(user: AuthenticatedUser, companyId: string, limit: number) {
     const access = this.companyAccess(user, companyId);
     return this.prisma.customers.findMany({
