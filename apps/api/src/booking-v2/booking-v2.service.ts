@@ -922,6 +922,9 @@ export class BookingV2Service {
     }
     const customer = await tx.customers.findUnique({ where: { id: customerId } });
     if (!customer) throw new BadRequestException('Customer is invalid');
+    if ((customer.blocked_by_company_ids ?? []).includes(company.id)) {
+      throw new ForbiddenException('This customer is blocked by the selected business');
+    }
 
     const services = await tx.services.findMany({
       where: {
