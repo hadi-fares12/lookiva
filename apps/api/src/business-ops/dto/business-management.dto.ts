@@ -172,3 +172,71 @@ export class UpdateBusinessUserDto {
   @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
   specialties?: string[];
 }
+
+
+export class CreateBranchDto {
+  @IsString() @Length(1, 150)
+  name!: string;
+
+  @IsOptional() @IsString()
+  addressLine1?: string;
+
+  @IsOptional() @IsString()
+  phone?: string;
+
+  @IsOptional() @IsString()
+  whatsapp?: string;
+
+  @IsOptional() @IsString()
+  instagramHandle?: string;
+
+  @IsOptional() @IsNumber() @Min(-90) @Max(90)
+  latitude?: number;
+
+  @IsOptional() @IsNumber() @Min(-180) @Max(180)
+  longitude?: number;
+
+  @IsOptional() @IsBoolean()
+  bookingEnabled?: boolean;
+
+  @IsOptional() @IsBoolean()
+  walkInsEnabled?: boolean;
+
+  @IsOptional() @IsBoolean()
+  homeServiceEnabled?: boolean;
+}
+
+export class UpdateBranchDto {
+  @IsOptional() @IsString() @Length(1, 150)
+  name?: string;
+
+  @IsOptional() @IsString()
+  addressLine1?: string;
+
+  @IsOptional() @IsString()
+  phone?: string;
+
+  @IsOptional() @IsString()
+  whatsapp?: string;
+
+  @IsOptional() @IsString()
+  instagramHandle?: string;
+
+  @IsOptional() @IsNumber() @Min(-90) @Max(90)
+  latitude?: number;
+
+  @IsOptional() @IsNumber() @Min(-180) @Max(180)
+  longitude?: number;
+
+  @IsOptional() @IsBoolean()
+  bookingEnabled?: boolean;
+
+  @IsOptional() @IsBoolean()
+  walkInsEnabled?: boolean;
+
+  @IsOptional() @IsBoolean()
+  homeServiceEnabled?: boolean;
+
+  @IsOptional() @IsBoolean()
+  isActive?: boolean;
+}
