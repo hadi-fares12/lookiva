@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEmail, IsInt, IsNumber, IsOptional, IsString, IsUrl, Length, Max, Min } from 'class-validator';
 
 export class BusinessIncludeQueryDto {
   @ApiPropertyOptional({
@@ -115,4 +115,58 @@ export class PatchBusinessDto {
   @ApiPropertyOptional({ type: Number, minimum: 0, maximum: 100 })
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100)
   no_show_fee_percent?: number;
+}
+
+
+export class CreateBusinessApplicationDto {
+  @IsString() @Length(2, 120)
+  ownerFullName!: string;
+
+  @IsEmail()
+  ownerEmail!: string;
+
+  @IsOptional() @IsString() @Length(5, 30)
+  ownerPhone?: string;
+
+  @IsString() @Length(2, 180)
+  businessName!: string;
+
+  @IsString()
+  countryId!: string;
+
+  @IsArray() @ArrayMinSize(1) @IsString({ each: true })
+  categoryIds!: string[];
+
+  @IsOptional() @IsString() @Length(0, 1000)
+  description?: string;
+
+  @IsOptional() @IsUrl({ require_protocol: true })
+  websiteUrl?: string;
+
+  @IsOptional() @IsString()
+  addressLine1?: string;
+
+  @IsOptional() @IsNumber() @Min(-90) @Max(90)
+  latitude?: number;
+
+  @IsOptional() @IsNumber() @Min(-180) @Max(180)
+  longitude?: number;
+
+  @IsOptional() @IsString() @Length(5, 30)
+  whatsapp?: string;
+
+  @IsOptional() @IsString() @Length(0, 120)
+  instagramHandle?: string;
+
+  @IsOptional() @IsString()
+  registrationNumber?: string;
+
+  @IsOptional() @IsString()
+  taxIdNumber?: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  documentMediaIds?: string[];
+
+  @IsOptional() @IsString() @Length(0, 2000)
+  notes?: string;
 }
