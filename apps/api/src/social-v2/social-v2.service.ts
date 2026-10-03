@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -14,6 +14,20 @@ export class SocialV2Service {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPost(user: AuthenticatedUser, dto: CreatePostV2Dto) {
+    if (dto.companyId) {
+      const company = await this.prisma.companies.findUnique({
+        where: { id: dto.companyId },
+        select: { owner_user_id: true },
+      });
+      if (!company) throw new NotFoundException('Company not found');
+      const platformRoles = new Set([UserRole.SuperAdmin, UserRole.PlatformAdmin, UserRole.CountryManager]);
+      const allowed = company.owner_user_id === user.id || user.roleScopes.some((scope) =>
+        platformRoles.has(scope.roleKey) ||
+        scope.companyId === dto.companyId ||
+        scope.scopeId === dto.companyId
+      );
+      if (!allowed) throw new ForbiddenException('You cannot publish content for this company');
+    }
     return this.prisma.$transaction(async (tx) => {
       const authorRole = user.roleScopes[0]?.roleKey ?? UserRole.Customer;
       const post = await tx.posts.create({
