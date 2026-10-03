@@ -22,6 +22,7 @@ import {
   JoinQueueDto,
   QueueEntryActionDto,
   RescheduleAppointmentDto,
+  RejectAppointmentDto,
   AppointmentTransitionDto,
 } from './dto/booking-v2.dto';
 
@@ -78,6 +79,28 @@ export class BookingV2Controller {
     @Body() dto: CreateGroupBookingDto,
   ) {
     return this.booking.createGroupBooking(user, dto);
+  }
+
+
+  @Patch('appointments/:id/confirm')
+  @RequirePermissions(PermissionKey.BookingManage)
+  @ApiOperation({ summary: 'Approve a pending appointment and notify the customer' })
+  confirmAppointment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.booking.confirmAppointment(user, id);
+  }
+
+  @Patch('appointments/:id/reject')
+  @RequirePermissions(PermissionKey.BookingManage)
+  @ApiOperation({ summary: 'Reject a pending appointment with a customer-visible reason' })
+  rejectAppointment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: RejectAppointmentDto,
+  ) {
+    return this.booking.rejectAppointment(user, id, dto);
   }
 
   @Patch('appointments/:id/cancel')
