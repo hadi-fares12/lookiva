@@ -5,7 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { BusinessOpsService } from './business-ops.service';
-import { CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
+import { CreateBusinessUserDto, CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdateBusinessUserDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
 
 @ApiTags('Business Operations')
 @ApiBearerAuth()
@@ -92,6 +92,38 @@ export class BusinessOpsController {
   @RequirePermissions(PermissionKey.SettingsView)
   staff(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
     return this.ops.staff(user, companyId);
+  }
+
+
+  @Post('staff')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  createStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() dto: CreateBusinessUserDto,
+  ) {
+    return this.ops.createBusinessUser(user, companyId, dto);
+  }
+
+  @Patch('staff/:userId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  updateStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateBusinessUserDto,
+  ) {
+    return this.ops.updateBusinessUser(user, companyId, userId, dto);
+  }
+
+  @Delete('staff/:userId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  removeStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.ops.removeBusinessUser(user, companyId, userId);
   }
 
   @Get('audit')
