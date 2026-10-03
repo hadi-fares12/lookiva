@@ -57,7 +57,7 @@ interface TokenPair {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private googleJwks = new Map<string, JsonWebKey>();
+  private googleJwks = new Map<string, Record<string, any>>();
   private googleJwksExpiresAt = 0;
 
   constructor(
@@ -294,7 +294,7 @@ export class AuthService {
     }
   }
 
-  private async getGoogleJwk(kid: string): Promise<JsonWebKey> {
+  private async getGoogleJwk(kid: string): Promise<Record<string, any>> {
     const now = Date.now();
     if (now < this.googleJwksExpiresAt && this.googleJwks.has(kid)) {
       return this.googleJwks.get(kid)!;
@@ -312,7 +312,7 @@ export class AuthService {
       throw new ServiceUnavailableException('Google sign-in verification is temporarily unavailable');
     }
 
-    const body = await response.json() as { keys?: JsonWebKey[] };
+    const body = await response.json() as { keys?: Array<Record<string, any>> };
     const keys = Array.isArray(body.keys) ? body.keys : [];
     this.googleJwks = new Map(
       keys
@@ -362,7 +362,7 @@ export class AuthService {
 
     let key: crypto.KeyObject;
     try {
-      key = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
+      key = crypto.createPublicKey({ key: jwk as any, format: 'jwk' });
     } catch {
       throw new UnauthorizedException('Invalid Google signing key');
     }
