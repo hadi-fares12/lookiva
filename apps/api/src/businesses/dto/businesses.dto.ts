@@ -72,6 +72,14 @@ export class PatchBusinessDto {
   @IsOptional() @IsUrl({ require_protocol: true })
   website_url?: string | null;
 
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional() @IsString()
+  logo_media_id?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional() @IsString()
+  cover_media_id?: string | null;
+
   @ApiPropertyOptional({ type: Boolean })
   @IsOptional() @IsBoolean()
   booking_enabled?: boolean;
