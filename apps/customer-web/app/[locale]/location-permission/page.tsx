@@ -37,7 +37,7 @@ export default function LocationPermissionPage() {
     if (extra?.area) {
       localStorage.setItem(AREA_KEY, JSON.stringify(extra.area));
     }
-    router.push(`/${locale}/home`);
+    router.push('/home');
   }
 
   function notNow() {
