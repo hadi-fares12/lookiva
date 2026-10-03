@@ -100,10 +100,37 @@ jobs:
           DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
           DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
         run: |
-          pnpm exec prisma migrate diff \
+          DIFF="$(pnpm exec prisma migrate diff \
             --from-url "$DATABASE_URL" \
-            --to-schema-datamodel prisma/schema.prisma \
-            --exit-code
+            --to-schema-datamodel prisma/schema.prisma)"
+          printf '%s\n' "$DIFF"
+          printf '%s\n' "$DIFF" > prisma-drift.txt
+
+          # The 2026 baseline migration predates Prisma's generated index naming.
+          # Ignore index-rename-only drift, but still fail on any table/column/type/
+          # constraint/default/relation change.
+          STRUCTURAL="$(printf '%s\n' "$DIFF" | grep -Ev \
+            '^[[:space:]]*$|^No difference detected\.|^[[:space:]]*\[\*\] Changed the `[^\`]+` table$|^[[:space:]]*\[\*\] Renamed index `[^\`]+` to `[^\`]+`
+      - name: Generate Prisma client (compile check)
+        working-directory: apps/api
+        run: pnpm prisma:generate
+
+      - name: Upload migration artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-migration-report
+          path: |
+            apps/api/prisma/schema.prisma
+            apps/api/prisma/migrations/
+          if-no-files-found: ignore
+          retention-days: 7
+ || true)"
+          if [ -n "$STRUCTURAL" ]; then
+            echo "Structural Prisma drift detected:"
+            printf '%s\n' "$STRUCTURAL"
+            exit 1
+          fi
 
       - name: Generate Prisma client (compile check)
         working-directory: apps/api
