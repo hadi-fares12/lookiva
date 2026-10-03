@@ -57,6 +57,8 @@ interface TokenPair {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private googleJwks = new Map<string, JsonWebKey>();
+  private googleJwksExpiresAt = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -281,6 +283,214 @@ export class AuthService {
       this.logger.error(`Registration failed: ${err}`);
       throw new InternalServerErrorException('Registration failed');
     }
+  }
+
+
+  private decodeJwtPart<T>(part: string): T {
+    try {
+      return JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as T;
+    } catch {
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+  }
+
+  private async getGoogleJwk(kid: string): Promise<JsonWebKey> {
+    const now = Date.now();
+    if (now < this.googleJwksExpiresAt && this.googleJwks.has(kid)) {
+      return this.googleJwks.get(kid)!;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch('https://www.googleapis.com/oauth2/v3/certs', {
+        headers: { accept: 'application/json' },
+      });
+    } catch {
+      throw new ServiceUnavailableException('Google sign-in verification is temporarily unavailable');
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException('Google sign-in verification is temporarily unavailable');
+    }
+
+    const body = await response.json() as { keys?: JsonWebKey[] };
+    const keys = Array.isArray(body.keys) ? body.keys : [];
+    this.googleJwks = new Map(
+      keys
+        .filter((key) => typeof key.kid === 'string')
+        .map((key) => [key.kid!, key]),
+    );
+
+    const cacheControl = response.headers.get('cache-control') || '';
+    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+    const maxAgeSeconds = maxAgeMatch ? Number(maxAgeMatch[1]) : 3600;
+    this.googleJwksExpiresAt = Date.now() + Math.max(60, maxAgeSeconds) * 1000;
+
+    const key = this.googleJwks.get(kid);
+    if (!key) throw new UnauthorizedException('Google signing key is unavailable');
+    return key;
+  }
+
+  private async verifyGoogleIdToken(idToken: string): Promise<{
+    sub: string;
+    email: string;
+    email_verified: boolean;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+    picture?: string;
+    locale?: string;
+    aud: string | string[];
+    iss: string;
+    exp: number;
+    iat?: number;
+  }> {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId) {
+      throw new ServiceUnavailableException('Google sign-in is not configured');
+    }
+
+    const parts = idToken.split('.');
+    if (parts.length !== 3) throw new UnauthorizedException('Invalid Google credential');
+
+    const header = this.decodeJwtPart<{ alg?: string; kid?: string }>(parts[0]);
+    if (header.alg !== 'RS256' || !header.kid) {
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+
+    const payload = this.decodeJwtPart<any>(parts[1]);
+    const jwk = await this.getGoogleJwk(header.kid);
+
+    let key: crypto.KeyObject;
+    try {
+      key = crypto.createPublicKey({ key: jwk as crypto.JsonWebKey, format: 'jwk' });
+    } catch {
+      throw new UnauthorizedException('Invalid Google signing key');
+    }
+
+    const validSignature = crypto.verify(
+      'RSA-SHA256',
+      Buffer.from(`${parts[0]}.${parts[1]}`),
+      key,
+      Buffer.from(parts[2], 'base64url'),
+    );
+    if (!validSignature) throw new UnauthorizedException('Invalid Google credential signature');
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const issuerOk = payload.iss === 'https://accounts.google.com' || payload.iss === 'accounts.google.com';
+    const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (!issuerOk || !audience.includes(clientId)) {
+      throw new UnauthorizedException('Google credential was issued for another application');
+    }
+    if (!Number.isFinite(payload.exp) || payload.exp <= nowSeconds) {
+      throw new UnauthorizedException('Google credential has expired');
+    }
+    if (payload.iat && payload.iat > nowSeconds + 300) {
+      throw new UnauthorizedException('Google credential timestamp is invalid');
+    }
+    if (!payload.sub || !payload.email || payload.email_verified !== true) {
+      throw new UnauthorizedException('A verified Google email is required');
+    }
+
+    return payload;
+  }
+
+  async loginWithGoogle(
+    idToken: string,
+    ip?: string,
+    ua?: string,
+    deviceName = 'customer-web',
+  ): Promise<TokenPair> {
+    const google = await this.verifyGoogleIdToken(idToken);
+    const email = google.email.trim().toLowerCase();
+
+    let user = await this.prisma.users.findUnique({ where: { email } });
+    if (user && !user.is_active) {
+      throw new UnauthorizedException('Account is disabled');
+    }
+
+    const customerRole = await this.prisma.roles.findUnique({ where: { key: UserRole.Customer } });
+    if (!customerRole) throw new ServiceUnavailableException('Customer role is not configured');
+
+    if (!user) {
+      const country = await this.prisma.countries.findFirst({
+        where: { is_active: true },
+        orderBy: [{ iso_code: 'asc' }],
+      });
+      if (!country) throw new ServiceUnavailableException('No active country is configured');
+
+      const fullName = (google.name || [google.given_name, google.family_name].filter(Boolean).join(' ') || email.split('@')[0]).trim();
+      const nameParts = fullName.split(/\s+/);
+      const firstName = google.given_name?.trim() || nameParts[0] || 'Customer';
+      const lastName = google.family_name?.trim() || nameParts.slice(1).join(' ') || 'User';
+      const randomPasswordHash = await this.hashPassword(crypto.randomBytes(32).toString('base64url'));
+
+      user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.users.create({
+          data: {
+            email,
+            email_verified_at: new Date(),
+            password_hash: randomPasswordHash,
+            full_name: fullName,
+            locale: google.locale?.split(/[-_]/)[0] || 'en',
+            is_active: true,
+          },
+        });
+        await tx.user_profiles.create({
+          data: {
+            user_id: created.id,
+            first_name: firstName,
+            last_name: lastName,
+            country_id: country.id,
+          },
+        });
+        await tx.user_preferences.create({ data: { user_id: created.id } });
+        await tx.customers.create({ data: { user_id: created.id } });
+        await tx.user_role_scopes.create({
+          data: {
+            user_id: created.id,
+            role_id: customerRole.id,
+            role_key: UserRole.Customer,
+            scope_type: ScopeType.Platform,
+          },
+        });
+        return created;
+      });
+    } else {
+      await this.prisma.$transaction(async (tx) => {
+        if (!user!.email_verified_at) {
+          await tx.users.update({
+            where: { id: user!.id },
+            data: { email_verified_at: new Date(), last_login_at: new Date() },
+          });
+        } else {
+          await tx.users.update({ where: { id: user!.id }, data: { last_login_at: new Date() } });
+        }
+
+        const customer = await tx.customers.findFirst({ where: { user_id: user!.id } });
+        if (!customer) await tx.customers.create({ data: { user_id: user!.id } });
+
+        const scope = await tx.user_role_scopes.findFirst({
+          where: { user_id: user!.id, role_key: UserRole.Customer, scope_type: ScopeType.Platform },
+        });
+        if (!scope) {
+          await tx.user_role_scopes.create({
+            data: {
+              user_id: user!.id,
+              role_id: customerRole.id,
+              role_key: UserRole.Customer,
+              scope_type: ScopeType.Platform,
+            },
+          });
+        }
+      });
+    }
+
+    return this.generateTokens(user.id, {
+      ipAddress: ip,
+      userAgent: ua,
+      deviceName,
+      deviceType: 'web',
+    });
   }
 
   async login(
