@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { businessFetch, getBusinessSession } from '@/lib/api';
+import { businessFetch, businessUpload, getBusinessSession } from '@/lib/api';
 
 const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?: string) => string }> = {
   'calendar': { key: 'calendar', endpoint: (c, b) => `/business-ops/${c}/appointments${b ? `?branchId=${b}` : ''}` },
@@ -59,6 +59,8 @@ export function OperationsPage({ section }: { section: string }) {
   const [analyticsProfessionalId, setAnalyticsProfessionalId] = useState('');
   const [analyticsFrom, setAnalyticsFrom] = useState('');
   const [analyticsTo, setAnalyticsTo] = useState('');
+  const [branchLat, setBranchLat] = useState('');
+  const [branchLon, setBranchLon] = useState('');
 
   async function load() {
     if (!session) return;
@@ -207,6 +209,88 @@ export function OperationsPage({ section }: { section: string }) {
     }, 'User role and branch updated.');
   }
 
+  function captureBranchLocation() {
+    if (!navigator.geolocation) { setError('GPS is not available in this browser.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setBranchLat(String(position.coords.latitude));
+        setBranchLon(String(position.coords.longitude));
+        setMessage('Current GPS location captured for the new branch.');
+      },
+      () => setError('Unable to read location. Allow location permission or enter coordinates manually.'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+  }
+
+  async function submitBranch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const form = event.currentTarget;
+    const fd = new FormData(form);
+    await mutate(`/business-ops/${session.companyId}/branches`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: String(fd.get('name') || '').trim(),
+        addressLine1: String(fd.get('addressLine1') || '').trim() || undefined,
+        phone: String(fd.get('phone') || '').trim() || undefined,
+        whatsapp: String(fd.get('whatsapp') || '').trim() || undefined,
+        instagramHandle: String(fd.get('instagramHandle') || '').trim() || undefined,
+        latitude: branchLat ? Number(branchLat) : undefined,
+        longitude: branchLon ? Number(branchLon) : undefined,
+        bookingEnabled: true,
+        walkInsEnabled: true,
+      }),
+    }, 'Branch created.');
+    form.reset(); setBranchLat(''); setBranchLon('');
+    await loadLookups();
+  }
+
+  async function updateBranch(event: FormEvent<HTMLFormElement>, branchId: string) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const numberOrUndefined = (name: string) => {
+      const raw = String(fd.get(name) ?? '').trim();
+      return raw === '' ? undefined : Number(raw);
+    };
+    await mutate(`/business-ops/${session.companyId}/branches/${branchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: String(fd.get('name') || '').trim(),
+        addressLine1: String(fd.get('addressLine1') || '').trim(),
+        phone: String(fd.get('phone') || '').trim(),
+        whatsapp: String(fd.get('whatsapp') || '').trim(),
+        instagramHandle: String(fd.get('instagramHandle') || '').trim(),
+        latitude: numberOrUndefined('latitude'),
+        longitude: numberOrUndefined('longitude'),
+        bookingEnabled: fd.get('bookingEnabled') === 'on',
+        walkInsEnabled: fd.get('walkInsEnabled') === 'on',
+        homeServiceEnabled: fd.get('homeServiceEnabled') === 'on',
+        isActive: fd.get('isActive') === 'on',
+      }),
+    }, 'Branch updated.');
+    await loadLookups();
+  }
+
+  async function uploadBranding(file: File | undefined, field: 'logo_media_id' | 'cover_media_id') {
+    if (!session || !file) return;
+    setBusy(field); setMessage(''); setError('');
+    try {
+      const media = await businessUpload<any>(
+        `/media/upload?isPublic=true&companyId=${encodeURIComponent(session.companyId)}`,
+        file,
+      );
+      await businessFetch(`/businesses/${session.companyId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ [field]: media.id }),
+      });
+      setMessage(field === 'logo_media_id' ? 'Business logo updated.' : 'Business cover updated.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to upload branding');
+    } finally {
+      setBusy('');
+    }
+  }
+
   async function submitSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -257,6 +341,18 @@ export function OperationsPage({ section }: { section: string }) {
       <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Add resource</button>
     </form>}
 
+    {section === 'branches' && <form onSubmit={submitBranch} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-2 xl:grid-cols-6">
+      <input name="name" required placeholder="Branch name" className={`${inputClass} xl:col-span-2`} />
+      <input name="addressLine1" placeholder="Address" className={`${inputClass} xl:col-span-2`} />
+      <input name="phone" placeholder="Phone" className={inputClass} />
+      <input name="whatsapp" placeholder="WhatsApp" className={inputClass} />
+      <input name="instagramHandle" placeholder="Instagram handle" className={`${inputClass} xl:col-span-2`} />
+      <input value={branchLat} onChange={(e)=>setBranchLat(e.target.value)} type="number" step="any" placeholder="Latitude" className={inputClass} />
+      <input value={branchLon} onChange={(e)=>setBranchLon(e.target.value)} type="number" step="any" placeholder="Longitude" className={inputClass} />
+      <button type="button" onClick={captureBranchLocation} className="h-11 rounded-radius-md border border-border-subtle bg-surface-2 px-4 text-sm font-semibold text-primary">Use current GPS</button>
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Add branch</button>
+    </form>}
+
     {section === 'staff' && <form onSubmit={submitStaff} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-2 xl:grid-cols-6">
       <input name="fullName" required placeholder="Full name" className={`${inputClass} xl:col-span-2`} />
       <input name="email" type="email" placeholder="Email" className={inputClass} />
@@ -280,6 +376,18 @@ export function OperationsPage({ section }: { section: string }) {
       <label className="space-y-1 xl:col-span-2"><span className="text-xs font-semibold uppercase text-muted">Business name</span><input name="display_name" required defaultValue={data.display_name || ''} className={`${inputClass} w-full`} /></label>
       <label className="space-y-1 xl:col-span-2"><span className="text-xs font-semibold uppercase text-muted">Tagline</span><input name="tagline" defaultValue={data.tagline || ''} className={`${inputClass} w-full`} /></label>
       <label className="space-y-1 md:col-span-2 xl:col-span-4"><span className="text-xs font-semibold uppercase text-muted">Website</span><input name="website_url" type="url" defaultValue={data.website_url || ''} className={`${inputClass} w-full`} /></label>
+      <div className="grid gap-3 md:col-span-2 xl:col-span-4 sm:grid-cols-2">
+        <label className="rounded-radius-lg border border-border-subtle bg-surface-2 p-4">
+          <span className="block text-xs font-semibold uppercase text-muted">Business logo</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void uploadBranding(e.target.files?.[0],'logo_media_id')} className="mt-3 block w-full text-sm text-secondary" />
+          <span className="mt-2 block text-xs text-muted">{busy==='logo_media_id'?'Uploading…':data.logo_media_id?'Logo uploaded':'Choose a square logo image'}</span>
+        </label>
+        <label className="rounded-radius-lg border border-border-subtle bg-surface-2 p-4">
+          <span className="block text-xs font-semibold uppercase text-muted">Profile cover</span>
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void uploadBranding(e.target.files?.[0],'cover_media_id')} className="mt-3 block w-full text-sm text-secondary" />
+          <span className="mt-2 block text-xs text-muted">{busy==='cover_media_id'?'Uploading…':data.cover_media_id?'Cover uploaded':'Choose a wide cover image'}</span>
+        </label>
+      </div>
       <label className="space-y-1"><span className="text-xs font-semibold uppercase text-muted">Minimum notice (minutes)</span><input name="min_booking_notice_minutes" type="number" min="0" defaultValue={data.min_booking_notice_minutes ?? 0} className={`${inputClass} w-full`} /></label>
       <label className="space-y-1"><span className="text-xs font-semibold uppercase text-muted">Maximum advance (days)</span><input name="max_booking_advance_days" type="number" min="1" defaultValue={data.max_booking_advance_days ?? 90} className={`${inputClass} w-full`} /></label>
       <label className="space-y-1"><span className="text-xs font-semibold uppercase text-muted">Cancellation window (hours)</span><input name="cancellation_policy_hours" type="number" min="0" defaultValue={data.cancellation_policy_hours ?? 0} className={`${inputClass} w-full`} /></label>
@@ -332,6 +440,22 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && section === 'queue' && Array.isArray(data) && <div className="space-y-5">{data.map((queue:any)=><section key={queue.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-primary">{queue.name}</h2><p className="text-xs text-muted">{queue.branch?.name || t('labels.branch')} · {queue.estimated_wait_per_person_minutes} {t('labels.minutesPerPerson')} · {t('labels.max')} {queue.max_waiting}</p></div><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/queues/${queue.id}`,{method:'PATCH',body:JSON.stringify({isActive:!queue.is_active})},queue.is_active?t('messages.queuePaused'):t('messages.queueActivated'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{queue.is_active?t('actions.pause'):t('actions.activate')}</button></div><div className="mt-4 space-y-2">{(queue.entries||[]).map((entry:any)=><div key={entry.id} className="flex flex-col gap-3 rounded-radius-lg bg-surface-2 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-primary">#{entry.position} · {entry.customer_name || entry.customer?.user?.full_name || t('labels.customer')}</p><p className="text-sm text-muted">{t('labels.estimatedWait')} {entry.estimated_wait_minutes ?? '—'} min · {entry.status}</p></div><div className="flex gap-2">{entry.status==='waiting'&&<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/call`,{method:'PATCH',body:'{}'},t('messages.customerCalled'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.call')}</button>}<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/serve`,{method:'PATCH',body:'{}'},t('messages.queueServed'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.served')}</button></div></div>)}{!(queue.entries||[]).length&&<p className="text-sm text-muted">{t('messages.noCustomersWaiting')}</p>}</div></section>)}</div>}
 
+    {!loading && !error && section === 'branches' && Array.isArray(data) && <div className="grid gap-4 xl:grid-cols-2">{data.map((branch:any)=><form key={branch.id} onSubmit={(e)=>void updateBranch(e,branch.id)} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
+      <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="font-semibold text-primary">{branch.name}</h2><p className="text-xs text-muted">{branch.is_main?'Main branch':'Branch'} · {branch.is_active?'Active':'Inactive'}</p></div>{branch.is_main&&<span className="rounded-radius-full bg-accent-gold-2/10 px-2.5 py-1 text-xs font-semibold text-accent-gold-2">MAIN</span>}</div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input name="name" defaultValue={branch.name||''} required className={inputClass} aria-label="Branch name"/>
+        <input name="addressLine1" defaultValue={branch.address_line_1||''} placeholder="Address" className={inputClass}/>
+        <input name="phone" defaultValue={branch.phone||''} placeholder="Phone" className={inputClass}/>
+        <input name="whatsapp" defaultValue={branch.whatsapp||''} placeholder="WhatsApp" className={inputClass}/>
+        <input name="instagramHandle" defaultValue={branch.instagram_handle||''} placeholder="Instagram" className={inputClass}/>
+        <div className="grid grid-cols-2 gap-2"><input name="latitude" type="number" step="any" defaultValue={branch.latitude??''} placeholder="Latitude" className={inputClass}/><input name="longitude" type="number" step="any" defaultValue={branch.longitude??''} placeholder="Longitude" className={inputClass}/></div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {[['isActive','Active',branch.is_active],['bookingEnabled','Booking',branch.booking_enabled],['walkInsEnabled','Walk-ins',branch.walk_ins_enabled],['homeServiceEnabled','Home service',branch.home_service_enabled]].map(([name,label,checked])=><label key={String(name)} className="flex items-center gap-2 rounded-radius-md bg-surface-2 p-3 text-xs text-primary"><input name={String(name)} type="checkbox" defaultChecked={Boolean(checked)} className="accent-accent-gold-2"/>{String(label)}</label>)}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-radius-md bg-accent-gold-2 px-4 py-2 text-xs font-semibold text-surface-0">Save branch</button>{!branch.is_main&&<button type="button" onClick={()=>{if(window.confirm(`Delete branch ${branch.name}?`))void mutate(`/business-ops/${session!.companyId}/branches/${branch.id}`,{method:'DELETE'},'Branch deleted.')}} className="rounded-radius-md border border-accent-red/40 px-4 py-2 text-xs font-semibold text-accent-red">Delete</button>}</div>
+    </form>)}</div>}
+
     {!loading && !error && section === 'staff' && Array.isArray(data) && <div className="grid gap-4 lg:grid-cols-2">{data.map((scope:any)=>{
       const staffUser=scope.user||{}; const staffRole=scope.role||{};
       return <article key={scope.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
@@ -359,8 +483,8 @@ export function OperationsPage({ section }: { section: string }) {
       </article>;
     })}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
   </div>;
 }
