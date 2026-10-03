@@ -3,7 +3,7 @@ import { PermissionKey, ScopeType, UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { calculateFinancialMetrics } from '../common/finance/financial-metrics';
-import { CreateBusinessUserDto, CreateQueueDto, UpdateBusinessUserDto, UpdateQueueDto } from './dto/business-management.dto';
+import { CreateBranchDto, CreateBusinessUserDto, CreateQueueDto, UpdateBranchDto, UpdateBusinessUserDto, UpdateQueueDto } from './dto/business-management.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
