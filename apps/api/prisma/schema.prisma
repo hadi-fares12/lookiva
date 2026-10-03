@@ -58,8 +58,8 @@ model users {
   password_reset_tokens           password_reset_tokens[]
   email_verification_tokens       email_verification_tokens[]
   phone_otp_tokens                phone_otp_tokens[]
-  search_history                   search_history[]
-  push_devices                     push_devices[]
+  search_history                  search_history[]
+  push_devices                    push_devices[]
 
   @@index([email])
   @@index([phone])
