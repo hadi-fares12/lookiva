@@ -100,27 +100,77 @@ jobs:
 
           python3 - <<'PY'
           import re
+          from collections import Counter
           from pathlib import Path
 
           text = Path("prisma-drift.txt").read_text(encoding="utf-8")
           remaining = []
+          blocks = []
+          current = None
 
-          for line in text.splitlines():
-              stripped = line.strip()
-              if not stripped or stripped == "No difference detected.":
+          def flush():
+              global current
+              if current is not None:
+                  blocks.append(current)
+                  current = None
+
+          for raw in text.splitlines():
+              line = raw.strip()
+              if not line or line == "No difference detected.":
                   continue
-              if re.fullmatch(r"\[\*\] Renamed index .+ to .+", stripped):
+
+              table = re.fullmatch(r"\[\*\] Changed the `(.+)` table", line)
+              if table:
+                  flush()
+                  current = {"table": table.group(1), "lines": []}
                   continue
-              if re.fullmatch(r"\[\*\] Changed the .+ table", stripped):
-                  continue
-              remaining.append(line)
+
+              if current is None:
+                  if re.fullmatch(r"\[\*\] Renamed index .+ to .+", line):
+                      continue
+                  remaining.append(raw)
+              else:
+                  current["lines"].append(line)
+
+          flush()
+
+          for block in blocks:
+              removed_fk = Counter()
+              added_fk = Counter()
+              structural = []
+
+              for line in block["lines"]:
+                  if re.fullmatch(r"\[\*\] Renamed index .+ to .+", line):
+                      continue
+
+                  removed = re.fullmatch(r"\[-\] Removed foreign key on columns (.+)", line)
+                  if removed:
+                      removed_fk[removed.group(1)] += 1
+                      continue
+
+                  added = re.fullmatch(r"\[\+\] Added foreign key on columns (.+)", line)
+                  if added:
+                      added_fk[added.group(1)] += 1
+                      continue
+
+                  structural.append(line)
+
+              if removed_fk != added_fk:
+                  structural.append(
+                      f"Foreign-key drift differs in {block['table']}: "
+                      f"removed={dict(removed_fk)}, added={dict(added_fk)}"
+                  )
+
+              if structural:
+                  remaining.append(f"[*] Changed the {block['table']} table")
+                  remaining.extend(f"  {line}" for line in structural)
 
           if remaining:
               print("Structural Prisma drift detected:")
               print("\n".join(remaining))
               raise SystemExit(1)
 
-          print("Only legacy index-name drift detected; structural schema matches.")
+          print("Schema is structurally aligned; only legacy index/constraint naming differs.")
           PY
 
       - name: Generate Prisma client
