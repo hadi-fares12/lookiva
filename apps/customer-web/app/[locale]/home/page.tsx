@@ -97,10 +97,8 @@ export default function HomePage() {
 
   const homeQuery = useHomeSections({ lat: location?.lat, lon: location?.lon });
   const sections = homeQuery.data?.sections ?? [];
-  const getSection = React.useCallback(
-    (key: HomeSectionKey) => sections.find((section) => section.key === key),
-    [sections],
-  );
+  const getSection = (key: HomeSectionKey) =>
+    sections.find((section) => section.key === key);
 
   const sectionKeys = [
     HomeSectionKey.ForYou,

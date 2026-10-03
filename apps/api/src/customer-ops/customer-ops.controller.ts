@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -21,6 +21,16 @@ export class CustomerOpsController {
 
   @Get('bookings/:id')
   booking(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.ops.booking(user.id, id); }
+
+  @Patch('bookings/:id/self-check-in')
+  @ApiOperation({ summary: 'Customer self check-in for an owned appointment near the branch' })
+  selfCheckIn(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { latitude?: number; longitude?: number },
+  ) {
+    return this.ops.selfCheckIn(user.id, id, body.latitude, body.longitude);
+  }
 
   @Get('conversations')
   conversations(@CurrentUser() user: AuthenticatedUser) { return this.ops.conversations(user.id); }

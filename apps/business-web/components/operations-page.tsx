@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { businessFetch, getBusinessSession } from '@/lib/api';
 
@@ -60,7 +60,7 @@ export function OperationsPage({ section }: { section: string }) {
   const [analyticsFrom, setAnalyticsFrom] = useState('');
   const [analyticsTo, setAnalyticsTo] = useState('');
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!session) return;
     setLoading(true); setError('');
     try {
@@ -77,9 +77,9 @@ export function OperationsPage({ section }: { section: string }) {
       setData(result); setUpdated(new Date());
     } catch (e) { setError(e instanceof Error ? e.message : t('loadError')); }
     finally { setLoading(false); }
-  }
+  }, [session, config, section, analyticsBranchId, analyticsProfessionalId, analyticsFrom, analyticsTo, t]);
 
-  async function loadLookups() {
+  const loadLookups = useCallback(async () => {
     if (!session) return;
     try {
       const [branchRows, categoryRows, professionalRows] = await Promise.all([
@@ -91,10 +91,10 @@ export function OperationsPage({ section }: { section: string }) {
       setCategories((categoryRows || []).map((row) => ({ id: row.id, name: row.name })));
       setProfessionals((professionalRows || []).map((row) => ({ id: row.id, name: row.display_name || row.name || t('labels.professional'), avatarMediaId: row.avatar_media_id ?? null })));
     } catch { /* main page will still work without creation lookups */ }
-  }
+  }, [session, t]);
 
-  useEffect(() => { void loadLookups(); }, [section]);
-  useEffect(() => { void load(); }, [section, analyticsBranchId, analyticsProfessionalId, analyticsFrom, analyticsTo]);
+  useEffect(() => { void loadLookups(); }, [loadLookups]);
+  useEffect(() => { void load(); }, [load]);
 
   async function mutate(path: string, init: RequestInit, success: string) {
     setBusy(path); setMessage(''); setError('');

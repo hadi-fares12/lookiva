@@ -15,6 +15,7 @@ import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
 import 'core/l10n.dart';
+import 'core/auth_pages.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
 const String _prefLocale = 'cust_locale_code';
@@ -294,6 +295,27 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const CustomerLoginPage(),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const CustomerRegisterPage(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const CustomerForgotPasswordPage(),
+    ),
+    GoRoute(
+      path: '/reset-password',
+      builder: (context, state) => CustomerResetPasswordPage(
+        initialToken: state.uri.queryParameters['token'] ?? '',
+      ),
+    ),
+    GoRoute(
+      path: '/search',
+      builder: (context, state) => const Scaffold(
+        appBar: null,
+        body: CustomerDiscoverySearch(),
+      ),
     ),
     GoRoute(
       path: '/account/:section',
@@ -691,7 +713,7 @@ class CustomerMapTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerDiscoverySearch(availableNow: true);
+    return const CustomerDiscoverySearch(availableNow: true, startNearMe: true);
   }
 }
 
@@ -954,7 +976,25 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
                           : ct(context, 'signIn'),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => context.push('/forgot-password'),
+                        child: Text(ct(context, 'forgotPassword')),
+                      ),
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () => context.push('/register'),
+                        child: Text(ct(context, 'createAccount')),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   FutureBuilder<String?>(
                     future: LookivaApi.getStoredApiBaseUrl(),
                     builder: (ctx, snap) {

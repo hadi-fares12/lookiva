@@ -291,6 +291,14 @@ class LookivaBusinessApi {
             error.type == DioExceptionType.sendTimeout);
   }
 
+  Future<void> forgotPassword(String email) async {
+    await _dio.post<dynamic>(
+      '/auth/forgot-password',
+      data: {'email': email.trim().toLowerCase()},
+      options: Options(extra: {'lookivaRetried': true}),
+    );
+  }
+
   Future<dynamic> getForCompany(
     String suffix, {
     Map<String, dynamic>? query,
@@ -313,6 +321,11 @@ class LookivaBusinessApi {
       path = path.replaceAll('{branchId}', branchId);
     }
     final response = await _dio.get<dynamic>(path, queryParameters: query);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> patch(String path, {Object? data}) async {
+    final response = await _dio.patch<dynamic>(path, data: data);
     return _unwrap(response.data);
   }
 
