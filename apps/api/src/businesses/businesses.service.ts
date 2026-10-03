@@ -391,9 +391,20 @@ export class BusinessesService {
       throw new BadRequestException('Minimum booking notice cannot exceed 30 days');
     }
 
+    for (const mediaId of [dto.logo_media_id, dto.cover_media_id].filter(Boolean) as string[]) {
+      const media = await this.prisma.media.findFirst({
+        where: { id: mediaId, uploader_user_id: userId, is_public: true },
+        select: { id: true, company_id: true },
+      });
+      if (!media || (media.company_id && media.company_id !== businessId)) {
+        throw new BadRequestException('Logo/cover media is invalid for this business');
+      }
+    }
+
     const updateData: any = {};
     const allowedFields = [
       'display_name', 'tagline', 'description_short', 'description_long', 'website_url',
+      'logo_media_id', 'cover_media_id',
       'booking_enabled', 'walk_ins_enabled', 'online_payments_enabled',
       'min_booking_notice_minutes', 'max_booking_advance_days', 'cancellation_policy_hours',
       'cancellation_fee_percent', 'no_show_fee_percent', 'deposit_required', 'deposit_percent',
