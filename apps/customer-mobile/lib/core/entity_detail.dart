@@ -14,11 +14,17 @@ class CustomerEntityDetailPage extends StatefulWidget {
 
 class _CustomerEntityDetailPageState extends State<CustomerEntityDetailPage> {
   late Future<dynamic> _future;
+  bool _working = false;
+  bool _following = false;
+  String? _actionMessage;
 
   @override
   void initState() {
     super.initState();
     _reload();
+    if (widget.type == 'business') {
+      _loadFollowing();
+    }
   }
 
   void _reload() {
@@ -29,6 +35,69 @@ class _CustomerEntityDetailPageState extends State<CustomerEntityDetailPage> {
       _ => '/services/${widget.id}',
     };
     _future = LookivaApi.instance.get(endpoint);
+  }
+
+  Future<bool> _requireAuth(String nextPath) async {
+    if (await LookivaApi.instance.hasSession()) return true;
+    if (!mounted) return false;
+    context.push('/login?next=${Uri.encodeComponent(nextPath)}');
+    return false;
+  }
+
+  Future<void> _loadFollowing() async {
+    if (!await LookivaApi.instance.hasSession()) return;
+    try {
+      final raw = await LookivaApi.instance.get('/customer/following', query: {
+        'targetType': 'business',
+        'limit': 100,
+      });
+      final rows = (raw as List? ?? const []).whereType<Map>();
+      final followed = rows.any((row) => row['target_id']?.toString() == widget.id);
+      if (mounted) setState(() => _following = followed);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollow() async {
+    if (!await _requireAuth('/entity/business/${widget.id}')) return;
+    setState(() { _working = true; _actionMessage = null; });
+    try {
+      if (_following) {
+        await LookivaApi.instance.delete('/customer/following/target/business/${widget.id}');
+      } else {
+        await LookivaApi.instance.post('/customer/following', data: {
+          'targetType': 'business',
+          'targetId': widget.id,
+          'companyId': widget.id,
+        });
+      }
+      if (mounted) setState(() => _following = !_following);
+    } catch (error) {
+      if (mounted) setState(() => _actionMessage = LookivaApi.instance.friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _messageBusiness() async {
+    if (!await _requireAuth('/entity/business/${widget.id}')) return;
+    setState(() { _working = true; _actionMessage = null; });
+    try {
+      final raw = await LookivaApi.instance.post('/customer-ops/conversations', data: {'companyId': widget.id});
+      final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      final id = map['id']?.toString();
+      if (id == null || id.isEmpty) throw StateError('Conversation was not created');
+      if (mounted) context.push('/messages/$id');
+    } catch (error) {
+      if (mounted) setState(() => _actionMessage = LookivaApi.instance.friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _bookService(String serviceId) async {
+    final next = '/book/$serviceId';
+    if (!await _requireAuth(next)) return;
+    if (mounted) context.push(next);
   }
 
   @override
@@ -56,15 +125,49 @@ class _CustomerEntityDetailPageState extends State<CustomerEntityDetailPage> {
               children: [
                 _Hero(data: data, type: widget.type),
                 const SizedBox(height: 16),
+                if (_actionMessage != null) ...[
+                  Card(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Padding(padding: const EdgeInsets.all(12), child: Text(_actionMessage!)),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 if (widget.type == 'service')
                   ElevatedButton.icon(
-                    onPressed: () => context.push('/book/${widget.id}'),
+                    onPressed: _working ? null : () => _bookService(widget.id),
                     icon: const Icon(Icons.calendar_month_rounded),
                     label: Text(ct(context,'bookThisService')),
                   ),
                 if (widget.type == 'business') ...[
-                  _ListSection(title: ct(context,'services'), values: data['services']),
-                  _ListSection(title: ct(context,'professionals'), values: data['professionals']),
+                  Row(children: [
+                    Expanded(child: ElevatedButton.icon(
+                      onPressed: _working ? null : _toggleFollow,
+                      icon: Icon(_following ? Icons.person_remove_alt_1_rounded : Icons.person_add_alt_1_rounded),
+                      label: Text(_following ? 'Following' : 'Follow'),
+                    )),
+                    const SizedBox(width: 10),
+                    Expanded(child: OutlinedButton.icon(
+                      onPressed: _working ? null : _messageBusiness,
+                      icon: const Icon(Icons.chat_bubble_outline_rounded),
+                      label: const Text('Message'),
+                    )),
+                  ]),
+                  _ListSection(
+                    title: ct(context,'services'),
+                    values: data['services'],
+                    onTap: (item) {
+                      final id = item['id']?.toString();
+                      if (id != null && id.isNotEmpty) context.push('/entity/service/$id');
+                    },
+                  ),
+                  _ListSection(
+                    title: ct(context,'professionals'),
+                    values: data['professionals'],
+                    onTap: (item) {
+                      final id = item['id']?.toString();
+                      if (id != null && id.isNotEmpty) context.push('/entity/professional/$id');
+                    },
+                  ),
                   _ListSection(title: ct(context,'branch'), values: data['branches']),
                 ],
                 if (widget.type == 'professional')
@@ -77,7 +180,14 @@ class _CustomerEntityDetailPageState extends State<CustomerEntityDetailPage> {
                     },
                   ),
                 if (widget.type == 'service') ...[
-                  _ListSection(title: ct(context,'professionals'), values: data['professionals']),
+                  _ListSection(
+                    title: ct(context,'professionals'),
+                    values: data['professionals'],
+                    onTap: (item) {
+                      final id = item['id']?.toString();
+                      if (id != null && id.isNotEmpty) context.push('/entity/professional/$id');
+                    },
+                  ),
                   _ListSection(title: ct(context,'relatedLooks'), values: data['related_looks']),
                 ],
               ],
@@ -107,6 +217,13 @@ class _Hero extends StatelessWidget {
     if (data['aggregate_reviews'] is Map) {
       final r = Map<String, dynamic>.from(data['aggregate_reviews'] as Map);
       if (r['avg_rating'] != null) lines.add('★ ${r['avg_rating']} (${r['count'] ?? 0})');
+    }
+    if (data['followers_count'] != null) lines.add('${data['followers_count']} followers');
+    if (data['distance_meters'] != null) {
+      final meters = num.tryParse(data['distance_meters'].toString());
+      if (meters != null) {
+        lines.add(meters < 1000 ? '${meters.round()} m' : '${(meters / 1000).toStringAsFixed(1)} km');
+      }
     }
     final company = data['company'];
     if (company is Map && company['display_name'] != null) lines.add(company['display_name'].toString());
@@ -161,7 +278,8 @@ class _ListSection extends StatelessWidget {
           final subtitle = <String>[
             if (item['base_price'] != null) '${item['base_price']} ${item['currency_code'] ?? ''}'.trim(),
             if (item['duration_minutes'] != null) '${item['duration_minutes']} min',
-            if (branch?['address_line1'] != null) branch!['address_line1'].toString(),
+            if (item['address_line_1'] != null) item['address_line_1'].toString(),
+            if (branch?['address_line_1'] != null) branch!['address_line_1'].toString(),
           ].join(' • ');
           return Card(
             child: ListTile(
