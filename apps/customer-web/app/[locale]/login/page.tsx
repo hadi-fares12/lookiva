@@ -13,7 +13,6 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/i18n/routing';
 import clsx from 'clsx';
 import axios from '@/lib/axios';
@@ -29,9 +28,14 @@ export default function LoginPage() {
   const tCommon = useTranslations('common');
   const locale = useLocale();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestedNext = searchParams.get('next');
-  const nextPath = requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/home';
+
+  function nextPathAfterLogin() {
+    if (typeof window === 'undefined') return '/home';
+    const requestedNext = new URLSearchParams(window.location.search).get('next');
+    return requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//')
+      ? requestedNext
+      : '/home';
+  }
 
   const [tab, setTab] = React.useState<Tab>('password');
   const [identifierType, setIdentifierType] = React.useState<IdentifierType>('email');
@@ -96,7 +100,7 @@ export default function LoginPage() {
           setAuthTokens(data.accessToken, data.refreshToken);
         }
         toast.success(t('loginSuccess'));
-        router.push(nextPath);
+        router.push(nextPathAfterLogin());
       } else {
         const code = otp.join('');
         if (code.length < 6) {
@@ -113,7 +117,7 @@ export default function LoginPage() {
           setAuthTokens(data.accessToken, data.refreshToken);
         }
         toast.success(t('loginSuccess'));
-        router.push(nextPath);
+        router.push(nextPathAfterLogin());
       }
     } finally {
       setLoading(false);
