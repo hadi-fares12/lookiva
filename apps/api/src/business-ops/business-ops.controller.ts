@@ -107,6 +107,59 @@ export class BusinessOpsController {
   }
 
 
+
+  @Get('conversations')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  conversations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.conversations(user, companyId, Number(limit) || 100);
+  }
+
+  @Get('conversations/:conversationId/messages')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  conversationMessages(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('conversationId') conversationId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.conversationMessages(user, companyId, conversationId, Number(limit) || 100);
+  }
+
+  @Post('conversations/:conversationId/messages')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  sendConversationMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('conversationId') conversationId: string,
+    @Body() body: { body: string; messageType?: string },
+  ) {
+    return this.ops.sendConversationMessage(user, companyId, conversationId, body.body, body.messageType || 'text');
+  }
+
+  @Post('customers/:customerId/block')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  blockCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.ops.setCustomerBlocked(user, companyId, customerId, true);
+  }
+
+  @Delete('customers/:customerId/block')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  unblockCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.ops.setCustomerBlocked(user, companyId, customerId, false);
+  }
+
   @Get('queues')
   @RequirePermissions(PermissionKey.BookingQueueManage)
   queues(
