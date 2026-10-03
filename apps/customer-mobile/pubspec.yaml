@@ -19,7 +19,7 @@ dependencies:
   dio: ^5.4.0
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
-  geolocator: ^14.1.1
+  geolocator: 14.0.2
   flutter_map: ^8.3.2
   latlong2: ^0.9.1
   image_picker: ^1.2.3
