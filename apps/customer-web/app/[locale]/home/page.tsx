@@ -115,7 +115,7 @@ export default function HomePage() {
     event.preventDefault();
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set('q', searchQuery.trim());
-    router.push(`/${locale}/search${params.size ? `?${params}` : ''}`);
+    router.push(`/search${params.size ? `?${params}` : ''}`);
   }
 
   return (
@@ -124,7 +124,7 @@ export default function HomePage() {
         <div className="w-full max-w-5xl mx-auto space-y-3">
           <button
             type="button"
-            onClick={() => router.push(`/${locale}/location-permission`)}
+            onClick={() => router.push('/location-permission')}
             className="inline-flex items-center gap-2 h-10 px-4 rounded-radius-full bg-surface-1 border border-border-subtle hover:border-accent-gold-2/50 transition-colors"
           >
             <MapPin className="w-4 h-4 text-accent-gold-2" />
@@ -145,7 +145,7 @@ export default function HomePage() {
             </div>
             <button
               type="button"
-              onClick={() => router.push(`/${locale}/search`)}
+              onClick={() => router.push('/search')}
               className="h-12 w-12 md:w-auto md:px-5 inline-flex items-center justify-center gap-2 rounded-radius-xl bg-surface-1 border border-border-subtle"
               aria-label={t('filter.title')}
             >
