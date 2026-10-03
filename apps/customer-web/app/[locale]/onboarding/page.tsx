@@ -88,12 +88,12 @@ export default function OnboardingPage() {
 
   const finish = React.useCallback(() => {
     localStorage.setItem(KEY, '1');
-    router.push(`/${locale}/home`);
+    router.push('/home');
   }, [locale, router]);
 
   const skip = React.useCallback(() => {
     localStorage.setItem(KEY, '1');
-    router.push(`/${locale}/home`);
+    router.push('/home');
   }, [locale, router]);
 
   const next = React.useCallback(() => {
