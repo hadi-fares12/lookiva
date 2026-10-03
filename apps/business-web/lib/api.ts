@@ -64,6 +64,28 @@ async function refreshAccessToken() {
   return data.accessToken as string;
 }
 
+export async function businessUpload<T = unknown>(
+  path: string,
+  file: File,
+  fields?: Record<string, string>,
+): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS) : null;
+  if (!token) throw new Error('Session expired');
+  const form = new FormData();
+  form.append('file', file);
+  for (const [key, value] of Object.entries(fields || {})) form.append(key, value);
+  const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : `/${path}`}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message || `Upload failed (${response.status})`);
+  }
+  return unwrapEnvelope<T>(await response.json());
+}
+
 export async function businessFetch<T = unknown>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS) : null;
   const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : `/${path}`}`, {
