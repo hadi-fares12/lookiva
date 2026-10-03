@@ -69,6 +69,18 @@ export class CreateAppointmentDto extends CreateHoldDto {
 
   @IsOptional()
   @IsString()
+  contactName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  contactEmail?: string;
+
+  @IsOptional()
+  @IsString()
   notesCustomer?: string;
 
   @IsOptional()
