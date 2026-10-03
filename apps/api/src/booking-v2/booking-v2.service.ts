@@ -20,6 +20,7 @@ import {
   CreateHoldDto,
   JoinQueueDto,
   RescheduleAppointmentDto,
+  RejectAppointmentDto,
 } from './dto/booking-v2.dto';
 
 type Db = Prisma.TransactionClient | PrismaService;
@@ -392,6 +393,96 @@ export class BookingV2Service {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+
+  async confirmAppointment(user: AuthenticatedUser, appointmentId: string) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
+      if (!appointment) throw new NotFoundException('Appointment not found');
+      await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
+      if (appointment.status !== 'pending') {
+        throw new ConflictException(`Appointment cannot be confirmed from ${appointment.status}`);
+      }
+      const confirmed = await tx.appointments.update({
+        where: { id: appointmentId },
+        data: { status: 'confirmed', confirmed_at: new Date() },
+      });
+      await tx.appointment_services.updateMany({
+        where: { appointment_id: appointmentId, status: 'pending' },
+        data: { status: 'confirmed' },
+      });
+      await tx.appointment_status_history.create({
+        data: {
+          appointment_id: appointmentId,
+          old_status: appointment.status,
+          new_status: 'confirmed',
+          changed_by_id: user.id,
+          notes: 'Approved by business',
+        },
+      });
+      return confirmed;
+    });
+    await this.notifyCustomer(
+      updated,
+      'booking_confirmed',
+      'Booking approved',
+      `Your booking for ${updated.starts_at.toLocaleString()} has been approved.`,
+    );
+    return updated;
+  }
+
+  async rejectAppointment(user: AuthenticatedUser, appointmentId: string, dto: RejectAppointmentDto) {
+    const reason = dto.reason?.trim();
+    if (!reason) throw new BadRequestException('A rejection reason is required');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
+      if (!appointment) throw new NotFoundException('Appointment not found');
+      await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
+      if (!['pending', 'confirmed'].includes(appointment.status)) {
+        throw new ConflictException(`Appointment cannot be rejected from ${appointment.status}`);
+      }
+      const rejected = await tx.appointments.update({
+        where: { id: appointmentId },
+        data: {
+          status: 'cancelled_by_business',
+          cancelled_at: new Date(),
+          cancelled_by_user_id: user.id,
+          cancellation_reason: reason,
+        },
+      });
+      await tx.appointment_services.updateMany({
+        where: { appointment_id: appointmentId },
+        data: { status: 'cancelled' },
+      });
+      await tx.appointment_status_history.create({
+        data: {
+          appointment_id: appointmentId,
+          old_status: appointment.status,
+          new_status: 'cancelled_by_business',
+          changed_by_id: user.id,
+          notes: dto.note?.trim() || reason,
+        },
+      });
+      if (dto.note?.trim()) {
+        await tx.appointment_notes.create({
+          data: {
+            appointment_id: appointmentId,
+            author_user_id: user.id,
+            note: dto.note.trim(),
+            is_private: false,
+          },
+        });
+      }
+      return rejected;
+    });
+    await this.notifyCustomer(
+      updated,
+      'booking_rejected',
+      'Booking declined',
+      `Your booking was declined. Reason: ${reason}${dto.note?.trim() ? ` — ${dto.note.trim()}` : ''}`,
+    );
+    return updated;
   }
 
   async cancelAppointment(
