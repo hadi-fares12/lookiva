@@ -1450,6 +1450,9 @@ model appointments {
   branch_id               String
   customer_id             String?
   customer_user_id        String?
+  contact_name            String?
+  contact_phone           String?
+  contact_email           String?
   status                  String    @default("pending")
   starts_at               DateTime
   ends_at                 DateTime
