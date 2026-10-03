@@ -36,6 +36,7 @@ export const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must contain at least 32 characters'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('7d'),
+  GOOGLE_CLIENT_ID: z.string().min(10).optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001,http://localhost:3002,http://localhost:3003'),
   PORT: z.coerce.number().int().positive().default(4000),
 
