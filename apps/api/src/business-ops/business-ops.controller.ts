@@ -5,7 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { BusinessOpsService } from './business-ops.service';
-import { CreateBusinessUserDto, CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdateBusinessUserDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
+import { CreateBranchDto, CreateBusinessUserDto, CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdateBranchDto, UpdateBusinessUserDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
 
 @ApiTags('Business Operations')
 @ApiBearerAuth()
@@ -38,6 +38,38 @@ export class BusinessOpsController {
   @RequirePermissions(PermissionKey.BusinessBranchView)
   branches(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
     return this.ops.branches(user, companyId);
+  }
+
+
+  @Post('branches')
+  @RequirePermissions(PermissionKey.BusinessBranchCreate)
+  createBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() dto: CreateBranchDto,
+  ) {
+    return this.ops.createBranch(user, companyId, dto);
+  }
+
+  @Patch('branches/:branchId')
+  @RequirePermissions(PermissionKey.BusinessBranchEdit)
+  updateBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: UpdateBranchDto,
+  ) {
+    return this.ops.updateBranch(user, companyId, branchId, dto);
+  }
+
+  @Delete('branches/:branchId')
+  @RequirePermissions(PermissionKey.BusinessBranchDelete)
+  deleteBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('branchId') branchId: string,
+  ) {
+    return this.ops.deleteBranch(user, companyId, branchId);
   }
 
   @Get('customers')
