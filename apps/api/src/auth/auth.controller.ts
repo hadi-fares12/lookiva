@@ -28,6 +28,7 @@ import { VerifyPhoneOtpDto } from './dto/verify-phone-otp.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 function extractIp(req: unknown): string | undefined {
   const r = req as Record<string, unknown>;
@@ -77,6 +78,24 @@ export class AuthController {
       message: 'Login successful',
       ...tokens,
     };
+  }
+
+  @Public()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sign in or create a customer account with a Google ID token' })
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: unknown,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    const tokens = await this.authService.loginWithGoogle(
+      dto.idToken,
+      extractIp(req),
+      userAgent,
+      dto.deviceName,
+    );
+    return { message: 'Google sign-in successful', ...tokens };
   }
 
   @Get('me')
