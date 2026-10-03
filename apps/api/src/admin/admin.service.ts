@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { ScopeType, UserRole } from '@lookiva/shared-types';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 function pageArgs(page: number, limit: number, max = 250) {
@@ -9,7 +15,13 @@ function pageArgs(page: number, limit: number, max = 250) {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+    @InjectQueue('email-queue') private readonly emailQueue: Queue,
+  ) {}
 
   private async writeAudit(actorUserId: string, action: string, entityType: string, entityId: string, oldValue?: unknown, newValue?: unknown, companyId?: string | null) {
     await this.prisma.audit_logs.create({
@@ -44,24 +56,155 @@ export class AdminService {
   }
 
   async reviewBusinessVerification(actorUserId: string, companyId: string, status: 'approved' | 'rejected' | 'reviewing', reason?: string) {
-    const company = await this.prisma.companies.findUnique({ where: { id: companyId }, include: { verification: true } });
+    const company = await this.prisma.companies.findUnique({
+      where: { id: companyId },
+      include: { verification: true, owner_user: true, branches: { where: { is_main: true }, take: 1 } },
+    });
     if (!company) throw new NotFoundException('Business not found');
     if (!company.verification) throw new BadRequestException('Business has no verification submission');
     if (status === 'rejected' && !reason?.trim()) throw new BadRequestException('A rejection reason is required');
+
     const now = new Date();
+    let temporaryPassword: string | null = null;
+
     const result = await this.prisma.$transaction(async (tx) => {
       const verification = await tx.company_verification.update({
         where: { company_id: companyId },
-        data: { status, reviewed_by_user_id: actorUserId, reviewed_at: status === 'reviewing' ? null : now, rejection_reason: status === 'rejected' ? reason : null },
+        data: {
+          status,
+          reviewed_by_user_id: actorUserId,
+          reviewed_at: status === 'reviewing' ? null : now,
+          rejection_reason: status === 'rejected' ? reason!.trim() : null,
+        },
       });
+
       const updatedCompany = await tx.companies.update({
         where: { id: companyId },
-        data: { is_verified: status === 'approved', verified_at: status === 'approved' ? now : null },
+        data: {
+          is_verified: status === 'approved',
+          verified_at: status === 'approved' ? now : null,
+          is_active: status === 'approved',
+          booking_enabled: status === 'approved',
+        },
       });
+
+      if (status === 'approved') {
+        temporaryPassword = crypto.randomBytes(9).toString('base64url');
+        const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+        await tx.users.update({
+          where: { id: company.owner_user_id },
+          data: { password_hash: passwordHash, is_active: true, deleted_at: null },
+        });
+        await tx.branches.updateMany({
+          where: { company_id: companyId },
+          data: { is_active: true, booking_enabled: true },
+        });
+
+        const role = await tx.roles.findUnique({ where: { key: UserRole.BusinessOwner } });
+        if (!role) throw new BadRequestException('Business owner role is not configured');
+        const existingScope = await tx.user_role_scopes.findFirst({
+          where: {
+            user_id: company.owner_user_id,
+            role_id: role.id,
+            company_id: companyId,
+            scope_type: ScopeType.Company,
+          },
+        });
+        if (!existingScope) {
+          await tx.user_role_scopes.create({
+            data: {
+              user_id: company.owner_user_id,
+              role_id: role.id,
+              role_key: UserRole.BusinessOwner,
+              scope_type: ScopeType.Company,
+              scope_id: companyId,
+              company_id: companyId,
+              granted_by_user_id: actorUserId,
+            },
+          });
+        }
+      }
+
+      if (status === 'rejected') {
+        await tx.companies.update({ where: { id: companyId }, data: { is_active: false, booking_enabled: false } });
+        await tx.users.update({ where: { id: company.owner_user_id }, data: { is_active: false } });
+        await tx.branches.updateMany({ where: { company_id: companyId }, data: { is_active: false, booking_enabled: false } });
+      }
+
       return { verification, company: updatedCompany };
     });
-    await this.writeAudit(actorUserId, `business.verification.${status}`, 'company_verification', company.verification.id, { status: company.verification.status }, { status, reason }, companyId);
-    return result;
+
+    await this.writeAudit(
+      actorUserId,
+      `business.verification.${status}`,
+      'company_verification',
+      company.verification.id,
+      { status: company.verification.status },
+      { status, reason },
+      companyId,
+    );
+
+    if (status === 'approved' && temporaryPassword) {
+      await this.sendBusinessDecision(company.owner_user.email, company.owner_user.phone, company.display_name, true, temporaryPassword);
+    } else if (status === 'rejected') {
+      await this.sendBusinessDecision(company.owner_user.email, company.owner_user.phone, company.display_name, false, null, reason);
+    }
+
+    return {
+      ...result,
+      credentialsDispatched: status === 'approved',
+      ownerEmail: company.owner_user.email,
+      ownerPhone: company.owner_user.phone,
+    };
+  }
+
+  private async sendBusinessDecision(
+    email: string | null,
+    phone: string | null,
+    businessName: string,
+    approved: boolean,
+    temporaryPassword?: string | null,
+    reason?: string,
+  ) {
+    const portal = this.config.get<string>('PUBLIC_BUSINESS_WEB_URL', 'http://localhost:3002').replace(/\/$/, '');
+    const subject = approved ? 'LOOKIVA business application approved' : 'LOOKIVA business application update';
+    const body = approved
+      ? `Your LOOKIVA business "${businessName}" is approved. Login: ${email ?? phone ?? 'your registered account'}. Temporary password: ${temporaryPassword}. Business portal: ${portal}. Change this password immediately after signing in.`
+      : `Your LOOKIVA business "${businessName}" was not approved. Reason: ${reason || 'Please contact LOOKIVA support for details.'}`;
+
+    if (email) {
+      try {
+        await this.emailQueue.add(
+          'business-verification-decision',
+          { to: email, subject, template: 'notification', vars: { title: subject, body }, text: body },
+          { attempts: 5, backoff: { type: 'exponential', delay: 2000 }, removeOnComplete: 500, removeOnFail: 1000 },
+        );
+      } catch (error) {
+        this.logger.error(`Unable to queue business decision email: ${(error as Error).message}`);
+      }
+    }
+
+    if (phone) {
+      const provider = this.config.get<string>('WHATSAPP_PROVIDER', 'console');
+      if (provider === 'generic_http') {
+        const endpoint = this.config.get<string>('WHATSAPP_PROVIDER_BASE_URL');
+        const apiKey = this.config.get<string>('WHATSAPP_API_KEY');
+        if (endpoint && apiKey) {
+          try {
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+              body: JSON.stringify({ to: phone, from: this.config.get<string>('WHATSAPP_FROM'), message: body }),
+            });
+            if (!response.ok) this.logger.error(`WhatsApp provider returned HTTP ${response.status}`);
+          } catch (error) {
+            this.logger.error(`Unable to send WhatsApp business decision: ${(error as Error).message}`);
+          }
+        }
+      } else if (this.config.get<string>('NODE_ENV', 'development') !== 'production') {
+        this.logger.log(`[DEV-WHATSAPP] to=${phone} message=${body}`);
+      }
+    }
   }
 
   async updateFeatureFlag(actorUserId: string, key: string, patch: any) {
