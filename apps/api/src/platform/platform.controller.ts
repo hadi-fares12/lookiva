@@ -26,6 +26,24 @@ export class PlatformController {
     return this.platformService.getSettings();
   }
 
+
+  @Public()
+  @Get('categories')
+  async getCategories() {
+    try {
+      return await this.prisma.service_categories.findMany({
+        where: { is_active: true },
+        orderBy: [{ depth_level: 'asc' }, { sort_order: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, description: true, icon_key: true, parent_id: true, depth_level: true },
+      });
+    } catch (e: any) {
+      if (!this.isTableMissingError(e)) {
+        this.logger.warn('Failed to fetch service categories', e.message);
+      }
+      return [];
+    }
+  }
+
   @Public()
   @Get('countries')
   async getCountries() {
