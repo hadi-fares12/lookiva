@@ -161,6 +161,52 @@ export function OperationsPage({ section }: { section: string }) {
     event.currentTarget.reset();
   }
 
+  async function submitStaff(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const form = event.currentTarget;
+    const fd = new FormData(form);
+    const roleKey = String(fd.get('roleKey') || 'staff');
+    const branchId = String(fd.get('branchId') || '');
+    setBusy('staff-create'); setMessage(''); setError('');
+    try {
+      const result = await businessFetch<any>(`/business-ops/${session.companyId}/staff`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: String(fd.get('fullName') || '').trim(),
+          email: String(fd.get('email') || '').trim() || undefined,
+          phone: String(fd.get('phone') || '').trim() || undefined,
+          roleKey,
+          branchId: roleKey === 'business_manager' ? undefined : (branchId || undefined),
+          professionalDisplayName: roleKey === 'professional' ? String(fd.get('professionalDisplayName') || '').trim() || undefined : undefined,
+          specialties: roleKey === 'professional'
+            ? String(fd.get('specialties') || '').split(',').map((x)=>x.trim()).filter(Boolean)
+            : undefined,
+        }),
+      });
+      setMessage(`User created. Temporary password: ${result.temporaryPassword}. Give it securely to the user and have them change it after sign-in.`);
+      form.reset();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function updateStaffRole(event: FormEvent<HTMLFormElement>, userId: string) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const roleKey = String(fd.get('roleKey') || 'staff');
+    const branchId = String(fd.get('branchId') || '');
+    await mutate(`/business-ops/${session.companyId}/staff/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        roleKey,
+        branchId: roleKey === 'business_manager' ? undefined : (branchId || undefined),
+      }),
+    }, 'User role and branch updated.');
+  }
+
   async function submitSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -209,6 +255,25 @@ export function OperationsPage({ section }: { section: string }) {
       <select name="type" className={inputClass}><option value="barber_chair">Barber chair</option><option value="styling_chair">Styling chair</option><option value="washing_station">Washing station</option><option value="nail_table">Nail table</option><option value="treatment_room">Treatment room</option><option value="equipment">Equipment</option></select>
       <select name="branchId" required={!!session?.branchId} defaultValue={session?.branchId || ''} className={inputClass}><option value="">Company-wide</option>{branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
       <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Add resource</button>
+    </form>}
+
+    {section === 'staff' && <form onSubmit={submitStaff} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-2 xl:grid-cols-6">
+      <input name="fullName" required placeholder="Full name" className={`${inputClass} xl:col-span-2`} />
+      <input name="email" type="email" placeholder="Email" className={inputClass} />
+      <input name="phone" placeholder="Phone" className={inputClass} />
+      <select name="roleKey" defaultValue="staff" className={inputClass}>
+        <option value="business_manager">Business manager</option>
+        <option value="branch_manager">Branch manager</option>
+        <option value="professional">Professional / barber</option>
+        <option value="staff">Staff</option>
+      </select>
+      <select name="branchId" defaultValue="" className={inputClass}>
+        <option value="">Choose branch when required</option>
+        {branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+      <input name="professionalDisplayName" placeholder="Professional display name (optional)" className={`${inputClass} xl:col-span-2`} />
+      <input name="specialties" placeholder="Specialties: Fade, Beard, Color…" className={`${inputClass} xl:col-span-3`} />
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">{busy==='staff-create'?'Creating…':'Add user'}</button>
     </form>}
 
     {section === 'settings' && data && <form key={String(data.updated_at || data.id || 'settings')} onSubmit={submitSettings} className="grid gap-4 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-2 xl:grid-cols-4">
@@ -267,8 +332,35 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && section === 'queue' && Array.isArray(data) && <div className="space-y-5">{data.map((queue:any)=><section key={queue.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-primary">{queue.name}</h2><p className="text-xs text-muted">{queue.branch?.name || t('labels.branch')} · {queue.estimated_wait_per_person_minutes} {t('labels.minutesPerPerson')} · {t('labels.max')} {queue.max_waiting}</p></div><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/queues/${queue.id}`,{method:'PATCH',body:JSON.stringify({isActive:!queue.is_active})},queue.is_active?t('messages.queuePaused'):t('messages.queueActivated'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{queue.is_active?t('actions.pause'):t('actions.activate')}</button></div><div className="mt-4 space-y-2">{(queue.entries||[]).map((entry:any)=><div key={entry.id} className="flex flex-col gap-3 rounded-radius-lg bg-surface-2 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-primary">#{entry.position} · {entry.customer_name || entry.customer?.user?.full_name || t('labels.customer')}</p><p className="text-sm text-muted">{t('labels.estimatedWait')} {entry.estimated_wait_minutes ?? '—'} min · {entry.status}</p></div><div className="flex gap-2">{entry.status==='waiting'&&<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/call`,{method:'PATCH',body:'{}'},t('messages.customerCalled'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.call')}</button>}<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/serve`,{method:'PATCH',body:'{}'},t('messages.queueServed'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.served')}</button></div></div>)}{!(queue.entries||[]).length&&<p className="text-sm text-muted">{t('messages.noCustomersWaiting')}</p>}</div></section>)}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+    {!loading && !error && section === 'staff' && Array.isArray(data) && <div className="grid gap-4 lg:grid-cols-2">{data.map((scope:any)=>{
+      const staffUser=scope.user||{}; const staffRole=scope.role||{};
+      return <article key={scope.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div><h2 className="font-semibold text-primary">{staffUser.full_name||'Business user'}</h2><p className="mt-1 text-sm text-secondary">{staffUser.email||staffUser.phone||'No contact'} · {staffRole.name||scope.role_key}</p><p className="mt-1 text-xs text-muted">{staffUser.is_active?'Active':'Disabled'}{scope.branch_id?' · Branch-scoped':' · Company-wide'}</p></div>
+          <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${staffUser.is_active?'bg-accent-green/10 text-accent-green':'bg-accent-red/10 text-accent-red'}`}>{staffUser.is_active?'Active':'Disabled'}</span>
+        </div>
+        <form onSubmit={(e)=>void updateStaffRole(e,staffUser.id)} className="mt-4 grid gap-2 sm:grid-cols-2">
+          <select name="roleKey" defaultValue={scope.role_key} className={inputClass}>
+            <option value="business_manager">Business manager</option>
+            <option value="branch_manager">Branch manager</option>
+            <option value="professional">Professional / barber</option>
+            <option value="staff">Staff</option>
+          </select>
+          <select name="branchId" defaultValue={scope.branch_id||''} className={inputClass}>
+            <option value="">Company-wide / choose branch</option>
+            {branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          <button className="h-10 rounded-radius-md border border-accent-gold-2/50 px-3 text-xs font-semibold text-accent-gold-2">Save role & branch</button>
+        </form>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/staff/${staffUser.id}`,{method:'PATCH',body:JSON.stringify({isActive:!staffUser.is_active})},staffUser.is_active?'User disabled.':'User enabled.')} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{staffUser.is_active?'Disable':'Enable'}</button>
+          <button onClick={()=>{if(window.confirm(`Remove ${staffUser.full_name||'this user'} from the business?`))void mutate(`/business-ops/${session!.companyId}/staff/${staffUser.id}`,{method:'DELETE'},'User removed from business.')}} className="rounded-radius-md border border-accent-red/40 px-3 py-2 text-xs font-semibold text-accent-red">Remove</button>
+        </div>
+      </article>;
+    })}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
   </div>;
 }
