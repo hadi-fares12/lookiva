@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { calculateFinancialMetrics } from '../common/finance/financial-metrics';
 import { CreateQueueDto, UpdateQueueDto } from './dto/business-management.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const platformRoles = new Set<UserRole>([
   UserRole.SuperAdmin,
@@ -23,7 +24,7 @@ function slugify(value: string): string {
 
 @Injectable()
 export class BusinessOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationsService) {}
 
   private companyAccess(user: AuthenticatedUser, companyId: string) {
     if (user.roleScopes.some((scope) => platformRoles.has(scope.roleKey))) {
@@ -237,6 +238,86 @@ export class BusinessOpsService {
     return this.prisma.subscriptions.findMany({ where: { company_id: companyId }, include: { plan: true }, orderBy: { created_at: 'desc' } });
   }
 
+
+
+  async conversations(user: AuthenticatedUser, companyId: string, limit = 100) {
+    this.companyAccess(user, companyId);
+    return this.prisma.conversations.findMany({
+      where: { company_id: companyId },
+      include: {
+        members: { include: { user: { select: { id: true, full_name: true, email: true, phone: true } } } },
+        messages: { orderBy: { created_at: 'desc' }, take: 1, include: { sender: { select: { id: true, full_name: true } } } },
+      },
+      orderBy: [{ last_message_at: 'desc' }, { updated_at: 'desc' }],
+      take: Math.min(limit, 250),
+    });
+  }
+
+  async conversationMessages(user: AuthenticatedUser, companyId: string, conversationId: string, limit = 100) {
+    this.companyAccess(user, companyId);
+    const conversation = await this.prisma.conversations.findFirst({ where: { id: conversationId, company_id: companyId } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    return this.prisma.messages.findMany({
+      where: { conversation_id: conversationId, deleted_at: null },
+      include: { sender: { select: { id: true, full_name: true } }, attachments: true },
+      orderBy: { created_at: 'asc' },
+      take: Math.min(limit, 250),
+    });
+  }
+
+  async sendConversationMessage(user: AuthenticatedUser, companyId: string, conversationId: string, body: string, messageType = 'text') {
+    this.companyAccess(user, companyId);
+    const clean = body?.trim();
+    if (!clean) throw new BadRequestException('Message body is required');
+    const conversation = await this.prisma.conversations.findFirst({ where: { id: conversationId, company_id: companyId } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const message = await tx.messages.create({
+        data: { conversation_id: conversationId, sender_user_id: user.id, message_type: messageType, body_plain: clean },
+      });
+      await tx.conversations.update({
+        where: { id: conversationId },
+        data: { last_message_id: message.id, last_message_at: message.created_at },
+      });
+      const recipients = await tx.conversation_members.findMany({
+        where: { conversation_id: conversationId, user_id: { not: user.id }, left_at: null },
+        select: { user_id: true },
+      });
+      return { message, recipients };
+    });
+
+    for (const recipient of result.recipients) {
+      await this.notifications.dispatch({
+        recipientUserId: recipient.user_id,
+        notificationType: 'new_message',
+        title: 'New message from business',
+        body: clean.length > 120 ? `${clean.slice(0, 117)}...` : clean,
+        companyId,
+        deepLink: `/chat/${conversationId}`,
+        payload: { conversationId, companyId },
+      });
+    }
+    return result.message;
+  }
+
+  async setCustomerBlocked(user: AuthenticatedUser, companyId: string, customerId: string, blocked: boolean) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Blocking customers requires company-level access');
+    const customer = await this.prisma.customers.findUnique({
+      where: { id: customerId },
+      include: { user: { select: { id: true, full_name: true } } },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const current = new Set(customer.blocked_by_company_ids ?? []);
+    if (blocked) current.add(companyId); else current.delete(companyId);
+    const updated = await this.prisma.customers.update({
+      where: { id: customerId },
+      data: { blocked_by_company_ids: Array.from(current) },
+    });
+    await this.auditMutation(user, companyId, blocked ? 'customer.block' : 'customer.unblock', 'customer', customerId, { blocked: !blocked }, { blocked });
+    return { customerId, blocked, customer: updated };
+  }
 
   async queues(user: AuthenticatedUser, companyId: string, branchId?: string) {
     const access = this.companyAccess(user, companyId);
