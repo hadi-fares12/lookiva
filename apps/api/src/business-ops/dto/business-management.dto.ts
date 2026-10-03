@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDateString,
   IsIn,
+  IsEmail,
   IsInt,
   IsNumber,
   IsOptional,
@@ -123,4 +124,51 @@ export class UpdateQueueDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(240) estimatedWaitPerPersonMinutes?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(500) maxWaiting?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+
+export class CreateBusinessUserDto {
+  @IsString() @Length(2, 120)
+  fullName!: string;
+
+  @IsOptional() @IsEmail()
+  email?: string;
+
+  @IsOptional() @IsString() @Length(5, 30)
+  phone?: string;
+
+  @IsIn(['business_manager', 'branch_manager', 'professional', 'staff'])
+  roleKey!: string;
+
+  @IsOptional() @IsString()
+  branchId?: string;
+
+  @IsOptional() @IsString() @Length(2, 120)
+  professionalDisplayName?: string;
+
+  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  specialties?: string[];
+}
+
+export class UpdateBusinessUserDto {
+  @IsOptional() @IsString() @Length(2, 120)
+  fullName?: string;
+
+  @IsOptional() @IsString() @Length(5, 30)
+  phone?: string;
+
+  @IsOptional() @IsIn(['business_manager', 'branch_manager', 'professional', 'staff'])
+  roleKey?: string;
+
+  @IsOptional() @IsString()
+  branchId?: string;
+
+  @IsOptional() @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional() @IsString() @Length(2, 120)
+  professionalDisplayName?: string;
+
+  @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
+  specialties?: string[];
 }
