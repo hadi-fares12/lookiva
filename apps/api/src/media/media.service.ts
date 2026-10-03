@@ -327,7 +327,7 @@ export class MediaService implements OnModuleInit {
 
     if (
       this.mediaProcessQueue &&
-      file.mimetype.startsWith('image/')
+      (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
     ) {
       try {
         await this.mediaProcessQueue.add(
