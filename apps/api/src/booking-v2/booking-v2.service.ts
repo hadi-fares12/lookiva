@@ -40,6 +40,7 @@ interface PreparedBooking {
   branch: any;
   customerId: string;
   customerUserId: string;
+  customerContact: { name: string | null; phone: string | null; email: string | null };
   professional: any | null;
   services: any[];
   resources: any[];
@@ -293,6 +294,9 @@ export class BookingV2Service {
           isHomeService: dto.isHomeService,
           source: dto.source ?? (hold ? 'hold_conversion' : 'direct'),
           guestCount: merged.guestCount ?? 1,
+          contactName: dto.contactName,
+          contactPhone: dto.contactPhone,
+          contactEmail: dto.contactEmail,
         });
 
         if (hold) {
@@ -920,7 +924,10 @@ export class BookingV2Service {
     if (customerId !== ownCustomerId && !canManageBooking) {
       throw new ForbiddenException('Customers may only create bookings for their own customer profile');
     }
-    const customer = await tx.customers.findUnique({ where: { id: customerId } });
+    const customer = await tx.customers.findUnique({
+      where: { id: customerId },
+      include: { user: { select: { full_name: true, phone: true, email: true } } },
+    });
     if (!customer) throw new BadRequestException('Customer is invalid');
     if ((customer.blocked_by_company_ids ?? []).includes(company.id)) {
       throw new ForbiddenException('This customer is blocked by the selected business');
@@ -989,6 +996,11 @@ export class BookingV2Service {
       branch,
       customerId,
       customerUserId: customer.user_id,
+      customerContact: {
+        name: customer.user?.full_name ?? null,
+        phone: customer.user?.phone ?? null,
+        email: customer.user?.email ?? null,
+      },
       professional,
       services,
       resources,
@@ -1014,6 +1026,9 @@ export class BookingV2Service {
       isHomeService?: boolean;
       source?: string;
       guestCount?: number;
+      contactName?: string;
+      contactPhone?: string;
+      contactEmail?: string;
     },
   ) {
     const appointment = await tx.appointments.create({
@@ -1022,6 +1037,9 @@ export class BookingV2Service {
         branch_id: prepared.branch.id,
         customer_id: prepared.customerId,
         customer_user_id: prepared.customerUserId,
+        contact_name: options.contactName?.trim() || prepared.customerContact.name,
+        contact_phone: options.contactPhone?.trim() || prepared.customerContact.phone,
+        contact_email: options.contactEmail?.trim() || prepared.customerContact.email,
         status: options.status,
         starts_at: prepared.startsAt,
         ends_at: prepared.endsAt,
