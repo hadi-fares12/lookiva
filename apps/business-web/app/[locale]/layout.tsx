@@ -47,9 +47,9 @@ export default async function LocaleLayout({
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                   <div className="text-xs uppercase text-muted font-medium px-3 py-2">{t('navigation')}</div>
                   {[
-                    ['dashboard','dashboard'], ['calendar','calendar'], ['floor','floor'], ['queue','queue'], ['customers','customers'], ['messages','messages'], ['professionals','professionals'], ['services','services'], ['resources','resources'], ['payments','payments'], ['finance','finance'], ['analytics','analytics'], ['reports','reports'], ['promotions','promotions'], ['reviews','reviews'], ['staff','staff'], ['branches','branches'], ['subscriptions','subscriptions'], ['audit','audit'], ['settings','settings']
+                    ['dashboard','dashboard'], ['calendar','calendar'], ['floor','floor'], ['queue','queue'], ['customers','customers'], ['messages','messages'], ['content','content'], ['professionals','professionals'], ['services','services'], ['resources','resources'], ['payments','payments'], ['finance','finance'], ['analytics','analytics'], ['reports','reports'], ['promotions','promotions'], ['reviews','reviews'], ['staff','staff'], ['branches','branches'], ['subscriptions','subscriptions'], ['audit','audit'], ['settings','settings']
                   ].map(([key, href]) => (
-                    <Link key={href} href={`/${href}`} className="block px-3 py-2 rounded-radius-md text-sm text-secondary hover:bg-surface-2 hover:text-primary">{key === 'messages' ? 'Messages' : t(`nav.${key}`)}</Link>
+                    <Link key={href} href={`/${href}`} className="block px-3 py-2 rounded-radius-md text-sm text-secondary hover:bg-surface-2 hover:text-primary">{key === 'messages' ? 'Messages' : key === 'content' ? 'Content' : t(`nav.${key}`)}</Link>
                   ))}
                 </nav>
               </aside>
