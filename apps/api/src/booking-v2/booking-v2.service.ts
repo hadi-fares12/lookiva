@@ -469,7 +469,7 @@ export class BookingV2Service {
           data: {
             appointment_id: appointmentId,
             author_user_id: user.id,
-            note: dto.note.trim(),
+            note_text: dto.note.trim(),
             is_private: false,
           },
         });
