@@ -468,6 +468,24 @@ export class AuthService {
     };
   }
 
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+    const user = await this.prisma.users.findUnique({ where: { id: userId } });
+    if (!user || !user.is_active) throw new UnauthorizedException('Account is unavailable');
+    const valid = await this.verifyPassword(currentPassword, user.password_hash);
+    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+    const passwordHash = await this.hashPassword(newPassword);
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.users.update({ where: { id: userId }, data: { password_hash: passwordHash } }),
+      this.prisma.sessions.updateMany({ where: { user_id: userId, revoked_at: null }, data: { revoked_at: now } }),
+      this.prisma.password_reset_tokens.updateMany({ where: { user_id: userId, used_at: null }, data: { used_at: now } }),
+    ]);
+  }
+
   async logout(userId: string, refreshTokenPlain?: string): Promise<void> {
     if (refreshTokenPlain) {
       const tokenHash = this.hashToken(refreshTokenPlain);
