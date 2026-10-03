@@ -29,6 +29,7 @@ export class SocialService {
           },
           media_list: {
             orderBy: { sort_order: 'asc' },
+            include: { media: true },
           },
         },
         orderBy: { published_at: 'desc' },
