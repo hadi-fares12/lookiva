@@ -410,7 +410,7 @@ export class BookingV2Service {
       }
       const confirmed = await tx.appointments.update({
         where: { id: appointmentId },
-        data: { status: 'confirmed', confirmed_at: new Date() },
+        data: { status: 'confirmed' },
       });
       await tx.appointment_services.updateMany({
         where: { appointment_id: appointmentId, status: 'pending' },
