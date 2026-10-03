@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+﻿import { PrismaClient, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   SUPER_ADMIN_USER_ID, BUSINESS_OWNER_USER_ID, CUSTOMER_USER_ID, SALT_ROUNDS } from './users-and-roles';
@@ -82,7 +82,7 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
     };
 
     const ensureCustomer = async (userId: string) => {
-      const existing = await tx.customers.findUnique({ where: { user_id: userId } });
+      const existing = await tx.customers.findFirst({ where: { user_id: userId } });
       if (existing) {
         const prof = await tx.customer_profiles.findUnique({ where: { customer_id: existing.id } });
         if (!prof) { await tx.customer_profiles.create({ data: { customer_id: existing.id } }); }
@@ -123,7 +123,7 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
       });
     };
 
-    const ensureBranchHours = async (branchId: string, dow: number, data: Prisma.branch_hoursUncheckedCreateWithoutBranchInput) => {
+    const ensureBranchHours = async (branchId: string, dow: number, data: Omit<Prisma.branch_hoursUncheckedCreateWithoutBranchInput, 'day_of_week'>) => {
       const existing = await tx.branch_hours.findUnique({
         where: { branch_id_day_of_week: { branch_id: branchId, day_of_week: dow } },
       });
@@ -246,9 +246,17 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
       });
     }
 
-    const hadiPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: bizOwnerId, company_id: hadiCompany.id } },
-      create: {
+    const existing_hadiPro = await tx.professionals.findFirst({
+      where: {
+        user_id: bizOwnerId,
+        company_id: hadiCompany.id,
+      },
+    });
+
+    const hadiPro =
+      existing_hadiPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: bizOwnerId,
         company_id: hadiCompany.id,
         branch_ids: [hadiBranch.id],
@@ -263,9 +271,8 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
         verified_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         is_active: true,
         accepts_walk_ins: true,
-      },
-      update: {},
-    });
+        },
+      }));
 
     const hadiProfProf = await tx.professional_profiles.findUnique({ where: { professional_id: hadiPro.id } });
     if (!hadiProfProf) {
@@ -287,9 +294,17 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
       await ensureProfessionalSchedule(hadiPro.id, hadiBranch.id, dow, '09:00', '21:00');
     }
 
-    const aliPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: aliUser.id, company_id: hadiCompany.id } },
-      create: {
+    const existing_aliPro = await tx.professionals.findFirst({
+      where: {
+        user_id: aliUser.id,
+        company_id: hadiCompany.id,
+      },
+    });
+
+    const aliPro =
+      existing_aliPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: aliUser.id,
         company_id: hadiCompany.id,
         branch_ids: [hadiBranch.id],
@@ -301,9 +316,8 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
         follower_count: 45,
         is_active: true,
         accepts_walk_ins: true,
-      },
-      update: {},
-    });
+        },
+      }));
     const aliProProf = await tx.professional_profiles.findUnique({ where: { professional_id: aliPro.id } });
     if (!aliProProf) {
       await tx.professional_profiles.create({
@@ -325,14 +339,14 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
     }
 
     const serviceDefs = [
-      { slug: 'classic-haircut', name: 'Classic Haircut', ar: 'قصة كلاسيكية', fr: 'Coupe Classique', summary: 'Timeless haircut with wash and style', ar_summary: 'قصة شعر خالدة مع غسيل وتصفيف', fr_summary: 'Coupe intemporelle avec lavage et coiffage', duration: 30, price: 10, featured: true },
-      { slug: 'premium-fade', name: 'Premium Fade', ar: 'فيد مميز', fr: 'Dégradé Premium', summary: 'Expert fade haircut with skin fade techniques', ar_summary: 'قصة فيد خبيرة بتقنيات فيد الجلد', fr_summary: 'Coupe dégradé experte avec techniques', duration: 45, price: 15, featured: true },
-      { slug: 'beard-trim-shape', name: 'Beard Trim & Shape', ar: 'تقليم وتشكيل اللحية', fr: 'Taille et Forme de Barbe', summary: 'Precision beard trim, edge up and styling', ar_summary: 'تحديد دقيق للحية وحدود وتصفيف', fr_summary: 'Taille de barbe de précision', duration: 20, price: 8, featured: true },
-      { slug: 'hot-towel-shave', name: 'Hot Towel Shave', ar: 'حلاقة بالمنشفة الساخنة', fr: 'Rasage Serviette Chaude', summary: 'Traditional straight razor shave with hot towels', ar_summary: 'حلاقة تقليدية بشفرة مستقيمة بمناشف ساخنة', fr_summary: 'Rasage traditionnel au rasoir droit', duration: 45, price: 20, featured: false },
-      { slug: 'haircut-beard-combo', name: 'Haircut + Beard Combo', ar: 'باقة قصة ولحية', fr: 'Combo Coupe + Barbe', summary: 'Full haircut combined with beard service', ar_summary: 'قصة شعر كاملة مع خدمة اللحية', fr_summary: 'Coupe complète avec service barbe', duration: 50, price: 16, featured: false },
-      { slug: 'kids-haircut', name: 'Kids Haircut', ar: 'قصة أطفال', fr: 'Coupe Enfants', summary: 'Gentle haircut for children under 12', ar_summary: 'قصة لطيفة للأطفال تحت 12 سنة', fr_summary: 'Coupe douce pour enfants', duration: 20, price: 7, featured: false },
-      { slug: 'hair-wash-style', name: 'Hair Wash & Style', ar: 'غسيل وتصفيف الشعر', fr: 'Lavage et Coiffage', summary: 'Professional wash, condition and blow dry style', ar_summary: 'غسيل وتكييف وتجفيف احترافي', fr_summary: 'Lavage, soin et brushing', duration: 25, price: 12, featured: false },
-      { slug: 'vip-mens-package', name: 'VIP Men\'s Package', ar: 'باقة الرجال المميزة', fr: 'Forfait VIP Homme', summary: 'Haircut, beard, hot towel, face scrub & massage', ar_summary: 'قصة ولحية ومنشفة ساخنة وفرك وعلاج', fr_summary: 'Coupe, barbe, serviette chaude, gommage', duration: 90, price: 35, featured: false },
+      { slug: 'classic-haircut', name: 'Classic Haircut', ar: 'Ù‚ØµØ© ÙƒÙ„Ø§Ø³ÙŠÙƒÙŠØ©', fr: 'Coupe Classique', summary: 'Timeless haircut with wash and style', ar_summary: 'Ù‚ØµØ© Ø´Ø¹Ø± Ø®Ø§Ù„Ø¯Ø© Ù…Ø¹ ØºØ³ÙŠÙ„ ÙˆØªØµÙÙŠÙ', fr_summary: 'Coupe intemporelle avec lavage et coiffage', duration: 30, price: 10, featured: true },
+      { slug: 'premium-fade', name: 'Premium Fade', ar: 'ÙÙŠØ¯ Ù…Ù…ÙŠØ²', fr: 'DÃ©gradÃ© Premium', summary: 'Expert fade haircut with skin fade techniques', ar_summary: 'Ù‚ØµØ© ÙÙŠØ¯ Ø®Ø¨ÙŠØ±Ø© Ø¨ØªÙ‚Ù†ÙŠØ§Øª ÙÙŠØ¯ Ø§Ù„Ø¬Ù„Ø¯', fr_summary: 'Coupe dÃ©gradÃ© experte avec techniques', duration: 45, price: 15, featured: true },
+      { slug: 'beard-trim-shape', name: 'Beard Trim & Shape', ar: 'ØªÙ‚Ù„ÙŠÙ… ÙˆØªØ´ÙƒÙŠÙ„ Ø§Ù„Ù„Ø­ÙŠØ©', fr: 'Taille et Forme de Barbe', summary: 'Precision beard trim, edge up and styling', ar_summary: 'ØªØ­Ø¯ÙŠØ¯ Ø¯Ù‚ÙŠÙ‚ Ù„Ù„Ø­ÙŠØ© ÙˆØ­Ø¯ÙˆØ¯ ÙˆØªØµÙÙŠÙ', fr_summary: 'Taille de barbe de prÃ©cision', duration: 20, price: 8, featured: true },
+      { slug: 'hot-towel-shave', name: 'Hot Towel Shave', ar: 'Ø­Ù„Ø§Ù‚Ø© Ø¨Ø§Ù„Ù…Ù†Ø´ÙØ© Ø§Ù„Ø³Ø§Ø®Ù†Ø©', fr: 'Rasage Serviette Chaude', summary: 'Traditional straight razor shave with hot towels', ar_summary: 'Ø­Ù„Ø§Ù‚Ø© ØªÙ‚Ù„ÙŠØ¯ÙŠØ© Ø¨Ø´ÙØ±Ø© Ù…Ø³ØªÙ‚ÙŠÙ…Ø© Ø¨Ù…Ù†Ø§Ø´Ù Ø³Ø§Ø®Ù†Ø©', fr_summary: 'Rasage traditionnel au rasoir droit', duration: 45, price: 20, featured: false },
+      { slug: 'haircut-beard-combo', name: 'Haircut + Beard Combo', ar: 'Ø¨Ø§Ù‚Ø© Ù‚ØµØ© ÙˆÙ„Ø­ÙŠØ©', fr: 'Combo Coupe + Barbe', summary: 'Full haircut combined with beard service', ar_summary: 'Ù‚ØµØ© Ø´Ø¹Ø± ÙƒØ§Ù…Ù„Ø© Ù…Ø¹ Ø®Ø¯Ù…Ø© Ø§Ù„Ù„Ø­ÙŠØ©', fr_summary: 'Coupe complÃ¨te avec service barbe', duration: 50, price: 16, featured: false },
+      { slug: 'kids-haircut', name: 'Kids Haircut', ar: 'Ù‚ØµØ© Ø£Ø·ÙØ§Ù„', fr: 'Coupe Enfants', summary: 'Gentle haircut for children under 12', ar_summary: 'Ù‚ØµØ© Ù„Ø·ÙŠÙØ© Ù„Ù„Ø£Ø·ÙØ§Ù„ ØªØ­Øª 12 Ø³Ù†Ø©', fr_summary: 'Coupe douce pour enfants', duration: 20, price: 7, featured: false },
+      { slug: 'hair-wash-style', name: 'Hair Wash & Style', ar: 'ØºØ³ÙŠÙ„ ÙˆØªØµÙÙŠÙ Ø§Ù„Ø´Ø¹Ø±', fr: 'Lavage et Coiffage', summary: 'Professional wash, condition and blow dry style', ar_summary: 'ØºØ³ÙŠÙ„ ÙˆØªÙƒÙŠÙŠÙ ÙˆØªØ¬ÙÙŠÙ Ø§Ø­ØªØ±Ø§ÙÙŠ', fr_summary: 'Lavage, soin et brushing', duration: 25, price: 12, featured: false },
+      { slug: 'vip-mens-package', name: 'VIP Men\'s Package', ar: 'Ø¨Ø§Ù‚Ø© Ø§Ù„Ø±Ø¬Ø§Ù„ Ø§Ù„Ù…Ù…ÙŠØ²Ø©', fr: 'Forfait VIP Homme', summary: 'Haircut, beard, hot towel, face scrub & massage', ar_summary: 'Ù‚ØµØ© ÙˆÙ„Ø­ÙŠØ© ÙˆÙ…Ù†Ø´ÙØ© Ø³Ø§Ø®Ù†Ø© ÙˆÙØ±Ùƒ ÙˆØ¹Ù„Ø§Ø¬', fr_summary: 'Coupe, barbe, serviette chaude, gommage', duration: 90, price: 35, featured: false },
     ];
 
     const hadiServices: string[] = [];
@@ -612,9 +626,17 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
       });
     }
 
-    const sarahPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: sarahOwner.id, company_id: sarahCompany.id } },
-      create: {
+    const existing_sarahPro = await tx.professionals.findFirst({
+      where: {
+        user_id: sarahOwner.id,
+        company_id: sarahCompany.id,
+      },
+    });
+
+    const sarahPro =
+      existing_sarahPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: sarahOwner.id, company_id: sarahCompany.id, branch_ids: [sarahBranch.id],
         display_name: 'Sarah - Senior Stylist & Owner',
         specialties: ['Hair Coloring', 'Highlights', 'Keratin Treatment', 'Bridal Hair'],
@@ -622,9 +644,8 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
         avg_rating: 4.7, review_count: 3, follower_count: 120,
         is_verified: true, verified_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
         is_active: true, accepts_walk_ins: true,
-      },
-      update: {},
-    });
+        },
+      }));
     const sarahProProf = await tx.professional_profiles.findUnique({ where: { professional_id: sarahPro.id } });
     if (!sarahProProf) {
       await tx.professional_profiles.create({
@@ -645,18 +666,25 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
       await ensureProfessionalSchedule(sarahPro.id, sarahBranch.id, dow, '10:00', '20:00');
     }
 
-    const miraPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: miraUser.id, company_id: sarahCompany.id } },
-      create: {
+    const existing_miraPro = await tx.professionals.findFirst({
+      where: {
+        user_id: miraUser.id,
+        company_id: sarahCompany.id,
+      },
+    });
+
+    const miraPro =
+      existing_miraPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: miraUser.id, company_id: sarahCompany.id, branch_ids: [sarahBranch.id],
         display_name: 'Mira - Nail & Makeup Artist',
         specialties: ['Manicure', 'Pedicure', 'Nail Art', 'Makeup'],
         years_experience: 6, gender_preference: 'female',
         avg_rating: 4.5, review_count: 2, follower_count: 80,
         is_active: true, accepts_walk_ins: true,
-      },
-      update: {},
-    });
+        },
+      }));
     const miraProProf = await tx.professional_profiles.findUnique({ where: { professional_id: miraPro.id } });
     if (!miraProProf) {
       await tx.professional_profiles.create({
@@ -678,18 +706,18 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
     }
 
     const sarahServiceDefs = [
-      { slug: 'classic-manicure', name: 'Classic Manicure', ar: 'مانيكير كلاسيكي', fr: 'Manucure Classique', summary: 'File, shape, polish, cuticle care', ar_summary: 'برد وتشكيل وتلميع وعناية البشرة', fr_summary: 'Lime, forme, vernis, soin cuticules', duration: 30, price: 12 },
-      { slug: 'gel-manicure', name: 'Gel Manicure', ar: 'مانيكير جل', fr: 'Manucure Gel', summary: 'Long-lasting gel polish application', ar_summary: 'طلاء جل تدوم طويلاً', fr_summary: 'Application vernis gel longue durée', duration: 45, price: 22 },
-      { slug: 'spa-pedicure', name: 'Spa Pedicure', ar: 'باديكير سبا', fr: 'Pédicure Spa', summary: 'Foot soak, scrub, massage, polish', ar_summary: 'نقع القدم وفرك وتدليك وتلميع', fr_summary: 'Bain pieds, gommage, massage, vernis', duration: 60, price: 30 },
-      { slug: 'hair-coloring', name: 'Hair Coloring', ar: 'تلوين الشعر', fr: 'Coloration Cheveux', summary: 'Full head hair coloring service', ar_summary: 'خدمة تلوين الشعر كاملاً', fr_summary: 'Service de coloration complète', duration: 90, price: 55 },
-      { slug: 'highlights', name: 'Highlights', ar: 'خصلات', fr: 'Mèches', summary: 'Partial or full highlights service', ar_summary: 'خدمة خصلات جزئية أو كاملة', fr_summary: 'Service de mèches partielles ou complètes', duration: 120, price: 70 },
-      { slug: 'blow-dry', name: 'Blow Dry & Style', ar: 'سشوار وتصفيف', fr: 'Brushing', summary: 'Wash, blow dry and professional styling', ar_summary: 'غسيل وسشوار وتصفيف احترافي', fr_summary: 'Lavage, brushing et coiffage pro', duration: 45, price: 20 },
-      { slug: 'keratin-treatment', name: 'Keratin Treatment', ar: 'علاج الكيراتين', fr: 'Traitement Kératine', summary: 'Smoothing keratin hair treatment', ar_summary: 'علاج الشعر بالكيراتين للنعومة', fr_summary: 'Traitement lissant à la kératine', duration: 150, price: 120 },
-      { slug: 'basic-facial', name: 'Basic Facial', ar: 'قضاء أساسي', fr: 'Soin Visage Basique', summary: 'Cleanse, exfoliate, mask and moisturize', ar_summary: 'تنظيف وتقشير وقناع وترطيب', fr_summary: 'Nettoyage, exfoliation, masque, hydratation', duration: 45, price: 35 },
-      { slug: 'deep-cleansing-facial', name: 'Deep Cleansing Facial', ar: 'تنظيف عميق للوجه', fr: 'Soin Visage Nettoyage Profond', summary: 'Deep pore cleansing with extraction', ar_summary: 'تنظيف عميق للمسام مع استخلاص', fr_summary: 'Nettoyage profond des pores', duration: 60, price: 50 },
-      { slug: 'everyday-makeup', name: 'Everyday Makeup', ar: 'مكياج يومي', fr: 'Maquillage Quotidien', summary: 'Natural everyday makeup look', ar_summary: 'مظهر مكياج يومي طبيعي', fr_summary: 'Look maquillage quotidien naturel', duration: 45, price: 30 },
-      { slug: 'event-makeup', name: 'Event Makeup', ar: 'مكياج مناسبات', fr: 'Maquillage Événement', summary: 'Glam makeup for special events', ar_summary: 'مكياج بريق للمناسبات الخاصة', fr_summary: 'Maquillage glamour événements', duration: 60, price: 55 },
-      { slug: 'bridal-makeup', name: 'Bridal Makeup & Hair', ar: 'مكياج وشعر العروسة', fr: 'Maquillage et Coiffure Mariée', summary: 'Complete bridal beauty package', ar_summary: 'باقة تجميل عروسة كاملة', fr_summary: 'Forfait beauté mariée complet', duration: 180, price: 200 },
+      { slug: 'classic-manicure', name: 'Classic Manicure', ar: 'Ù…Ø§Ù†ÙŠÙƒÙŠØ± ÙƒÙ„Ø§Ø³ÙŠÙƒÙŠ', fr: 'Manucure Classique', summary: 'File, shape, polish, cuticle care', ar_summary: 'Ø¨Ø±Ø¯ ÙˆØªØ´ÙƒÙŠÙ„ ÙˆØªÙ„Ù…ÙŠØ¹ ÙˆØ¹Ù†Ø§ÙŠØ© Ø§Ù„Ø¨Ø´Ø±Ø©', fr_summary: 'Lime, forme, vernis, soin cuticules', duration: 30, price: 12 },
+      { slug: 'gel-manicure', name: 'Gel Manicure', ar: 'Ù…Ø§Ù†ÙŠÙƒÙŠØ± Ø¬Ù„', fr: 'Manucure Gel', summary: 'Long-lasting gel polish application', ar_summary: 'Ø·Ù„Ø§Ø¡ Ø¬Ù„ ØªØ¯ÙˆÙ… Ø·ÙˆÙŠÙ„Ø§Ù‹', fr_summary: 'Application vernis gel longue durÃ©e', duration: 45, price: 22 },
+      { slug: 'spa-pedicure', name: 'Spa Pedicure', ar: 'Ø¨Ø§Ø¯ÙŠÙƒÙŠØ± Ø³Ø¨Ø§', fr: 'PÃ©dicure Spa', summary: 'Foot soak, scrub, massage, polish', ar_summary: 'Ù†Ù‚Ø¹ Ø§Ù„Ù‚Ø¯Ù… ÙˆÙØ±Ùƒ ÙˆØªØ¯Ù„ÙŠÙƒ ÙˆØªÙ„Ù…ÙŠØ¹', fr_summary: 'Bain pieds, gommage, massage, vernis', duration: 60, price: 30 },
+      { slug: 'hair-coloring', name: 'Hair Coloring', ar: 'ØªÙ„ÙˆÙŠÙ† Ø§Ù„Ø´Ø¹Ø±', fr: 'Coloration Cheveux', summary: 'Full head hair coloring service', ar_summary: 'Ø®Ø¯Ù…Ø© ØªÙ„ÙˆÙŠÙ† Ø§Ù„Ø´Ø¹Ø± ÙƒØ§Ù…Ù„Ø§Ù‹', fr_summary: 'Service de coloration complÃ¨te', duration: 90, price: 55 },
+      { slug: 'highlights', name: 'Highlights', ar: 'Ø®ØµÙ„Ø§Øª', fr: 'MÃ¨ches', summary: 'Partial or full highlights service', ar_summary: 'Ø®Ø¯Ù…Ø© Ø®ØµÙ„Ø§Øª Ø¬Ø²Ø¦ÙŠØ© Ø£Ùˆ ÙƒØ§Ù…Ù„Ø©', fr_summary: 'Service de mÃ¨ches partielles ou complÃ¨tes', duration: 120, price: 70 },
+      { slug: 'blow-dry', name: 'Blow Dry & Style', ar: 'Ø³Ø´ÙˆØ§Ø± ÙˆØªØµÙÙŠÙ', fr: 'Brushing', summary: 'Wash, blow dry and professional styling', ar_summary: 'ØºØ³ÙŠÙ„ ÙˆØ³Ø´ÙˆØ§Ø± ÙˆØªØµÙÙŠÙ Ø§Ø­ØªØ±Ø§ÙÙŠ', fr_summary: 'Lavage, brushing et coiffage pro', duration: 45, price: 20 },
+      { slug: 'keratin-treatment', name: 'Keratin Treatment', ar: 'Ø¹Ù„Ø§Ø¬ Ø§Ù„ÙƒÙŠØ±Ø§ØªÙŠÙ†', fr: 'Traitement KÃ©ratine', summary: 'Smoothing keratin hair treatment', ar_summary: 'Ø¹Ù„Ø§Ø¬ Ø§Ù„Ø´Ø¹Ø± Ø¨Ø§Ù„ÙƒÙŠØ±Ø§ØªÙŠÙ† Ù„Ù„Ù†Ø¹ÙˆÙ…Ø©', fr_summary: 'Traitement lissant Ã  la kÃ©ratine', duration: 150, price: 120 },
+      { slug: 'basic-facial', name: 'Basic Facial', ar: 'Ù‚Ø¶Ø§Ø¡ Ø£Ø³Ø§Ø³ÙŠ', fr: 'Soin Visage Basique', summary: 'Cleanse, exfoliate, mask and moisturize', ar_summary: 'ØªÙ†Ø¸ÙŠÙ ÙˆØªÙ‚Ø´ÙŠØ± ÙˆÙ‚Ù†Ø§Ø¹ ÙˆØªØ±Ø·ÙŠØ¨', fr_summary: 'Nettoyage, exfoliation, masque, hydratation', duration: 45, price: 35 },
+      { slug: 'deep-cleansing-facial', name: 'Deep Cleansing Facial', ar: 'ØªÙ†Ø¸ÙŠÙ Ø¹Ù…ÙŠÙ‚ Ù„Ù„ÙˆØ¬Ù‡', fr: 'Soin Visage Nettoyage Profond', summary: 'Deep pore cleansing with extraction', ar_summary: 'ØªÙ†Ø¸ÙŠÙ Ø¹Ù…ÙŠÙ‚ Ù„Ù„Ù…Ø³Ø§Ù… Ù…Ø¹ Ø§Ø³ØªØ®Ù„Ø§Øµ', fr_summary: 'Nettoyage profond des pores', duration: 60, price: 50 },
+      { slug: 'everyday-makeup', name: 'Everyday Makeup', ar: 'Ù…ÙƒÙŠØ§Ø¬ ÙŠÙˆÙ…ÙŠ', fr: 'Maquillage Quotidien', summary: 'Natural everyday makeup look', ar_summary: 'Ù…Ø¸Ù‡Ø± Ù…ÙƒÙŠØ§Ø¬ ÙŠÙˆÙ…ÙŠ Ø·Ø¨ÙŠØ¹ÙŠ', fr_summary: 'Look maquillage quotidien naturel', duration: 45, price: 30 },
+      { slug: 'event-makeup', name: 'Event Makeup', ar: 'Ù…ÙƒÙŠØ§Ø¬ Ù…Ù†Ø§Ø³Ø¨Ø§Øª', fr: 'Maquillage Ã‰vÃ©nement', summary: 'Glam makeup for special events', ar_summary: 'Ù…ÙƒÙŠØ§Ø¬ Ø¨Ø±ÙŠÙ‚ Ù„Ù„Ù…Ù†Ø§Ø³Ø¨Ø§Øª Ø§Ù„Ø®Ø§ØµØ©', fr_summary: 'Maquillage glamour Ã©vÃ©nements', duration: 60, price: 55 },
+      { slug: 'bridal-makeup', name: 'Bridal Makeup & Hair', ar: 'Ù…ÙƒÙŠØ§Ø¬ ÙˆØ´Ø¹Ø± Ø§Ù„Ø¹Ø±ÙˆØ³Ø©', fr: 'Maquillage et Coiffure MariÃ©e', summary: 'Complete bridal beauty package', ar_summary: 'Ø¨Ø§Ù‚Ø© ØªØ¬Ù…ÙŠÙ„ Ø¹Ø±ÙˆØ³Ø© ÙƒØ§Ù…Ù„Ø©', fr_summary: 'Forfait beautÃ© mariÃ©e complet', duration: 180, price: 200 },
     ];
 
     const sarahServices: string[] = [];
@@ -863,42 +891,63 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
     }
 
     const blissPros = [];
-    const linaPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: spaOwner.id, company_id: blissCompany.id } },
-      create: {
+    const existing_linaPro = await tx.professionals.findFirst({
+      where: {
+        user_id: spaOwner.id,
+        company_id: blissCompany.id,
+      },
+    });
+
+    const linaPro =
+      existing_linaPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: spaOwner.id, company_id: blissCompany.id, branch_ids: [blissBranch.id],
         display_name: 'Lina - Lead Therapist & Owner',
         specialties: ['Swedish Massage', 'Deep Tissue', 'Facial Treatments', 'Body Scrub'],
         years_experience: 8, avg_rating: 4.9, review_count: 2, follower_count: 180,
         is_verified: true, verified_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
         is_active: true, accepts_walk_ins: false,
-      },
-      update: {},
-    });
+        },
+      }));
     blissPros.push(linaPro);
-    const rimaPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: rimaUser.id, company_id: blissCompany.id } },
-      create: {
+    const existing_rimaPro = await tx.professionals.findFirst({
+      where: {
+        user_id: rimaUser.id,
+        company_id: blissCompany.id,
+      },
+    });
+
+    const rimaPro =
+      existing_rimaPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: rimaUser.id, company_id: blissCompany.id, branch_ids: [blissBranch.id],
         display_name: 'Rima - Senior Therapist',
         specialties: ['Hot Stone Massage', 'Aromatherapy', 'Facial', 'Anti-Aging'],
         years_experience: 5, avg_rating: 4.8, review_count: 2, follower_count: 100,
         is_active: true, accepts_walk_ins: false,
-      },
-      update: {},
-    });
+        },
+      }));
     blissPros.push(rimaPro);
-    const omarPro = await tx.professionals.upsert({
-      where: { user_id_company_id: { user_id: omarUser.id, company_id: blissCompany.id } },
-      create: {
+    const existing_omarPro = await tx.professionals.findFirst({
+      where: {
+        user_id: omarUser.id,
+        company_id: blissCompany.id,
+      },
+    });
+
+    const omarPro =
+      existing_omarPro ??
+      (await tx.professionals.create({
+        data: {
         user_id: omarUser.id, company_id: blissCompany.id, branch_ids: [blissBranch.id],
         display_name: 'Omar - Massage Specialist',
         specialties: ['Deep Tissue', 'Sports Massage', 'Thai Massage'],
         years_experience: 4, avg_rating: 4.7, review_count: 1, follower_count: 70,
         is_active: true, accepts_walk_ins: false,
-      },
-      update: {},
-    });
+        },
+      }));
     blissPros.push(omarPro);
 
     for (const pro of blissPros) {
@@ -925,21 +974,21 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
     }
 
     const blissServices = [
-      { slug: 'swedish-massage-60', name: 'Swedish Massage 60min', ar: 'تدليك سويدي 60 دقيقة', fr: 'Massage Suédois 60min', summary: 'Classic relaxation massage', ar_summary: 'تدليك كلاسيكي للاسترخاء', fr_summary: 'Massage relaxant classique', duration: 60, price: 50 },
-      { slug: 'swedish-massage-90', name: 'Swedish Massage 90min', ar: 'تدليك سويدي 90 دقيقة', fr: 'Massage Suédois 90min', summary: 'Extended relaxation massage', ar_summary: 'تدليك استرخاء ممتد', fr_summary: 'Massage relaxant prolongé', duration: 90, price: 75 },
-      { slug: 'deep-tissue-60', name: 'Deep Tissue 60min', ar: 'تدليك أنسجة عميقة 60د', fr: 'Massage Tissu Profond', summary: 'Deep muscle tension relief massage', ar_summary: 'تدليك لتهديد التوتر العضلي العميق', fr_summary: 'Massage soulagement tension profonde', duration: 60, price: 60 },
-      { slug: 'hot-stone-massage', name: 'Hot Stone Massage', ar: 'تدليك بالحجارة الساخنة', fr: 'Massage Pierres Chaudes', summary: 'Hot stone therapy massage', ar_summary: 'تدليك علاجي بالحجارة الساخنة', fr_summary: 'Massage thérapie pierres chaudes', duration: 75, price: 80 },
-      { slug: 'thai-massage', name: 'Thai Massage', ar: 'تدليك تايلندي', fr: 'Massage Thaï', summary: 'Traditional Thai bodywork massage', ar_summary: 'تدليك تايلاندي تقليدي', fr_summary: 'Massage corporel thaï traditionnel', duration: 60, price: 65 },
-      { slug: 'aromatherapy-massage', name: 'Aromatherapy Massage', ar: 'تدليك بالزيوت العطرية', fr: 'Massage Aromathérapie', summary: 'Essential oil aromatic massage', ar_summary: 'تدليك عطري بالزيوت الأساسية', fr_summary: 'Massage aromatique huiles essentielles', duration: 60, price: 65 },
-      { slug: 'signature-facial', name: 'Signature Bliss Facial', ar: 'قضاء البليس المميز', fr: 'Soin Visage Signature Bliss', summary: 'Our signature holistic facial', ar_summary: 'قضاء وجه شامل مميز', fr_summary: 'Notre soin visage holistique signature', duration: 75, price: 70 },
-      { slug: 'hydrating-facial', name: 'Hydrating Facial', ar: 'قضاء ترطيب للوجه', fr: 'Soin Visage Hydratant', summary: 'Deep moisture boost facial', ar_summary: 'قضاء وجه لزيادة الترطيب', fr_summary: 'Soin visage boost hydratation', duration: 60, price: 55 },
-      { slug: 'anti-aging-facial', name: 'Anti-Aging Facial', ar: 'قضاء مضاد للتجاعيد', fr: 'Soin Visage Anti-Âge', summary: 'Firming and lifting facial treatment', ar_summary: 'علاج وجه مشدد ومشد للوجه', fr_summary: 'Soin visage raffermissant liftant', duration: 90, price: 90 },
-      { slug: 'body-scrub', name: 'Body Scrub & Wrap', ar: 'فرك وتغليف الجسم', fr: 'Gommage et Enveloppement', summary: 'Exfoliating body scrub with wrap', ar_summary: 'فرك مقشر للجسم مع تغليف', fr_summary: 'Gommage exfoliant avec enveloppement', duration: 60, price: 55 },
-      { slug: 'body-wrap', name: 'Detox Body Wrap', ar: 'تغليف جسم إزالة السموم', fr: 'Enveloppement Détox', summary: 'Detoxifying and slimming body wrap', ar_summary: 'تغليف جسم منقذ ومقشر للتنحيف', fr_summary: 'Enveloppement détox amincissante', duration: 45, price: 50 },
-      { slug: 'sauna-session', name: 'Sauna Session', ar: 'جلسة ساونا', fr: 'Session Sauna', summary: 'Dry heat sauna session', ar_summary: 'جلسة ساونا حرارة جافة', fr_summary: 'Session sauna chaleur sèche', duration: 30, price: 15 },
-      { slug: 'couples-massage', name: 'Couples Massage Package', ar: 'باقة تدليك للأزواج', fr: 'Forfait Massage Couples', summary: 'Side-by-side couples massage', ar_summary: 'تدليك للأزواج جنباً إلى جنب', fr_summary: 'Massage couples côte à côte', duration: 60, price: 110 },
-      { slug: 'day-spa-package', name: 'Day Spa Package', ar: 'باقة السبا اليومي', fr: 'Forfait Spa Journée', summary: 'Massage, facial, scrub full day', ar_summary: 'تدليك وقضاء وفرك ليوم كامل', fr_summary: 'Massage, soin, gommage journée', duration: 180, price: 150 },
-      { slug: 'foot-massage', name: 'Foot Reflexology', ar: 'تدليك القدم الإنعكاسي', fr: 'Réflexologie Plantaire', summary: 'Foot reflexology therapy', ar_summary: 'علاج إنعكاسي للقدم', fr_summary: 'Thérapie réflexologie plantaire', duration: 45, price: 30 },
+      { slug: 'swedish-massage-60', name: 'Swedish Massage 60min', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø³ÙˆÙŠØ¯ÙŠ 60 Ø¯Ù‚ÙŠÙ‚Ø©', fr: 'Massage SuÃ©dois 60min', summary: 'Classic relaxation massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ ÙƒÙ„Ø§Ø³ÙŠÙƒÙŠ Ù„Ù„Ø§Ø³ØªØ±Ø®Ø§Ø¡', fr_summary: 'Massage relaxant classique', duration: 60, price: 50 },
+      { slug: 'swedish-massage-90', name: 'Swedish Massage 90min', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø³ÙˆÙŠØ¯ÙŠ 90 Ø¯Ù‚ÙŠÙ‚Ø©', fr: 'Massage SuÃ©dois 90min', summary: 'Extended relaxation massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ Ø§Ø³ØªØ±Ø®Ø§Ø¡ Ù…Ù…ØªØ¯', fr_summary: 'Massage relaxant prolongÃ©', duration: 90, price: 75 },
+      { slug: 'deep-tissue-60', name: 'Deep Tissue 60min', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø£Ù†Ø³Ø¬Ø© Ø¹Ù…ÙŠÙ‚Ø© 60Ø¯', fr: 'Massage Tissu Profond', summary: 'Deep muscle tension relief massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ Ù„ØªÙ‡Ø¯ÙŠØ¯ Ø§Ù„ØªÙˆØªØ± Ø§Ù„Ø¹Ø¶Ù„ÙŠ Ø§Ù„Ø¹Ù…ÙŠÙ‚', fr_summary: 'Massage soulagement tension profonde', duration: 60, price: 60 },
+      { slug: 'hot-stone-massage', name: 'Hot Stone Massage', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø¨Ø§Ù„Ø­Ø¬Ø§Ø±Ø© Ø§Ù„Ø³Ø§Ø®Ù†Ø©', fr: 'Massage Pierres Chaudes', summary: 'Hot stone therapy massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ Ø¹Ù„Ø§Ø¬ÙŠ Ø¨Ø§Ù„Ø­Ø¬Ø§Ø±Ø© Ø§Ù„Ø³Ø§Ø®Ù†Ø©', fr_summary: 'Massage thÃ©rapie pierres chaudes', duration: 75, price: 80 },
+      { slug: 'thai-massage', name: 'Thai Massage', ar: 'ØªØ¯Ù„ÙŠÙƒ ØªØ§ÙŠÙ„Ù†Ø¯ÙŠ', fr: 'Massage ThaÃ¯', summary: 'Traditional Thai bodywork massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ ØªØ§ÙŠÙ„Ø§Ù†Ø¯ÙŠ ØªÙ‚Ù„ÙŠØ¯ÙŠ', fr_summary: 'Massage corporel thaÃ¯ traditionnel', duration: 60, price: 65 },
+      { slug: 'aromatherapy-massage', name: 'Aromatherapy Massage', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø¨Ø§Ù„Ø²ÙŠÙˆØª Ø§Ù„Ø¹Ø·Ø±ÙŠØ©', fr: 'Massage AromathÃ©rapie', summary: 'Essential oil aromatic massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ Ø¹Ø·Ø±ÙŠ Ø¨Ø§Ù„Ø²ÙŠÙˆØª Ø§Ù„Ø£Ø³Ø§Ø³ÙŠØ©', fr_summary: 'Massage aromatique huiles essentielles', duration: 60, price: 65 },
+      { slug: 'signature-facial', name: 'Signature Bliss Facial', ar: 'Ù‚Ø¶Ø§Ø¡ Ø§Ù„Ø¨Ù„ÙŠØ³ Ø§Ù„Ù…Ù…ÙŠØ²', fr: 'Soin Visage Signature Bliss', summary: 'Our signature holistic facial', ar_summary: 'Ù‚Ø¶Ø§Ø¡ ÙˆØ¬Ù‡ Ø´Ø§Ù…Ù„ Ù…Ù…ÙŠØ²', fr_summary: 'Notre soin visage holistique signature', duration: 75, price: 70 },
+      { slug: 'hydrating-facial', name: 'Hydrating Facial', ar: 'Ù‚Ø¶Ø§Ø¡ ØªØ±Ø·ÙŠØ¨ Ù„Ù„ÙˆØ¬Ù‡', fr: 'Soin Visage Hydratant', summary: 'Deep moisture boost facial', ar_summary: 'Ù‚Ø¶Ø§Ø¡ ÙˆØ¬Ù‡ Ù„Ø²ÙŠØ§Ø¯Ø© Ø§Ù„ØªØ±Ø·ÙŠØ¨', fr_summary: 'Soin visage boost hydratation', duration: 60, price: 55 },
+      { slug: 'anti-aging-facial', name: 'Anti-Aging Facial', ar: 'Ù‚Ø¶Ø§Ø¡ Ù…Ø¶Ø§Ø¯ Ù„Ù„ØªØ¬Ø§Ø¹ÙŠØ¯', fr: 'Soin Visage Anti-Ã‚ge', summary: 'Firming and lifting facial treatment', ar_summary: 'Ø¹Ù„Ø§Ø¬ ÙˆØ¬Ù‡ Ù…Ø´Ø¯Ø¯ ÙˆÙ…Ø´Ø¯ Ù„Ù„ÙˆØ¬Ù‡', fr_summary: 'Soin visage raffermissant liftant', duration: 90, price: 90 },
+      { slug: 'body-scrub', name: 'Body Scrub & Wrap', ar: 'ÙØ±Ùƒ ÙˆØªØºÙ„ÙŠÙ Ø§Ù„Ø¬Ø³Ù…', fr: 'Gommage et Enveloppement', summary: 'Exfoliating body scrub with wrap', ar_summary: 'ÙØ±Ùƒ Ù…Ù‚Ø´Ø± Ù„Ù„Ø¬Ø³Ù… Ù…Ø¹ ØªØºÙ„ÙŠÙ', fr_summary: 'Gommage exfoliant avec enveloppement', duration: 60, price: 55 },
+      { slug: 'body-wrap', name: 'Detox Body Wrap', ar: 'ØªØºÙ„ÙŠÙ Ø¬Ø³Ù… Ø¥Ø²Ø§Ù„Ø© Ø§Ù„Ø³Ù…ÙˆÙ…', fr: 'Enveloppement DÃ©tox', summary: 'Detoxifying and slimming body wrap', ar_summary: 'ØªØºÙ„ÙŠÙ Ø¬Ø³Ù… Ù…Ù†Ù‚Ø° ÙˆÙ…Ù‚Ø´Ø± Ù„Ù„ØªÙ†Ø­ÙŠÙ', fr_summary: 'Enveloppement dÃ©tox amincissante', duration: 45, price: 50 },
+      { slug: 'sauna-session', name: 'Sauna Session', ar: 'Ø¬Ù„Ø³Ø© Ø³Ø§ÙˆÙ†Ø§', fr: 'Session Sauna', summary: 'Dry heat sauna session', ar_summary: 'Ø¬Ù„Ø³Ø© Ø³Ø§ÙˆÙ†Ø§ Ø­Ø±Ø§Ø±Ø© Ø¬Ø§ÙØ©', fr_summary: 'Session sauna chaleur sÃ¨che', duration: 30, price: 15 },
+      { slug: 'couples-massage', name: 'Couples Massage Package', ar: 'Ø¨Ø§Ù‚Ø© ØªØ¯Ù„ÙŠÙƒ Ù„Ù„Ø£Ø²ÙˆØ§Ø¬', fr: 'Forfait Massage Couples', summary: 'Side-by-side couples massage', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ Ù„Ù„Ø£Ø²ÙˆØ§Ø¬ Ø¬Ù†Ø¨Ø§Ù‹ Ø¥Ù„Ù‰ Ø¬Ù†Ø¨', fr_summary: 'Massage couples cÃ´te Ã  cÃ´te', duration: 60, price: 110 },
+      { slug: 'day-spa-package', name: 'Day Spa Package', ar: 'Ø¨Ø§Ù‚Ø© Ø§Ù„Ø³Ø¨Ø§ Ø§Ù„ÙŠÙˆÙ…ÙŠ', fr: 'Forfait Spa JournÃ©e', summary: 'Massage, facial, scrub full day', ar_summary: 'ØªØ¯Ù„ÙŠÙƒ ÙˆÙ‚Ø¶Ø§Ø¡ ÙˆÙØ±Ùƒ Ù„ÙŠÙˆÙ… ÙƒØ§Ù…Ù„', fr_summary: 'Massage, soin, gommage journÃ©e', duration: 180, price: 150 },
+      { slug: 'foot-massage', name: 'Foot Reflexology', ar: 'ØªØ¯Ù„ÙŠÙƒ Ø§Ù„Ù‚Ø¯Ù… Ø§Ù„Ø¥Ù†Ø¹ÙƒØ§Ø³ÙŠ', fr: 'RÃ©flexologie Plantaire', summary: 'Foot reflexology therapy', ar_summary: 'Ø¹Ù„Ø§Ø¬ Ø¥Ù†Ø¹ÙƒØ§Ø³ÙŠ Ù„Ù„Ù‚Ø¯Ù…', fr_summary: 'ThÃ©rapie rÃ©flexologie plantaire', duration: 45, price: 30 },
     ];
 
     const blissSvcIds: string[] = [];
@@ -1023,3 +1072,4 @@ export async function seedDemoBusinesses(prisma: PrismaClient) {
 
   console.log('=== Demo Businesses Seeding Complete ===\n');
 }
+

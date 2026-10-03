@@ -176,7 +176,7 @@ if (-not (Test-Path "$stage\_node_modules_prod\node_modules")) {
 $pkgCmd = "$ROOT\_tools\node_modules\.bin\pkg.cmd"
 $pkgOk = $false
 if (-not (Test-Path $pkgCmd)) {
-    npm install pkg@5.8.1 --no-save --prefix "$ROOT\_tools" 2>$null
+    npm install @yao-pkg/pkg@6.4.1 --no-save --prefix "$ROOT\_tools" 2>$null
 }
 if (Test-Path $pkgCmd) {
     Push-Location $stage

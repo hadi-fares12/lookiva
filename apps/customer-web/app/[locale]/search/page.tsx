@@ -182,7 +182,7 @@ export default function SearchPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('common.searchPlaceholder')}
+                placeholder={t('common.actions.searchPlaceholder')}
                 className={twMerge(
                   'w-full h-12 md:h-14 rounded-radius-2xl bg-surface-1 border border-border-subtle text-primary text-sm md:text-base placeholder:text-muted',
                   'ps-12 pe-12 outline-none transition-all focus:border-accent-gold-2/60 focus:ring-2 focus:ring-accent-gold-2/20'

@@ -196,7 +196,10 @@
     "sending": "Sending…",
     "resetEmailSent": "If that email exists, a secure reset link has been sent.",
     "backToLogin": "Back to login",
-    "resetRequestError": "Unable to request password reset"
+    "resetRequestError": "Unable to request password reset",
+    "profile": {
+      "profilePicture": "Profile picture"
+    }
   },
   "nav": {
     "home": "Home",

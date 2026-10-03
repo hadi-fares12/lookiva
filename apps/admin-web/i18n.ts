@@ -1,12 +1,21 @@
 import { notFound } from 'next/navigation';
 import { getRequestConfig } from 'next-intl/server';
 
-const locales = ['en', 'ar', 'fr'];
+const locales = ['en', 'ar', 'fr'] as const;
 
-export default getRequestConfig(async ({ locale }) => {
-  if (!locales.includes(locale as string)) notFound();
+export default getRequestConfig(async ({ requestLocale }) => {
+  const requestedLocale = await requestLocale;
+
+  if (!requestedLocale || !locales.includes(requestedLocale as any)) {
+    notFound();
+  }
+
+  const locale = requestedLocale as (typeof locales)[number];
 
   return {
-    messages: (await import(`@lookiva/localization/src/locales/${locale}.json`)).default,
+    locale,
+    messages: (
+      await import(`@lookiva/localization/src/locales/${locale}.json`)
+    ).default,
   };
 });

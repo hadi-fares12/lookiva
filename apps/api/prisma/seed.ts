@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@lookiva/shared-types';
 import { seedGeoLebanon } from './seed/geo-lebanon';
@@ -7,7 +7,13 @@ import { seedResourceTypes } from './seed/resource-types';
 import { SALT_ROUNDS, seedUsersAndRoles } from './seed/users-and-roles';
 import { seedDemoBusinesses } from './seed/demo-businesses';
 
-const prisma = new PrismaClient({ log: ['warn', 'error'] });
+const prisma = new PrismaClient({
+  log: ['warn', 'error'],
+  transactionOptions: {
+    maxWait: 10000,
+    timeout: 120000,
+  },
+});
 type SeedMode = 'dev' | 'test' | 'prod';
 
 function parseMode(argv: string[]): SeedMode {
@@ -79,11 +85,11 @@ async function main() {
     }
 
     console.log('========================================================');
-    console.log(`  ✅ ${mode.toUpperCase()} SEED COMPLETE`);
+    console.log(`  âœ… ${mode.toUpperCase()} SEED COMPLETE`);
     console.log(`  Total time: ${((Date.now() - startAt) / 1000).toFixed(2)}s`);
     console.log('========================================================');
   } catch (error) {
-    console.error('\n❌ SEEDING FAILED:\n', error);
+    console.error('\nâŒ SEEDING FAILED:\n', error);
     process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
@@ -91,3 +97,4 @@ async function main() {
 }
 
 void main();
+

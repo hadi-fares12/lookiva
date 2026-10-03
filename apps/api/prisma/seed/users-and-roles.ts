@@ -173,16 +173,20 @@ export async function seedUsersAndRoles(prisma: PrismaClient, includeDemoUsers =
       update: {},
     });
 
-    const bizOwnerCustomer = await tx.customers.upsert({
+    const existingBizOwnerCustomer = await tx.customers.findFirst({
       where: { user_id: bizOwner.id },
-      create: {
-        user_id: bizOwner.id,
-        total_spent_amount: 0,
-        total_bookings: 0,
-        loyalty_points: 0,
-      },
-      update: {},
     });
+
+    const bizOwnerCustomer =
+      existingBizOwnerCustomer ??
+      (await tx.customers.create({
+        data: {
+          user_id: bizOwner.id,
+          total_spent_amount: 0,
+          total_bookings: 0,
+          loyalty_points: 0,
+        },
+      }));
 
     await tx.customer_profiles.upsert({
       where: { customer_id: bizOwnerCustomer.id },
@@ -247,16 +251,20 @@ export async function seedUsersAndRoles(prisma: PrismaClient, includeDemoUsers =
       update: {},
     });
 
-    const customerRecord = await tx.customers.upsert({
+    const existingCustomerRecord = await tx.customers.findFirst({
       where: { user_id: customer.id },
-      create: {
-        user_id: customer.id,
-        total_spent_amount: 0,
-        total_bookings: 0,
-        loyalty_points: 0,
-      },
-      update: {},
     });
+
+    const customerRecord =
+      existingCustomerRecord ??
+      (await tx.customers.create({
+        data: {
+          user_id: customer.id,
+          total_spent_amount: 0,
+          total_bookings: 0,
+          loyalty_points: 0,
+        },
+      }));
 
     await tx.customer_profiles.upsert({
       where: { customer_id: customerRecord.id },

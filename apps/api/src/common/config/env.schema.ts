@@ -1,4 +1,22 @@
 import { z } from 'zod';
+const envBoolean = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value;
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+
+    if (['false', '0', 'no', 'off', ''].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return value;
+}, z.boolean());
+
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -8,7 +26,7 @@ export const envSchema = z.object({
 
   MINIO_ENDPOINT: z.string().min(1).default('localhost'),
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
-  MINIO_USE_SSL: z.coerce.boolean().default(false),
+  MINIO_USE_SSL: envBoolean.default(false),
   MINIO_ACCESS_KEY: z.string().min(3).default('lookiva_admin'),
   MINIO_SECRET_KEY: z.string().min(8).default('lookiva_minio_dev'),
   MEDIA_PUBLIC_BASE_URL: z.string().url().optional(),
@@ -34,7 +52,7 @@ export const envSchema = z.object({
   PUSH_PROVIDER_BASE_URL: z.string().url().optional(),
   PUSH_API_KEY: z.string().optional(),
 
-  ONLINE_PAYMENTS_ENABLED: z.coerce.boolean().default(false),
+  ONLINE_PAYMENTS_ENABLED: envBoolean.default(false),
   PAYMENT_PROVIDER: z.enum(['disabled', 'test', 'generic_http']).default('disabled'),
   PAYMENT_API_KEY: z.string().optional(),
   PAYMENT_WEBHOOK_SECRET: z.string().optional(),

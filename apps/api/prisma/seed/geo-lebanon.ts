@@ -171,27 +171,34 @@ export async function seedGeoLebanon(prisma: PrismaClient) {
     const cities: Record<string, { id: string; name: string }> = {};
     for (const c of cityData) {
       const district = districts[c.district_code];
-      const city = await tx.cities.upsert({
+      const existingCity = await tx.cities.findFirst({
         where: {
-          country_id_name: {
-            country_id: country.id,
-            name: c.name,
-          },
-        },
-        create: {
           country_id: country.id,
-          region_id: regions[c.region_code].id,
-          district_id: district ? district.id : null,
           name: c.name,
-          native_name: c.native_name,
-          latitude: c.latitude,
-          longitude: c.longitude,
-          timezone: c.timezone,
-          is_active: true,
-          sort_order: Object.keys(cities).length + 1,
         },
-        update: {},
       });
+
+      const cityData = {
+        country_id: country.id,
+        region_id: regions[c.region_code].id,
+        district_id: district ? district.id : null,
+        name: c.name,
+        native_name: c.native_name,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        timezone: c.timezone,
+        is_active: true,
+        sort_order: Object.keys(cities).length + 1,
+      };
+
+      const city = existingCity
+        ? await tx.cities.update({
+            where: { id: existingCity.id },
+            data: cityData,
+          })
+        : await tx.cities.create({
+            data: cityData,
+          });
       cities[c.name] = { id: city.id, name: city.name };
     }
     console.log(`  Cities: ${Object.keys(cities).length}`);
@@ -244,26 +251,35 @@ export async function seedGeoLebanon(prisma: PrismaClient) {
     for (const a of areaData) {
       const city = cities[a.city_name];
       if (!city) continue;
-      await tx.areas.upsert({
+      const existingArea = await tx.areas.findFirst({
         where: {
-          city_id_name: {
-            city_id: city.id,
-            name: a.name,
-          },
-        },
-        create: {
           city_id: city.id,
-          country_id: country.id,
           name: a.name,
-          native_name: a.native_name,
-          latitude: a.latitude,
-          longitude: a.longitude,
-          radius_meters: a.radius_meters,
-          is_active: true,
-          sort_order: areaCount + 1,
         },
-        update: {},
       });
+
+      const areaData = {
+        city_id: city.id,
+        country_id: country.id,
+        name: a.name,
+        native_name: a.native_name,
+        latitude: a.latitude,
+        longitude: a.longitude,
+        radius_meters: a.radius_meters,
+        is_active: true,
+        sort_order: areaCount + 1,
+      };
+
+      if (existingArea) {
+        await tx.areas.update({
+          where: { id: existingArea.id },
+          data: areaData,
+        });
+      } else {
+        await tx.areas.create({
+          data: areaData,
+        });
+      }
       areaCount++;
     }
     console.log(`  Areas: ${areaCount}`);

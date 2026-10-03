@@ -70,8 +70,8 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <body className="min-h-screen bg-surface-0 text-primary antialiased">
-        <ThemeProvider defaultTheme="midnight-gold">
-          <NextIntlClientProvider messages={messages}>
+        <NextIntlClientProvider messages={messages}>
+          <ThemeProvider defaultTheme="midnight-gold">
             <ReactQueryProvider>
               <Toaster
                 position="top-right"
@@ -92,8 +92,8 @@ export default async function LocaleLayout({
                 <BottomNav />
               </div>
             </ReactQueryProvider>
-          </NextIntlClientProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

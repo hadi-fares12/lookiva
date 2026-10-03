@@ -48,21 +48,21 @@ export default function RegisterPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) {
-      toast.warning(tCommon('select'), { description: `${t('firstName')} / ${t('lastName')}` });
+      toast.warning(tCommon('actions.select'), { description: `${t('firstName')} / ${t('lastName')}` });
       return;
     }
     if (!email.trim() && !phone.trim()) {
-      toast.warning(tCommon('select'), {
+      toast.warning(tCommon('actions.select'), {
         description: `${t('email')} / ${t('phone')}`,
       });
       return;
     }
     if (!password) {
-      toast.warning(tCommon('select'), { description: t('password') });
+      toast.warning(tCommon('actions.select'), { description: t('password') });
       return;
     }
     if (!terms) {
-      toast.warning(tCommon('select'), { description: t('iAcceptTerms') });
+      toast.warning(tCommon('actions.select'), { description: t('iAcceptTerms') });
       return;
     }
 
@@ -215,7 +215,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-secondary mb-1.5">
-                {t('profile.profilePicture')} <span className="text-muted font-normal">({tCommon('select').toLowerCase()} {tCommon('actions.upload')})</span>
+                {t('profile.profilePicture')} <span className="text-muted font-normal">({tCommon('actions.select').toLowerCase()} {tCommon('actions.upload')})</span>
               </label>
               <div
                 onDragOver={(e) => {

@@ -196,7 +196,10 @@
     "sending": "Envoi…",
     "resetEmailSent": "Si cet e-mail existe, un lien de réinitialisation sécurisé a été envoyé.",
     "backToLogin": "Retour à la connexion",
-    "resetRequestError": "Impossible de demander la réinitialisation"
+    "resetRequestError": "Impossible de demander la réinitialisation",
+    "profile": {
+      "profilePicture": "Photo de profil"
+    }
   },
   "nav": {
     "home": "Accueil",
