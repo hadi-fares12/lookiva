@@ -187,6 +187,12 @@ class LookivaApi {
     return Map<String, dynamic>.from(user as Map);
   }
 
+  Future<bool> hasSession() async {
+    final access = await _storage.read(key: _accessKey);
+    final refresh = await _storage.read(key: _refreshKey);
+    return (access != null && access.isNotEmpty) || (refresh != null && refresh.isNotEmpty);
+  }
+
   Future<bool> restoreSession() async {
     final access = await _storage.read(key: _accessKey);
     final refresh = await _storage.read(key: _refreshKey);

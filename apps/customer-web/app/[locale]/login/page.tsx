@@ -29,6 +29,14 @@ export default function LoginPage() {
   const locale = useLocale();
   const router = useRouter();
 
+  function nextPathAfterLogin() {
+    if (typeof window === 'undefined') return '/home';
+    const requestedNext = new URLSearchParams(window.location.search).get('next');
+    return requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//')
+      ? requestedNext
+      : '/home';
+  }
+
   const [tab, setTab] = React.useState<Tab>('password');
   const [identifierType, setIdentifierType] = React.useState<IdentifierType>('email');
   const [identifier, setIdentifier] = React.useState('');
@@ -92,7 +100,7 @@ export default function LoginPage() {
           setAuthTokens(data.accessToken, data.refreshToken);
         }
         toast.success(t('loginSuccess'));
-        router.push(`/${locale}/home`);
+        router.push(nextPathAfterLogin());
       } else {
         const code = otp.join('');
         if (code.length < 6) {
@@ -109,7 +117,7 @@ export default function LoginPage() {
           setAuthTokens(data.accessToken, data.refreshToken);
         }
         toast.success(t('loginSuccess'));
-        router.push(`/${locale}/home`);
+        router.push(nextPathAfterLogin());
       }
     } finally {
       setLoading(false);

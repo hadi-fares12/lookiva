@@ -20,6 +20,9 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
   String? _resourceId;
   DateTime _start = DateTime.now().add(const Duration(hours: 2));
   final _notes = TextEditingController();
+  final _contactName = TextEditingController();
+  final _contactPhone = TextEditingController();
+  final _contactEmail = TextEditingController();
   bool _loading = true;
   bool _submitting = false;
   String? _message;
@@ -33,6 +36,9 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
   @override
   void dispose() {
     _notes.dispose();
+    _contactName.dispose();
+    _contactPhone.dispose();
+    _contactEmail.dispose();
     super.dispose();
   }
 
@@ -52,6 +58,17 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
       _branches = branches;
       _branchId = branches.isNotEmpty ? branches.first['id']?.toString() : null;
       if (_branchId != null) await _loadResources(_branchId!);
+      if (await LookivaApi.instance.hasSession()) {
+        try {
+          final profileRaw = await LookivaApi.instance.get('/customer/profile');
+          if (profileRaw is Map) {
+            final profile = Map<String, dynamic>.from(profileRaw);
+            _contactName.text = profile['full_name']?.toString() ?? '';
+            _contactPhone.text = profile['phone']?.toString() ?? '';
+            _contactEmail.text = profile['email']?.toString() ?? '';
+          }
+        } catch (_) {}
+      }
     } catch (error) {
       _message = LookivaApi.instance.friendlyError(error);
     } finally {
@@ -87,6 +104,11 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
     final service = _service;
     final branchId = _branchId;
     if (service == null || branchId == null) return;
+    final signedIn = await LookivaApi.instance.hasSession();
+    if (!signedIn) {
+      if (mounted) context.push('/login?next=${Uri.encodeComponent('/book/${widget.serviceId}')}');
+      return;
+    }
     setState(() { _submitting = true; _message = ct(context,'checking'); });
     try {
       final company = service['company'];
@@ -125,6 +147,9 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
       final created = await LookivaApi.instance.post('/booking-v2/appointments', data: {
         ...common,
         'holdToken': holdToken,
+        if (_contactName.text.trim().isNotEmpty) 'contactName': _contactName.text.trim(),
+        if (_contactPhone.text.trim().isNotEmpty) 'contactPhone': _contactPhone.text.trim(),
+        if (_contactEmail.text.trim().isNotEmpty) 'contactEmail': _contactEmail.text.trim(),
         if (_notes.text.trim().isNotEmpty) 'notesCustomer': _notes.text.trim(),
         'source': 'customer_flutter',
       });
@@ -197,6 +222,23 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
               ..._resources.map((r) => DropdownMenuItem(value: r['id']?.toString(), child: Text('${r['name'] ?? ct(context,'resource')}${r['status'] != null ? ' • ${r['status']}' : ''}'))),
             ],
             onChanged: (v) => setState(() => _resourceId = v),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Reservation contact', style: TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 10),
+                TextField(controller: _contactName, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Full name')),
+                const SizedBox(height: 10),
+                TextField(controller: _contactPhone, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Phone')),
+                const SizedBox(height: 10),
+                TextField(controller: _contactEmail, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
+                const SizedBox(height: 8),
+                Text('These details are saved with this reservation and may be edited without changing your profile.', style: Theme.of(context).textTheme.bodySmall),
+              ]),
+            ),
           ),
           const SizedBox(height: 12),
           TextField(controller: _notes, maxLines: 4, decoration: InputDecoration(labelText: ct(context,'notes'), alignLabelWithHint: true)),

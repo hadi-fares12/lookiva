@@ -69,6 +69,18 @@ export class CreateAppointmentDto extends CreateHoldDto {
 
   @IsOptional()
   @IsString()
+  contactName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  contactEmail?: string;
+
+  @IsOptional()
+  @IsString()
   notesCustomer?: string;
 
   @IsOptional()
@@ -219,4 +231,14 @@ export class CreateGroupBookingDto {
   @ValidateNested({ each: true })
   @Type(() => GroupBookingParticipantDto)
   participants!: GroupBookingParticipantDto[];
+}
+
+
+export class RejectAppointmentDto {
+  @IsString()
+  reason!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
 }

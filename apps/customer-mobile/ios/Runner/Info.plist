@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LOOKIVA uses your location to show nearby barbers, salons and available services.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LOOKIVA uses the camera when you choose to add a profile or review photo.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LOOKIVA lets you choose photos when updating your profile or sharing review media.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

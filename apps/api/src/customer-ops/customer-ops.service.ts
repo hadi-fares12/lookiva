@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CustomerOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationsService) {}
 
   private async customerForUser(userId: string) {
     const customer = await this.prisma.customers.findFirst({ where: { user_id: userId } });
@@ -67,6 +68,46 @@ export class CustomerOpsService {
     return item;
   }
 
+
+  async startConversation(userId: string, companyId: string, appointmentId?: string) {
+    const customer = await this.customerForUser(userId);
+    const company = await this.prisma.companies.findFirst({
+      where: { id: companyId, is_active: true, deleted_at: null },
+      select: { id: true, owner_user_id: true, display_name: true },
+    });
+    if (!company) throw new NotFoundException('Business not found');
+    if ((customer.blocked_by_company_ids ?? []).includes(companyId)) {
+      throw new ForbiddenException('This business has blocked messaging from this customer');
+    }
+
+    const existing = await this.prisma.conversations.findFirst({
+      where: {
+        company_id: companyId,
+        type: 'direct',
+        members: { some: { user_id: userId, left_at: null } },
+      },
+      include: { members: true },
+      orderBy: { updated_at: 'desc' },
+    });
+    if (existing) return existing;
+
+    return this.prisma.conversations.create({
+      data: {
+        company_id: companyId,
+        appointment_id: appointmentId ?? null,
+        type: 'direct',
+        metadata: { source: 'customer_business' },
+        members: {
+          create: [
+            { user_id: userId, customer_id: customer.id },
+            { user_id: company.owner_user_id, is_admin: true },
+          ],
+        },
+      },
+      include: { members: true },
+    });
+  }
+
   async conversations(userId: string) {
     return this.prisma.conversations.findMany({
       where: { members: { some: { user_id: userId, left_at: null } } },
@@ -92,11 +133,26 @@ export class CustomerOpsService {
     await this.assertConversationMember(userId, conversationId);
     const clean = body?.trim();
     if (!clean) throw new BadRequestException('Message body is required');
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const message = await tx.messages.create({ data: { conversation_id: conversationId, sender_user_id: userId, message_type: messageType, body_plain: clean } });
       await tx.conversations.update({ where: { id: conversationId }, data: { last_message_id: message.id, last_message_at: message.created_at } });
-      return message;
+      const recipients = await tx.conversation_members.findMany({
+        where: { conversation_id: conversationId, user_id: { not: userId }, left_at: null },
+        select: { user_id: true },
+      });
+      return { message, recipients };
     });
+    for (const recipient of result.recipients) {
+      await this.notifications.dispatch({
+        recipientUserId: recipient.user_id,
+        notificationType: 'new_message',
+        title: 'New LOOKIVA message',
+        body: clean.length > 120 ? `${clean.slice(0, 117)}...` : clean,
+        deepLink: `/chat/${conversationId}`,
+        payload: { conversationId },
+      });
+    }
+    return result.message;
   }
 
   async retention(userId: string) {

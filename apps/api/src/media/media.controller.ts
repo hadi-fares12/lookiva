@@ -28,10 +28,12 @@ export class MediaController {
     @CurrentUser() user: any,
     @UploadedFile() file: Express.Multer.File,
     @Query('isPublic') isPublic?: string,
+    @Query('companyId') companyId?: string,
+    @Query('branchId') branchId?: string,
   ) {
     const userId = user?.id ?? 'system';
     const isPublicBool = isPublic === undefined ? true : isPublic === 'true';
-    return this.mediaService.upload(file, userId, isPublicBool);
+    return this.mediaService.upload(file, userId, isPublicBool, companyId, branchId);
   }
 
   @Get(':id')

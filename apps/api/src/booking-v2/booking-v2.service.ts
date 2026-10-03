@@ -20,6 +20,7 @@ import {
   CreateHoldDto,
   JoinQueueDto,
   RescheduleAppointmentDto,
+  RejectAppointmentDto,
 } from './dto/booking-v2.dto';
 
 type Db = Prisma.TransactionClient | PrismaService;
@@ -39,6 +40,7 @@ interface PreparedBooking {
   branch: any;
   customerId: string;
   customerUserId: string;
+  customerContact: { name: string | null; phone: string | null; email: string | null };
   professional: any | null;
   services: any[];
   resources: any[];
@@ -292,6 +294,9 @@ export class BookingV2Service {
           isHomeService: dto.isHomeService,
           source: dto.source ?? (hold ? 'hold_conversion' : 'direct'),
           guestCount: merged.guestCount ?? 1,
+          contactName: dto.contactName,
+          contactPhone: dto.contactPhone,
+          contactEmail: dto.contactEmail,
         });
 
         if (hold) {
@@ -392,6 +397,96 @@ export class BookingV2Service {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+
+  async confirmAppointment(user: AuthenticatedUser, appointmentId: string) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
+      if (!appointment) throw new NotFoundException('Appointment not found');
+      await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
+      if (appointment.status !== 'pending') {
+        throw new ConflictException(`Appointment cannot be confirmed from ${appointment.status}`);
+      }
+      const confirmed = await tx.appointments.update({
+        where: { id: appointmentId },
+        data: { status: 'confirmed' },
+      });
+      await tx.appointment_services.updateMany({
+        where: { appointment_id: appointmentId, status: 'pending' },
+        data: { status: 'confirmed' },
+      });
+      await tx.appointment_status_history.create({
+        data: {
+          appointment_id: appointmentId,
+          old_status: appointment.status,
+          new_status: 'confirmed',
+          changed_by_id: user.id,
+          notes: 'Approved by business',
+        },
+      });
+      return confirmed;
+    });
+    await this.notifyCustomer(
+      updated,
+      'booking_confirmed',
+      'Booking approved',
+      `Your booking for ${updated.starts_at.toLocaleString()} has been approved.`,
+    );
+    return updated;
+  }
+
+  async rejectAppointment(user: AuthenticatedUser, appointmentId: string, dto: RejectAppointmentDto) {
+    const reason = dto.reason?.trim();
+    if (!reason) throw new BadRequestException('A rejection reason is required');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
+      if (!appointment) throw new NotFoundException('Appointment not found');
+      await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
+      if (!['pending', 'confirmed'].includes(appointment.status)) {
+        throw new ConflictException(`Appointment cannot be rejected from ${appointment.status}`);
+      }
+      const rejected = await tx.appointments.update({
+        where: { id: appointmentId },
+        data: {
+          status: 'cancelled_by_business',
+          cancelled_at: new Date(),
+          cancelled_by_user_id: user.id,
+          cancellation_reason: reason,
+        },
+      });
+      await tx.appointment_services.updateMany({
+        where: { appointment_id: appointmentId },
+        data: { status: 'cancelled' },
+      });
+      await tx.appointment_status_history.create({
+        data: {
+          appointment_id: appointmentId,
+          old_status: appointment.status,
+          new_status: 'cancelled_by_business',
+          changed_by_id: user.id,
+          notes: dto.note?.trim() || reason,
+        },
+      });
+      if (dto.note?.trim()) {
+        await tx.appointment_notes.create({
+          data: {
+            appointment_id: appointmentId,
+            author_user_id: user.id,
+            note_text: dto.note.trim(),
+            is_private: false,
+          },
+        });
+      }
+      return rejected;
+    });
+    await this.notifyCustomer(
+      updated,
+      'booking_rejected',
+      'Booking declined',
+      `Your booking was declined. Reason: ${reason}${dto.note?.trim() ? ` — ${dto.note.trim()}` : ''}`,
+    );
+    return updated;
   }
 
   async cancelAppointment(
@@ -829,8 +924,14 @@ export class BookingV2Service {
     if (customerId !== ownCustomerId && !canManageBooking) {
       throw new ForbiddenException('Customers may only create bookings for their own customer profile');
     }
-    const customer = await tx.customers.findUnique({ where: { id: customerId } });
+    const customer = await tx.customers.findUnique({
+      where: { id: customerId },
+      include: { user: { select: { full_name: true, phone: true, email: true } } },
+    });
     if (!customer) throw new BadRequestException('Customer is invalid');
+    if ((customer.blocked_by_company_ids ?? []).includes(company.id)) {
+      throw new ForbiddenException('This customer is blocked by the selected business');
+    }
 
     const services = await tx.services.findMany({
       where: {
@@ -895,6 +996,11 @@ export class BookingV2Service {
       branch,
       customerId,
       customerUserId: customer.user_id,
+      customerContact: {
+        name: customer.user?.full_name ?? null,
+        phone: customer.user?.phone ?? null,
+        email: customer.user?.email ?? null,
+      },
       professional,
       services,
       resources,
@@ -920,6 +1026,9 @@ export class BookingV2Service {
       isHomeService?: boolean;
       source?: string;
       guestCount?: number;
+      contactName?: string;
+      contactPhone?: string;
+      contactEmail?: string;
     },
   ) {
     const appointment = await tx.appointments.create({
@@ -928,6 +1037,9 @@ export class BookingV2Service {
         branch_id: prepared.branch.id,
         customer_id: prepared.customerId,
         customer_user_id: prepared.customerUserId,
+        contact_name: options.contactName?.trim() || prepared.customerContact.name,
+        contact_phone: options.contactPhone?.trim() || prepared.customerContact.phone,
+        contact_email: options.contactEmail?.trim() || prepared.customerContact.email,
         status: options.status,
         starts_at: prepared.startsAt,
         ends_at: prepared.endsAt,

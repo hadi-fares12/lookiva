@@ -20,7 +20,7 @@ export function Header() {
   }, []);
 
   function goSearch() {
-    router.push(`/${locale}/search`);
+    router.push('/search');
   }
 
   return (

@@ -36,6 +36,12 @@ export class SocialService {
         skip: offset,
       });
 
+      const mediaIds = Array.from(new Set(posts.flatMap((p: any) => (p.media_list || []).map((m: any) => m.media_id)).filter(Boolean)));
+      const mediaRows = mediaIds.length
+        ? await this.prisma.media.findMany({ where: { id: { in: mediaIds } } })
+        : [];
+      const mediaById = new Map(mediaRows.map((m: any) => [m.id, m]));
+
       const postIds = posts.map((p: any) => p.id);
       const likesCounts: Record<string, number> = {};
       if (postIds.length > 0) {
@@ -55,6 +61,7 @@ export class SocialService {
 
       return posts.map((p: any) => ({
         ...p,
+        media_list: (p.media_list || []).map((m: any) => ({ ...m, media: mediaById.get(m.media_id) ?? null })),
         likes_count: likesCounts[p.id] ?? p.like_count ?? 0,
       }));
     } catch (err) {

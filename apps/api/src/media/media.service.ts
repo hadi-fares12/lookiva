@@ -38,6 +38,8 @@ const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 type MediaRecord = {
   id: string;
   uploader_user_id: string;
+  company_id?: string | null;
+  branch_id?: string | null;
   storage_key: string;
   original_file_name: string;
   stored_file_name: string;
@@ -198,8 +200,35 @@ export class MediaService implements OnModuleInit {
     file: Express.Multer.File,
     userId: string,
     isPublic = true,
+    companyId?: string,
+    branchId?: string,
   ) {
     this.validateFile(file.buffer, file.mimetype, file.originalname);
+
+    if (companyId) {
+      const company = await this.prisma.companies.findUnique({
+        where: { id: companyId },
+        select: { owner_user_id: true },
+      });
+      if (!company) throw new ServiceUnavailableException('Company not found');
+      const scope = await this.prisma.user_role_scopes.findFirst({
+        where: { user_id: userId, company_id: companyId },
+        select: { id: true, branch_id: true, scope_type: true },
+      });
+      if (company.owner_user_id !== userId && !scope) {
+        throw new ServiceUnavailableException('This account cannot upload media for the company');
+      }
+      if (branchId) {
+        const branch = await this.prisma.branches.findFirst({
+          where: { id: branchId, company_id: companyId, deleted_at: null },
+          select: { id: true },
+        });
+        if (!branch) throw new ServiceUnavailableException('Branch is invalid');
+        if (scope?.scope_type === 'branch' && scope.branch_id && scope.branch_id !== branchId) {
+          throw new ServiceUnavailableException('This account cannot upload media for that branch');
+        }
+      }
+    }
 
     const ext = path.extname(file.originalname).toLowerCase();
     const objectName = `${crypto.randomUUID()}${ext}`;
@@ -249,6 +278,8 @@ export class MediaService implements OnModuleInit {
       mediaRecord = await this.prisma.media.create({
         data: {
           uploader_user_id: userId,
+          company_id: companyId ?? null,
+          branch_id: branchId ?? null,
           storage_key: objectName,
           original_file_name: file.originalname,
           stored_file_name: objectName,
@@ -276,6 +307,8 @@ export class MediaService implements OnModuleInit {
       mediaRecord = {
         id: crypto.randomUUID(),
         uploader_user_id: userId,
+        company_id: companyId ?? null,
+        branch_id: branchId ?? null,
         storage_key: objectName,
         original_file_name: file.originalname,
         stored_file_name: objectName,
@@ -294,7 +327,7 @@ export class MediaService implements OnModuleInit {
 
     if (
       this.mediaProcessQueue &&
-      file.mimetype.startsWith('image/')
+      (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
     ) {
       try {
         await this.mediaProcessQueue.add(

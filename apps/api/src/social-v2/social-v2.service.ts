@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -14,6 +14,20 @@ export class SocialV2Service {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPost(user: AuthenticatedUser, dto: CreatePostV2Dto) {
+    if (dto.companyId) {
+      const company = await this.prisma.companies.findUnique({
+        where: { id: dto.companyId },
+        select: { owner_user_id: true },
+      });
+      if (!company) throw new NotFoundException('Company not found');
+      const platformRoles = new Set([UserRole.SuperAdmin, UserRole.PlatformAdmin, UserRole.CountryManager]);
+      const allowed = company.owner_user_id === user.id || user.roleScopes.some((scope) =>
+        platformRoles.has(scope.roleKey) ||
+        scope.companyId === dto.companyId ||
+        scope.scopeId === dto.companyId
+      );
+      if (!allowed) throw new ForbiddenException('You cannot publish content for this company');
+    }
     return this.prisma.$transaction(async (tx) => {
       const authorRole = user.roleScopes[0]?.roleKey ?? UserRole.Customer;
       const post = await tx.posts.create({
@@ -36,11 +50,20 @@ export class SocialV2Service {
       });
 
       for (const [index, mediaId] of (dto.mediaIds ?? []).entries()) {
+        const media = await tx.media.findFirst({
+          where: {
+            id: mediaId,
+            uploader_user_id: user.id,
+            ...(dto.companyId ? { OR: [{ company_id: dto.companyId }, { company_id: null }] } : {}),
+          },
+          select: { id: true, mime_category: true },
+        });
+        if (!media) throw new ForbiddenException('One or more media items do not belong to this account/company');
         await tx.post_media.create({
           data: {
             post_id: post.id,
             media_id: mediaId,
-            media_type: 'image',
+            media_type: media.mime_category === 'video' ? 'video' : 'image',
             sort_order: index,
           },
         });

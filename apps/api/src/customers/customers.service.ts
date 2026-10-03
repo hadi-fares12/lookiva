@@ -272,16 +272,31 @@ export class CustomersService {
       if (scopedIds?.companyId) data.company_id = scopedIds.companyId;
       if (scopedIds?.professionalId) data.professional_id = scopedIds.professionalId;
 
-      return await this.prisma.follows.upsert({
-        where: {
-          follower_user_id_target_type_target_id: {
-            follower_user_id: userId,
-            target_type: targetType,
-            target_id: targetId,
+      return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.follows.findUnique({
+          where: {
+            follower_user_id_target_type_target_id: {
+              follower_user_id: userId,
+              target_type: targetType,
+              target_id: targetId,
+            },
           },
-        },
-        create: data,
-        update: data,
+        });
+        if (existing) return existing;
+
+        const created = await tx.follows.create({ data });
+        if (targetType === 'business') {
+          await tx.companies.updateMany({
+            where: { id: targetId },
+            data: { follower_count: { increment: 1 } },
+          });
+        } else if (targetType === 'professional') {
+          await tx.professionals.updateMany({
+            where: { id: targetId },
+            data: { follower_count: { increment: 1 } },
+          });
+        }
+        return created;
       });
     } catch (err) {
       this.logger.warn(`Failed to follow for ${userId}: ${err.message}`);
@@ -316,10 +331,21 @@ export class CustomersService {
   }
 
   async unfollowTarget(userId: string, targetType: 'business' | 'professional', targetId: string) {
-    const result = await this.prisma.follows.deleteMany({
-      where: { follower_user_id: userId, target_type: targetType, target_id: targetId },
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.follows.deleteMany({
+        where: { follower_user_id: userId, target_type: targetType, target_id: targetId },
+      });
+      if (result.count > 0) {
+        if (targetType === 'business') {
+          const company = await tx.companies.findUnique({ where: { id: targetId }, select: { follower_count: true } });
+          if (company) await tx.companies.update({ where: { id: targetId }, data: { follower_count: Math.max(0, company.follower_count - 1) } });
+        } else if (targetType === 'professional') {
+          const professional = await tx.professionals.findUnique({ where: { id: targetId }, select: { follower_count: true } });
+          if (professional) await tx.professionals.update({ where: { id: targetId }, data: { follower_count: Math.max(0, professional.follower_count - 1) } });
+        }
+      }
+      return { unfollowed: result.count > 0 };
     });
-    return { unfollowed: result.count > 0 };
   }
 
   async getPreferences(userId: string) {

@@ -23,6 +23,7 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   PUBLIC_CUSTOMER_WEB_URL: z.string().url().default('http://localhost:3001'),
+  PUBLIC_BUSINESS_WEB_URL: z.string().url().default('http://localhost:3002'),
 
   MINIO_ENDPOINT: z.string().min(1).default('localhost'),
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
@@ -35,6 +36,7 @@ export const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must contain at least 32 characters'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('7d'),
+  GOOGLE_CLIENT_ID: z.string().min(10).optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001,http://localhost:3002,http://localhost:3003'),
   PORT: z.coerce.number().int().positive().default(4000),
 
@@ -47,6 +49,11 @@ export const envSchema = z.object({
   EMAIL_PROVIDER_BASE_URL: z.string().url().optional(),
   EMAIL_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().default('no-reply@lookiva.app'),
+
+  WHATSAPP_PROVIDER: z.enum(['console', 'generic_http']).default('console'),
+  WHATSAPP_PROVIDER_BASE_URL: z.string().url().optional(),
+  WHATSAPP_API_KEY: z.string().optional(),
+  WHATSAPP_FROM: z.string().optional(),
 
   PUSH_PROVIDER: z.enum(['console', 'generic_http']).default('console'),
   PUSH_PROVIDER_BASE_URL: z.string().url().optional(),
