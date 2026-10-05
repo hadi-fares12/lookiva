@@ -4,6 +4,7 @@ title LOOKIVA One-Click LAN Launcher
 cd /d "%~dp0"
 
 set "SERVER_IP=192.168.1.173"
+if not "%~1"=="" set "SERVER_IP=%~1"
 set "API_PORT=4000"
 set "CUSTOMER_PORT=3001"
 set "BUSINESS_PORT=3002"
@@ -189,7 +190,17 @@ if exist "apps\business-mobile\build\web\index.html" (
 echo [8/8] Waiting for API health...
 powershell.exe -NoLogo -NoProfile -Command "$u='http://%SERVER_IP%:%API_PORT%/health'; for($i=0;$i -lt 45;$i++){try{$r=Invoke-WebRequest -UseBasicParsing -Uri $u -TimeoutSec 3;if($r.StatusCode -ge 200 -and $r.StatusCode -lt 500){exit 0}}catch{};Start-Sleep -Seconds 1};exit 1"
 if errorlevel 1 (
+  echo.
   echo [ERROR] API did not become healthy.
+  echo ============================================================
+  echo  LAST API LOG LINES
+  echo ============================================================
+  if exist ".lookiva-runtime\logs\api.log" (
+    powershell.exe -NoLogo -NoProfile -Command "Get-Content '.lookiva-runtime\logs\api.log' -Tail 100"
+  ) else (
+    echo API log file was not created.
+  )
+  echo ============================================================
   echo Check: %CD%\.lookiva-runtime\logs\api.log
   pause
   exit /b 1
