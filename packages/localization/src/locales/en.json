@@ -120,7 +120,14 @@
       "satisfied": "Satisfied",
       "neutral": "Neutral",
       "dissatisfied": "Dissatisfied"
-    }
+    },
+    "searchPlaceholder": "Search services, businesses, professionals...",
+    "empty": "Nothing here yet",
+    "comingSoon": "Coming Soon",
+    "bookNow": "Book Now",
+    "verified": "Verified",
+    "select": "Select",
+    "loading": "Loading..."
   },
   "auth": {
     "login": "Login",
