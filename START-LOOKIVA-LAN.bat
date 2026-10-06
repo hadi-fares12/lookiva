@@ -111,6 +111,10 @@ if errorlevel 1 goto FAILED
 call pnpm --filter @lookiva/api prisma:migrate
 if errorlevel 1 goto FAILED
 
+echo Seeding required LOOKIVA reference data...
+call pnpm --filter @lookiva/api prisma:seed:prod
+if errorlevel 1 goto FAILED
+
 echo [6/8] Checking production build artifacts...
 set "NEED_BUILD=0"
 set "CURRENT_HEAD="
