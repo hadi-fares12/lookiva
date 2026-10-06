@@ -171,6 +171,20 @@ if "%NEED_FLUTTER_BUILD%"=="1" (
 )
 
 if not exist ".lookiva-runtime\logs" mkdir ".lookiva-runtime\logs"
+del /q ".lookiva-runtime\logs\*.log" >nul 2>&1
+
+if not exist "apps\api\dist\packages\localization\src\locales\en.json" (
+  echo [ERROR] API localization asset en.json is missing from production dist.
+  goto FAILED
+)
+if not exist "apps\api\dist\packages\localization\src\locales\ar.json" (
+  echo [ERROR] API localization asset ar.json is missing from production dist.
+  goto FAILED
+)
+if not exist "apps\api\dist\packages\localization\src\locales\fr.json" (
+  echo [ERROR] API localization asset fr.json is missing from production dist.
+  goto FAILED
+)
 
 echo [7/8] Starting LOOKIVA services...
 start "LOOKIVA API" /min cmd /d /c "call pnpm --filter @lookiva/api start 1>>.lookiva-runtime\logs\api.log 2>&1"
