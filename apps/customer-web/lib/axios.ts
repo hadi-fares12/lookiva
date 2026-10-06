@@ -3,6 +3,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
 import { APIPaths, type ErrorEnvelope } from '@lookiva/api-contracts';
+import { resolveBrowserApiBase } from './runtime-url';
 
 const ACCESS_KEY = 'lookiva-access';
 const REFRESH_KEY = 'lookiva-refresh';
@@ -78,7 +79,7 @@ if (!configuredApiBase && typeof process !== 'undefined' && process?.env?.NODE_E
 }
 
 const api = axios.create({
-  baseURL: configuredApiBase || 'http://localhost:4000/api/v1',
+  baseURL: resolveBrowserApiBase(configuredApiBase),
   timeout: 15000,
   withCredentials: false,
 });
