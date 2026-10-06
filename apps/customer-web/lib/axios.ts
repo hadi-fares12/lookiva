@@ -62,6 +62,21 @@ export function clearAuthTokens() {
   }
 }
 
+function isJwtExpired(token: string, skewSeconds = 30): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded)) as { exp?: number };
+    return typeof payload.exp === 'number'
+      ? payload.exp * 1000 <= Date.now() + skewSeconds * 1000
+      : false;
+  } catch {
+    return false;
+  }
+}
+
 function extractMessage(error: AxiosError<ErrorEnvelope>, fallback: string): string {
   const data = error.response?.data;
   if (!data) return fallback;
@@ -85,20 +100,23 @@ const api = axios.create({
 });
 
 let isRefreshing = false;
-let pendingQueue: Array<(access: string) => void> = [];
+let pendingQueue: Array<{
+  resolve: (access: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
 
-function pushPending(resolve: (access: string) => void) {
-  pendingQueue.push(resolve);
+function pushPending(resolve: (access: string) => void, reject: (error: unknown) => void) {
+  pendingQueue.push({ resolve, reject });
 }
 
 function resolvePending(access: string) {
-  pendingQueue.forEach((cb) => cb(access));
+  pendingQueue.forEach((entry) => entry.resolve(access));
   pendingQueue = [];
 }
 
 function rejectPending(error: unknown) {
+  pendingQueue.forEach((entry) => entry.reject(error));
   pendingQueue = [];
-  throw error;
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -131,8 +149,30 @@ async function refreshAccessToken(): Promise<string> {
   }
 }
 
+async function ensureFreshAccessToken(): Promise<string | null> {
+  const token = getAccessToken();
+  if (!token) return null;
+  if (!isJwtExpired(token)) return token;
+
+  if (isRefreshing) {
+    return new Promise<string>((resolve, reject) => pushPending(resolve, reject));
+  }
+
+  isRefreshing = true;
+  try {
+    const access = await refreshAccessToken();
+    resolvePending(access);
+    return access;
+  } catch (error) {
+    rejectPending(error);
+    return null;
+  } finally {
+    isRefreshing = false;
+  }
+}
+
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const typedConfig = config as InternalAxiosRequestConfig;
     if (!typedConfig.headers) {
       typedConfig.headers = {} as InternalAxiosRequestConfig['headers'];
@@ -144,7 +184,7 @@ api.interceptors.request.use(
       typedConfig.url = '/';
     }
 
-    const token = getAccessToken();
+    const token = await ensureFreshAccessToken();
     if (token && !typedConfig.headers['Authorization']) {
       typedConfig.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -181,7 +221,7 @@ api.interceptors.response.use(
 
       try {
         const access = isRefreshing
-          ? await new Promise<string>((resolve) => pushPending(resolve))
+          ? await new Promise<string>((resolve, reject) => pushPending(resolve, reject))
           : await (async () => {
               isRefreshing = true;
               try {
