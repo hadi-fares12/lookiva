@@ -33,7 +33,7 @@ describe('Customer Web Home Page (LocaleRoot Splash)', () => {
     expect(screen.getByText(/Premium Beauty & Wellness Nearby/)).toBeInTheDocument();
   });
 
-  it('redirects to /en/language when language has not been chosen', () => {
+  it('redirects to /language when language has not been chosen', () => {
     Storage.prototype.getItem = vi.fn((key: string) => {
       if (key === 'lookiva-access') return 'some-token';
       if (key === 'lookiva-onboarding-complete') return '1';
@@ -46,10 +46,10 @@ describe('Customer Web Home Page (LocaleRoot Splash)', () => {
       vi.advanceTimersByTime(1000);
     });
 
-    expect(mockReplace).toHaveBeenCalledWith('/en/language');
+    expect(mockReplace).toHaveBeenCalledWith('/language');
   });
 
-  it('redirects to /en/onboarding when language picked but onboarding not complete', () => {
+  it('redirects to /onboarding when language picked but onboarding not complete', () => {
     Storage.prototype.getItem = vi.fn((key: string) => {
       if (key === 'lookiva-access') return 'some-token';
       if (key === 'lookiva-language-chosen') return '1';
@@ -62,10 +62,10 @@ describe('Customer Web Home Page (LocaleRoot Splash)', () => {
       vi.advanceTimersByTime(1000);
     });
 
-    expect(mockReplace).toHaveBeenCalledWith('/en/onboarding');
+    expect(mockReplace).toHaveBeenCalledWith('/onboarding');
   });
 
-  it('redirects to /en/home when onboarding and language are complete', () => {
+  it('redirects to /home when onboarding and language are complete', () => {
     Storage.prototype.getItem = vi.fn((key: string) => {
       if (key === 'lookiva-access') return 'some-token';
       if (key === 'lookiva-onboarding-complete') return '1';
@@ -79,6 +79,6 @@ describe('Customer Web Home Page (LocaleRoot Splash)', () => {
       vi.advanceTimersByTime(1000);
     });
 
-    expect(mockReplace).toHaveBeenCalledWith('/en/home');
+    expect(mockReplace).toHaveBeenCalledWith('/home');
   });
 });

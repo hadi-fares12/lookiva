@@ -226,7 +226,7 @@ export default function RegisterPage() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
-                  toast.info(tCommon('comingSoon'), { description: 'Drop is captured. Upload starts after account creation.' });
+                  toast.info(tCommon('actions.comingSoon'), { description: 'Drop is captured. Upload starts after account creation.' });
                 }}
                 className={clsx(
                   'rounded-radius-xl border-2 border-dashed p-5 transition-colors cursor-pointer',
@@ -257,19 +257,11 @@ export default function RegisterPage() {
                 />
               </div>
               <span className="text-xs md:text-sm text-secondary leading-relaxed">
-                {t('iAcceptTerms')
-                  .split('Terms of Service')
-                  .map((seg: string, idx: number, arr: string[]) => (
-                    <React.Fragment key={idx}>
-                      {seg}
-                      {idx < arr.length - 1 && (
-                        <>
-                          <span className="text-accent-gold-2 font-medium">{t('termsOfService')}</span>
-                        </>
-                      )}
-                    </React.Fragment>
-                  ))}
-                <span className="text-accent-gold-2 font-medium"> {t('privacyPolicy')}</span>.
+                <span>{t('iAcceptTerms')}</span>
+                <span className="mx-1 text-muted">·</span>
+                <span className="text-accent-gold-2 font-medium">{t('termsOfService')}</span>
+                <span className="mx-1 text-muted">·</span>
+                <span className="text-accent-gold-2 font-medium">{t('privacyPolicy')}</span>
               </span>
             </label>
 

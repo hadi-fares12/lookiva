@@ -1,10 +1,12 @@
 'use client';
 
+import { resolveBrowserApiBase } from './runtime-url';
+
 const configuredApiBase = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
 if (!configuredApiBase && process.env.NODE_ENV === 'production') {
   throw new Error('NEXT_PUBLIC_API_URL is required for production builds');
 }
-export const API_BASE = (configuredApiBase || 'http://localhost:4000/api/v1').replace(/\/$/, '');
+export const API_BASE = resolveBrowserApiBase(configuredApiBase || 'http://localhost:4000/api/v1');
 
 function unwrapEnvelope<T = unknown>(body: any): T {
   if (body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 1 && 'data' in body) return body.data as T;
@@ -62,6 +64,28 @@ async function refreshAccessToken() {
   localStorage.setItem(ACCESS, data.accessToken);
   localStorage.setItem(REFRESH, data.refreshToken);
   return data.accessToken as string;
+}
+
+export async function businessUpload<T = unknown>(
+  path: string,
+  file: File,
+  fields?: Record<string, string>,
+): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS) : null;
+  if (!token) throw new Error('Session expired');
+  const form = new FormData();
+  form.append('file', file);
+  for (const [key, value] of Object.entries(fields || {})) form.append(key, value);
+  const response = await fetch(`${API_BASE}${path.startsWith('/') ? path : `/${path}`}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message || `Upload failed (${response.status})`);
+  }
+  return unwrapEnvelope<T>(await response.json());
 }
 
 export async function businessFetch<T = unknown>(path: string, init: RequestInit = {}, retry = true): Promise<T> {

@@ -3,7 +3,10 @@ import { PermissionKey, ScopeType, UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { calculateFinancialMetrics } from '../common/finance/financial-metrics';
-import { CreateQueueDto, UpdateQueueDto } from './dto/business-management.dto';
+import { CreateBranchDto, CreateBusinessUserDto, CreateQueueDto, UpdateBranchDto, UpdateBusinessUserDto, UpdateQueueDto } from './dto/business-management.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 
 const platformRoles = new Set<UserRole>([
   UserRole.SuperAdmin,
@@ -23,7 +26,7 @@ function slugify(value: string): string {
 
 @Injectable()
 export class BusinessOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly notifications: NotificationsService) {}
 
   private companyAccess(user: AuthenticatedUser, companyId: string) {
     if (user.roleScopes.some((scope) => platformRoles.has(scope.roleKey))) {
@@ -144,6 +147,148 @@ export class BusinessOpsService {
     return this.prisma.branches.findMany({ where: { company_id: companyId, deleted_at: null, ...(access.allBranches ? {} : { id: { in: access.branchIds } }) }, orderBy: [{ is_main: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }] });
   }
 
+  async createBranch(user: AuthenticatedUser, companyId: string, dto: CreateBranchDto) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Creating branches requires company-level access');
+
+    const company = await this.prisma.companies.findUnique({
+      where: { id: companyId },
+      select: { id: true, country_id: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+
+    const baseSlug = slugify(dto.name);
+    let slug = baseSlug;
+    let suffix = 1;
+    while (await this.prisma.branches.findFirst({ where: { company_id: companyId, slug } })) {
+      slug = `${baseSlug}-${++suffix}`;
+    }
+
+    const branch = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.branches.create({
+        data: {
+          company_id: companyId,
+          country_id: company.country_id,
+          name: dto.name.trim(),
+          slug,
+          address_line_1: dto.addressLine1?.trim() || null,
+          phone: dto.phone?.trim() || null,
+          whatsapp: dto.whatsapp?.trim() || null,
+          instagram_handle: dto.instagramHandle?.trim() || null,
+          latitude: dto.latitude ?? null,
+          longitude: dto.longitude ?? null,
+          booking_enabled: dto.bookingEnabled ?? true,
+          walk_ins_enabled: dto.walkInsEnabled ?? true,
+          home_service_enabled: dto.homeServiceEnabled ?? false,
+          is_active: true,
+        },
+      });
+
+      if (dto.latitude != null && dto.longitude != null) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO branch_locations (id, branch_id, address, point, created_at, updated_at)
+           VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), NOW(), NOW())
+           ON CONFLICT (branch_id) DO UPDATE
+           SET address = EXCLUDED.address, point = EXCLUDED.point, updated_at = NOW()`,
+          crypto.randomUUID(),
+          created.id,
+          dto.addressLine1?.trim() || null,
+          dto.longitude,
+          dto.latitude,
+        );
+      }
+
+      return created;
+    });
+
+    await this.auditMutation(user, companyId, 'branch.create', 'branch', branch.id, undefined, branch, branch.id);
+    return branch;
+  }
+
+  async updateBranch(user: AuthenticatedUser, companyId: string, branchId: string, dto: UpdateBranchDto) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    const existing = await this.prisma.branches.findFirst({
+      where: { id: branchId, company_id: companyId, deleted_at: null },
+    });
+    if (!existing) throw new NotFoundException('Branch not found');
+
+    const latitude = dto.latitude !== undefined ? dto.latitude : existing.latitude;
+    const longitude = dto.longitude !== undefined ? dto.longitude : existing.longitude;
+    const address = dto.addressLine1 !== undefined ? dto.addressLine1.trim() || null : existing.address_line_1;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.branches.update({
+        where: { id: branchId },
+        data: {
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.addressLine1 !== undefined ? { address_line_1: address } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.whatsapp !== undefined ? { whatsapp: dto.whatsapp.trim() || null } : {}),
+          ...(dto.instagramHandle !== undefined ? { instagram_handle: dto.instagramHandle.trim() || null } : {}),
+          ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
+          ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
+          ...(dto.bookingEnabled !== undefined ? { booking_enabled: dto.bookingEnabled } : {}),
+          ...(dto.walkInsEnabled !== undefined ? { walk_ins_enabled: dto.walkInsEnabled } : {}),
+          ...(dto.homeServiceEnabled !== undefined ? { home_service_enabled: dto.homeServiceEnabled } : {}),
+          ...(dto.isActive !== undefined ? { is_active: dto.isActive } : {}),
+        },
+      });
+
+      if (latitude != null && longitude != null) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO branch_locations (id, branch_id, address, point, created_at, updated_at)
+           VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), NOW(), NOW())
+           ON CONFLICT (branch_id) DO UPDATE
+           SET address = EXCLUDED.address, point = EXCLUDED.point, updated_at = NOW()`,
+          crypto.randomUUID(),
+          branchId,
+          address,
+          longitude,
+          latitude,
+        );
+      } else {
+        await tx.branch_locations.upsert({
+          where: { branch_id: branchId },
+          create: { branch_id: branchId, address },
+          update: { address },
+        });
+      }
+      return row;
+    });
+
+    await this.auditMutation(user, companyId, 'branch.update', 'branch', branchId, existing, updated, branchId);
+    return updated;
+  }
+
+  async deleteBranch(user: AuthenticatedUser, companyId: string, branchId: string) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Deleting branches requires company-level access');
+    const existing = await this.prisma.branches.findFirst({
+      where: { id: branchId, company_id: companyId, deleted_at: null },
+    });
+    if (!existing) throw new NotFoundException('Branch not found');
+    if (existing.is_main) throw new BadRequestException('The main branch cannot be deleted');
+
+    const activeAppointments = await this.prisma.appointments.count({
+      where: {
+        branch_id: branchId,
+        status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] },
+        ends_at: { gt: new Date() },
+      },
+    });
+    if (activeAppointments > 0) {
+      throw new BadRequestException('Branch has active or future appointments and cannot be deleted');
+    }
+
+    const updated = await this.prisma.branches.update({
+      where: { id: branchId },
+      data: { is_active: false, booking_enabled: false, deleted_at: new Date() },
+    });
+    await this.auditMutation(user, companyId, 'branch.delete', 'branch', branchId, existing, updated, branchId);
+    return { id: branchId, deleted: true };
+  }
+
   customers(user: AuthenticatedUser, companyId: string, limit: number) {
     const access = this.companyAccess(user, companyId);
     return this.prisma.customers.findMany({
@@ -159,9 +304,11 @@ export class BusinessOpsService {
     return this.prisma.professionals.findMany({
       where: { company_id: companyId, deleted_at: null, ...(access.allBranches ? {} : { branches: { some: { branch_id: { in: access.branchIds } } } }) },
       include: {
-        resources_links: { include: { resource: { select: { id: true, name: true, type: true } } } },
+        user: { select: { id: true, full_name: true, avatar_media_id: true, is_active: true } },
+        resources_links: { include: { resource: { select: { id: true, name: true, type: true, branch_id: true, is_active: true } } }, orderBy: [{ is_default: 'desc' }, { priority: 'asc' }] },
         services_links: { include: { service: { select: { id: true, name: true, base_price: true, currency_code: true } } } },
         branches: { include: { branch: { select: { id: true, name: true } } } },
+        schedules: { orderBy: [{ day_of_week: 'asc' }, { starts_at: 'asc' }] },
       },
       orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { display_name: 'asc' }],
     });
@@ -199,7 +346,260 @@ export class BusinessOpsService {
       where: { resource: { company_id: companyId, ...(access.allBranches ? {} : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] }) }, appointment: { ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }), status: { in: ['confirmed', 'checked_in', 'in_progress'] }, starts_at: { lte: end }, ends_at: { gte: now } } },
       include: { appointment: { select: { id: true, status: true, starts_at: true, ends_at: true, customer: { include: { user: { select: { full_name: true } } } }, participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } } } } },
     });
-    return items.map((resource) => ({ ...resource, activeBookings: bookings.filter((b) => b.resource_id === resource.id) }));
+    return items.map((resource) => {
+      const resourceBookings = bookings
+        .filter((booking) => booking.resource_id === resource.id)
+        .sort((a, b) => a.appointment.starts_at.getTime() - b.appointment.starts_at.getTime());
+      const currentBooking = resourceBookings.find((booking) => booking.appointment.starts_at <= now && booking.appointment.ends_at > now) ?? null;
+      const nextBooking = resourceBookings.find((booking) => booking.appointment.starts_at > now) ?? null;
+      const availabilityStatus = !resource.is_active
+        ? 'inactive'
+        : resource.maintenance.length
+          ? 'maintenance'
+          : currentBooking
+            ? 'busy'
+            : 'available';
+      return { ...resource, activeBookings: resourceBookings, currentBooking, nextBooking, availabilityStatus };
+    });
+  }
+
+  async updateProfessionalProfile(
+    user: AuthenticatedUser,
+    companyId: string,
+    professionalId: string,
+    dto: { avatarMediaId?: string | null; defaultResourceId?: string | null },
+  ) {
+    const access = this.companyAccess(user, companyId);
+    const professional = await this.prisma.professionals.findFirst({
+      where: {
+        id: professionalId,
+        company_id: companyId,
+        deleted_at: null,
+        ...(access.allBranches ? {} : { branches: { some: { branch_id: { in: access.branchIds } } } }),
+      },
+    });
+    if (!professional) throw new NotFoundException('Professional not found');
+
+    if (dto.avatarMediaId) {
+      const media = await this.prisma.media.findFirst({
+        where: { id: dto.avatarMediaId, company_id: companyId },
+        select: { id: true },
+      });
+      if (!media) throw new BadRequestException('Professional photo is invalid for this business');
+    }
+
+    let resource: any = null;
+    if (dto.defaultResourceId) {
+      resource = await this.prisma.resources.findFirst({
+        where: {
+          id: dto.defaultResourceId,
+          company_id: companyId,
+          deleted_at: null,
+          is_active: true,
+          ...(access.allBranches ? {} : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] }),
+        },
+      });
+      if (!resource) throw new BadRequestException('Assigned chair/resource is invalid');
+      if (resource.branch_id && !professional.branch_ids.includes(resource.branch_id)) {
+        throw new BadRequestException('Assigned chair/resource must belong to the professional branch');
+      }
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.professionals.update({
+        where: { id: professionalId },
+        data: {
+          ...(dto.avatarMediaId !== undefined ? { avatar_media_id: dto.avatarMediaId || null } : {}),
+        },
+      });
+      if (dto.avatarMediaId !== undefined) {
+        await tx.users.update({
+          where: { id: professional.user_id },
+          data: { avatar_media_id: dto.avatarMediaId || null },
+        });
+      }
+      if (dto.defaultResourceId !== undefined) {
+        await tx.professional_resources.deleteMany({ where: { professional_id: professionalId } });
+        if (dto.defaultResourceId) {
+          await tx.professional_resources.create({
+            data: {
+              professional_id: professionalId,
+              resource_id: dto.defaultResourceId,
+              is_default: true,
+              priority: 0,
+            },
+          });
+        }
+      }
+      return row;
+    });
+
+    await this.auditMutation(user, companyId, 'professional.profile.update', 'professional', professionalId, professional, updated);
+    return this.professionals(user, companyId).then((rows) => rows.find((row) => row.id === professionalId) ?? updated);
+  }
+
+  async professionalDay(
+    user: AuthenticatedUser,
+    companyId: string,
+    professionalId: string,
+    date?: string,
+    branchId?: string,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    const professional = await this.prisma.professionals.findFirst({
+      where: {
+        id: professionalId,
+        company_id: companyId,
+        deleted_at: null,
+        ...(branchId ? { branches: { some: { branch_id: branchId } } } : access.allBranches ? {} : { branches: { some: { branch_id: { in: access.branchIds } } } }),
+      },
+      include: {
+        branches: { include: { branch: true } },
+        resources_links: { include: { resource: true }, orderBy: [{ is_default: 'desc' }, { priority: 'asc' }] },
+      },
+    });
+    if (!professional) throw new NotFoundException('Professional not found');
+
+    const selectedBranchId = branchId
+      || professional.branches.find((item) => item.is_primary)?.branch_id
+      || professional.branches[0]?.branch_id;
+    if (!selectedBranchId) throw new BadRequestException('Professional has no branch assignment');
+    this.assertRequestedBranch(access, selectedBranchId);
+
+    const target = date ? new Date(`${date}T00:00:00`) : new Date();
+    if (Number.isNaN(target.getTime())) throw new BadRequestException('date must be YYYY-MM-DD');
+    const dayStart = new Date(target); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(target); dayEnd.setHours(23, 59, 59, 999);
+    const dayOfWeek = dayStart.getDay();
+
+    const [schedule, exception, branchHours, appointments] = await Promise.all([
+      this.prisma.professional_schedules.findFirst({
+        where: {
+          professional_id: professionalId,
+          branch_id: selectedBranchId,
+          day_of_week: dayOfWeek,
+          AND: [
+            { OR: [{ effective_from: null }, { effective_from: { lte: dayEnd } }] },
+            { OR: [{ effective_to: null }, { effective_to: { gte: dayStart } }] },
+          ],
+        },
+        orderBy: { updated_at: 'desc' },
+      }),
+      this.prisma.professional_schedule_exceptions.findFirst({
+        where: { professional_id: professionalId, OR: [{ branch_id: selectedBranchId }, { branch_id: null }], exception_date: { gte: dayStart, lte: dayEnd } },
+        orderBy: { updated_at: 'desc' },
+      }),
+      this.prisma.branch_hours.findFirst({ where: { branch_id: selectedBranchId, day_of_week: dayOfWeek } }),
+      this.prisma.appointments.findMany({
+        where: {
+          company_id: companyId,
+          branch_id: selectedBranchId,
+          starts_at: { lt: dayEnd },
+          ends_at: { gt: dayStart },
+          status: { notIn: ['cancelled', 'cancelled_by_customer', 'cancelled_by_business', 'no_show'] },
+          OR: [
+            { participants: { some: { professional_id: professionalId } } },
+            { services: { some: { professional_id: professionalId } } },
+          ],
+        },
+        include: {
+          customer: { include: { user: { select: { id: true, full_name: true, phone: true } } } },
+          services: { include: { service: { select: { id: true, name: true } } } },
+          resources: { include: { resource: { select: { id: true, name: true, type: true } } } },
+        },
+        orderBy: { starts_at: 'asc' },
+      }),
+    ]);
+
+    let isOff = false;
+    let startsAt: string | null = null;
+    let endsAt: string | null = null;
+    let scheduleSource = 'default';
+    if (exception) {
+      isOff = exception.is_off;
+      startsAt = exception.starts_at;
+      endsAt = exception.ends_at;
+      scheduleSource = 'exception';
+    } else if (schedule) {
+      isOff = schedule.is_off;
+      startsAt = schedule.starts_at;
+      endsAt = schedule.ends_at;
+      scheduleSource = 'professional';
+    } else if (branchHours) {
+      isOff = branchHours.is_closed;
+      startsAt = branchHours.opens_at;
+      endsAt = branchHours.closes_at;
+      scheduleSource = 'branch';
+    } else {
+      startsAt = '09:00';
+      endsAt = '18:00';
+    }
+
+    const timeToMinutes = (value: string | null) => {
+      if (!value) return null;
+      const [hours, minutes] = value.split(':').map(Number);
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+      return hours * 60 + minutes;
+    };
+    const minutesToTime = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+
+    const workStart = isOff ? null : timeToMinutes(startsAt);
+    const workEnd = isOff ? null : timeToMinutes(endsAt);
+    const busy = appointments.map((appointment) => ({
+      start: Math.max(0, Math.floor((appointment.starts_at.getTime() - dayStart.getTime()) / 60000)),
+      end: Math.min(1440, Math.ceil((appointment.ends_at.getTime() - dayStart.getTime()) / 60000)),
+      appointment,
+    })).sort((a, b) => a.start - b.start);
+
+    const freeWindows: Array<{ startsAt: string; endsAt: string }> = [];
+    if (workStart != null && workEnd != null && workEnd > workStart) {
+      let cursor = workStart;
+      for (const interval of busy) {
+        if (interval.end <= workStart || interval.start >= workEnd) continue;
+        const clippedStart = Math.max(workStart, interval.start);
+        const clippedEnd = Math.min(workEnd, interval.end);
+        if (clippedStart > cursor) freeWindows.push({ startsAt: minutesToTime(cursor), endsAt: minutesToTime(clippedStart) });
+        cursor = Math.max(cursor, clippedEnd);
+      }
+      if (cursor < workEnd) freeWindows.push({ startsAt: minutesToTime(cursor), endsAt: minutesToTime(workEnd) });
+    }
+
+    const now = new Date();
+    const isToday = now >= dayStart && now <= dayEnd;
+    const currentAppointment = isToday ? appointments.find((appointment) => appointment.starts_at <= now && appointment.ends_at > now) ?? null : null;
+    const defaultResourceLink = professional.resources_links.find((link) => link.is_default) ?? professional.resources_links[0] ?? null;
+    const defaultResource = defaultResourceLink?.resource ?? null;
+
+    let availabilityStatus = professional.is_active ? 'available' : 'inactive';
+    if (isOff) availabilityStatus = 'off';
+    else if (isToday && currentAppointment) availabilityStatus = 'busy';
+    else if (isToday && defaultResource && !defaultResource.is_active) availabilityStatus = 'chair_unavailable';
+
+    return {
+      professional: {
+        id: professional.id,
+        displayName: professional.display_name,
+        avatarMediaId: professional.avatar_media_id,
+        specialties: professional.specialties,
+        isActive: professional.is_active,
+      },
+      branchId: selectedBranchId,
+      date: dayStart.toISOString(),
+      availabilityStatus,
+      schedule: { isOff, startsAt, endsAt, source: scheduleSource },
+      defaultResource: defaultResource ? { id: defaultResource.id, name: defaultResource.name, type: defaultResource.type, isActive: defaultResource.is_active } : null,
+      freeWindows,
+      appointments: appointments.map((appointment) => ({
+        id: appointment.id,
+        status: appointment.status,
+        startsAt: appointment.starts_at,
+        endsAt: appointment.ends_at,
+        customer: appointment.customer?.user ? { id: appointment.customer.user.id, name: appointment.customer.user.full_name, phone: appointment.customer.user.phone } : null,
+        services: appointment.services.map((item) => ({ id: item.service.id, name: item.service.name, quantity: item.quantity })),
+        resources: appointment.resources.map((item) => ({ id: item.resource.id, name: item.resource.name, type: item.resource.type })),
+      })),
+    };
   }
 
   reviews(user: AuthenticatedUser, companyId: string, limit: number) {
@@ -217,13 +617,265 @@ export class BusinessOpsService {
     return this.prisma.promotions.findMany({ where: { company_id: companyId, ...(access.allBranches ? {} : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] }) }, orderBy: { created_at: 'desc' } });
   }
 
-  staff(user: AuthenticatedUser, companyId: string) {
+
+  private async assertCompanyLevelStaffManagement(user: AuthenticatedUser, companyId: string) {
     const access = this.companyAccess(user, companyId);
-    return this.prisma.user_role_scopes.findMany({
+    if (!access.allBranches) throw new ForbiddenException('Staff management requires company-level access');
+    const company = await this.prisma.companies.findUnique({
+      where: { id: companyId },
+      select: { id: true, owner_user_id: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    return company;
+  }
+
+  async createBusinessUser(user: AuthenticatedUser, companyId: string, dto: CreateBusinessUserDto) {
+    await this.assertCompanyLevelStaffManagement(user, companyId);
+
+    if (!dto.email && !dto.phone) {
+      throw new BadRequestException('Email or phone is required');
+    }
+    const email = dto.email?.trim().toLowerCase() || null;
+    const phone = dto.phone?.trim() || null;
+    const duplicate = await this.prisma.users.findFirst({
+      where: { OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])] },
+      select: { id: true },
+    });
+    if (duplicate) throw new BadRequestException('A LOOKIVA account already exists for this email or phone');
+
+    const requiresBranch = ['branch_manager', 'professional', 'staff'].includes(dto.roleKey);
+    if (requiresBranch && !dto.branchId) {
+      throw new BadRequestException('A branch is required for this role');
+    }
+    if (dto.branchId) {
+      const branch = await this.prisma.branches.findFirst({
+        where: { id: dto.branchId, company_id: companyId, is_active: true, deleted_at: null },
+        select: { id: true },
+      });
+      if (!branch) throw new BadRequestException('Branch is invalid');
+    }
+
+    const role = await this.prisma.roles.findUnique({ where: { key: dto.roleKey } });
+    if (!role) throw new BadRequestException('Role is not configured');
+
+    const temporaryPassword = crypto.randomBytes(9).toString('base64url');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.users.create({
+        data: {
+          email,
+          phone,
+          full_name: dto.fullName.trim(),
+          password_hash: passwordHash,
+          is_active: true,
+        },
+      });
+
+      const scopeType = dto.roleKey === 'business_manager' ? ScopeType.Company : ScopeType.Branch;
+      const scopeId = dto.roleKey === 'business_manager' ? companyId : dto.branchId!;
+      await tx.user_role_scopes.create({
+        data: {
+          user_id: created.id,
+          role_id: role.id,
+          role_key: dto.roleKey,
+          scope_type: scopeType,
+          scope_id: scopeId,
+          company_id: companyId,
+          branch_id: dto.roleKey === 'business_manager' ? null : dto.branchId!,
+          granted_by_user_id: user.id,
+        },
+      });
+
+      let professional: any = null;
+      if (dto.roleKey === 'professional') {
+        professional = await tx.professionals.create({
+          data: {
+            user_id: created.id,
+            company_id: companyId,
+            branch_ids: [dto.branchId!],
+            display_name: dto.professionalDisplayName?.trim() || dto.fullName.trim(),
+            specialties: dto.specialties ?? [],
+          },
+        });
+        await tx.professional_branches.create({
+          data: {
+            professional_id: professional.id,
+            branch_id: dto.branchId!,
+            is_primary: true,
+          },
+        });
+      }
+
+      return { user: created, professional };
+    });
+
+    await this.auditMutation(
+      user,
+      companyId,
+      'staff.create',
+      'user',
+      result.user.id,
+      undefined,
+      { roleKey: dto.roleKey, branchId: dto.branchId ?? null, fullName: dto.fullName },
+      dto.branchId ?? null,
+    );
+
+    return {
+      id: result.user.id,
+      fullName: result.user.full_name,
+      email: result.user.email,
+      phone: result.user.phone,
+      roleKey: dto.roleKey,
+      branchId: dto.branchId ?? null,
+      professionalId: result.professional?.id ?? null,
+      temporaryPassword,
+    };
+  }
+
+  async updateBusinessUser(user: AuthenticatedUser, companyId: string, targetUserId: string, dto: UpdateBusinessUserDto) {
+    const company = await this.assertCompanyLevelStaffManagement(user, companyId);
+    if (company.owner_user_id === targetUserId) {
+      throw new ForbiddenException('The business owner account cannot be modified from staff management');
+    }
+
+    const scope = await this.prisma.user_role_scopes.findFirst({
+      where: { user_id: targetUserId, company_id: companyId },
+      include: { user: true },
+    });
+    if (!scope) throw new NotFoundException('Business user not found');
+
+    const nextRoleKey = dto.roleKey ?? scope.role_key;
+    const requiresBranch = ['branch_manager', 'professional', 'staff'].includes(nextRoleKey);
+    const nextBranchId = dto.branchId !== undefined ? (dto.branchId || null) : scope.branch_id;
+    if (requiresBranch && !nextBranchId) throw new BadRequestException('A branch is required for this role');
+
+    if (nextBranchId) {
+      const branch = await this.prisma.branches.findFirst({
+        where: { id: nextBranchId, company_id: companyId, deleted_at: null },
+        select: { id: true },
+      });
+      if (!branch) throw new BadRequestException('Branch is invalid');
+    }
+
+    const role = await this.prisma.roles.findUnique({ where: { key: nextRoleKey } });
+    if (!role) throw new BadRequestException('Role is not configured');
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const userRow = await tx.users.update({
+        where: { id: targetUserId },
+        data: {
+          ...(dto.fullName !== undefined ? { full_name: dto.fullName.trim() } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.isActive !== undefined ? { is_active: dto.isActive } : {}),
+        },
+      });
+      if (dto.isActive === false) {
+        await tx.sessions.updateMany({ where: { user_id: targetUserId, revoked_at: null }, data: { revoked_at: new Date() } });
+      }
+
+      await tx.user_role_scopes.deleteMany({ where: { user_id: targetUserId, company_id: companyId } });
+      const scopeType = nextRoleKey === 'business_manager' ? ScopeType.Company : ScopeType.Branch;
+      await tx.user_role_scopes.create({
+        data: {
+          user_id: targetUserId,
+          role_id: role.id,
+          role_key: nextRoleKey,
+          scope_type: scopeType,
+          scope_id: nextRoleKey === 'business_manager' ? companyId : nextBranchId!,
+          company_id: companyId,
+          branch_id: nextRoleKey === 'business_manager' ? null : nextBranchId!,
+          granted_by_user_id: user.id,
+        },
+      });
+
+      const existingProfessional = await tx.professionals.findFirst({ where: { user_id: targetUserId, company_id: companyId } });
+      if (nextRoleKey === 'professional') {
+        let professional = existingProfessional;
+        if (!professional) {
+          professional = await tx.professionals.create({
+            data: {
+              user_id: targetUserId,
+              company_id: companyId,
+              branch_ids: [nextBranchId!],
+              display_name: dto.professionalDisplayName?.trim() || userRow.full_name,
+              specialties: dto.specialties ?? [],
+            },
+          });
+        } else {
+          professional = await tx.professionals.update({
+            where: { id: professional.id },
+            data: {
+              branch_ids: [nextBranchId!],
+              display_name: dto.professionalDisplayName?.trim() || professional.display_name,
+              ...(dto.specialties !== undefined ? { specialties: dto.specialties } : {}),
+              is_active: dto.isActive ?? professional.is_active,
+              deleted_at: null,
+            },
+          });
+          await tx.professional_branches.deleteMany({ where: { professional_id: professional.id } });
+        }
+        await tx.professional_branches.create({
+          data: { professional_id: professional.id, branch_id: nextBranchId!, is_primary: true },
+        });
+      } else if (existingProfessional) {
+        await tx.professionals.update({
+          where: { id: existingProfessional.id },
+          data: { is_active: false, deleted_at: new Date() },
+        });
+        await tx.professional_branches.deleteMany({ where: { professional_id: existingProfessional.id } });
+      }
+
+      return userRow;
+    });
+
+    await this.auditMutation(user, companyId, 'staff.update', 'user', targetUserId, { roleKey: scope.role_key, branchId: scope.branch_id }, { roleKey: nextRoleKey, branchId: nextBranchId, isActive: updated.is_active }, nextBranchId);
+    return updated;
+  }
+
+  async removeBusinessUser(user: AuthenticatedUser, companyId: string, targetUserId: string) {
+    const company = await this.assertCompanyLevelStaffManagement(user, companyId);
+    if (company.owner_user_id === targetUserId) {
+      throw new ForbiddenException('The business owner cannot be removed');
+    }
+    const scope = await this.prisma.user_role_scopes.findFirst({
+      where: { user_id: targetUserId, company_id: companyId },
+    });
+    if (!scope) throw new NotFoundException('Business user not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user_role_scopes.deleteMany({ where: { user_id: targetUserId, company_id: companyId } });
+      await tx.professionals.updateMany({
+        where: { user_id: targetUserId, company_id: companyId },
+        data: { is_active: false, deleted_at: new Date() },
+      });
+      await tx.users.update({ where: { id: targetUserId }, data: { is_active: false } });
+      await tx.sessions.updateMany({ where: { user_id: targetUserId, revoked_at: null }, data: { revoked_at: new Date() } });
+    });
+
+    await this.auditMutation(user, companyId, 'staff.remove', 'user', targetUserId, { roleKey: scope.role_key }, { removed: true }, scope.branch_id);
+    return { id: targetUserId, removed: true };
+  }
+
+  async staff(user: AuthenticatedUser, companyId: string) {
+    const access = this.companyAccess(user, companyId);
+    const scopes = await this.prisma.user_role_scopes.findMany({
       where: { company_id: companyId, ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }) },
-      include: { user: { select: { id: true, full_name: true, email: true, phone: true, is_active: true, last_login_at: true } }, role: { select: { id: true, key: true, name: true } } },
+      include: { user: { select: { id: true, full_name: true, email: true, phone: true, avatar_media_id: true, is_active: true, last_login_at: true } }, role: { select: { id: true, key: true, name: true } } },
       orderBy: { created_at: 'desc' },
     });
+    const userIds = Array.from(new Set(scopes.map((scope) => scope.user_id)));
+    const professionals = userIds.length
+      ? await this.prisma.professionals.findMany({
+          where: { company_id: companyId, user_id: { in: userIds }, deleted_at: null },
+          include: {
+            resources_links: { include: { resource: { select: { id: true, name: true, type: true, branch_id: true, is_active: true } } }, orderBy: [{ is_default: 'desc' }, { priority: 'asc' }] },
+            branches: { include: { branch: { select: { id: true, name: true } } } },
+          },
+        })
+      : [];
+    const byUser = new Map(professionals.map((professional) => [professional.user_id, professional]));
+    return scopes.map((scope) => ({ ...scope, professional: byUser.get(scope.user_id) ?? null }));
   }
 
   audit(user: AuthenticatedUser, companyId: string, limit: number) {
@@ -237,6 +889,86 @@ export class BusinessOpsService {
     return this.prisma.subscriptions.findMany({ where: { company_id: companyId }, include: { plan: true }, orderBy: { created_at: 'desc' } });
   }
 
+
+
+  async conversations(user: AuthenticatedUser, companyId: string, limit = 100) {
+    this.companyAccess(user, companyId);
+    return this.prisma.conversations.findMany({
+      where: { company_id: companyId },
+      include: {
+        members: { include: { user: { select: { id: true, full_name: true, email: true, phone: true } } } },
+        messages: { orderBy: { created_at: 'desc' }, take: 1, include: { sender: { select: { id: true, full_name: true } } } },
+      },
+      orderBy: [{ last_message_at: 'desc' }, { updated_at: 'desc' }],
+      take: Math.min(limit, 250),
+    });
+  }
+
+  async conversationMessages(user: AuthenticatedUser, companyId: string, conversationId: string, limit = 100) {
+    this.companyAccess(user, companyId);
+    const conversation = await this.prisma.conversations.findFirst({ where: { id: conversationId, company_id: companyId } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+    return this.prisma.messages.findMany({
+      where: { conversation_id: conversationId, deleted_at: null },
+      include: { sender: { select: { id: true, full_name: true } }, attachments: true },
+      orderBy: { created_at: 'asc' },
+      take: Math.min(limit, 250),
+    });
+  }
+
+  async sendConversationMessage(user: AuthenticatedUser, companyId: string, conversationId: string, body: string, messageType = 'text') {
+    this.companyAccess(user, companyId);
+    const clean = body?.trim();
+    if (!clean) throw new BadRequestException('Message body is required');
+    const conversation = await this.prisma.conversations.findFirst({ where: { id: conversationId, company_id: companyId } });
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const message = await tx.messages.create({
+        data: { conversation_id: conversationId, sender_user_id: user.id, message_type: messageType, body_plain: clean },
+      });
+      await tx.conversations.update({
+        where: { id: conversationId },
+        data: { last_message_id: message.id, last_message_at: message.created_at },
+      });
+      const recipients = await tx.conversation_members.findMany({
+        where: { conversation_id: conversationId, user_id: { not: user.id }, left_at: null },
+        select: { user_id: true },
+      });
+      return { message, recipients };
+    });
+
+    for (const recipient of result.recipients) {
+      await this.notifications.dispatch({
+        recipientUserId: recipient.user_id,
+        notificationType: 'new_message',
+        title: 'New message from business',
+        body: clean.length > 120 ? `${clean.slice(0, 117)}...` : clean,
+        companyId,
+        deepLink: `/chat/${conversationId}`,
+        payload: { conversationId, companyId },
+      });
+    }
+    return result.message;
+  }
+
+  async setCustomerBlocked(user: AuthenticatedUser, companyId: string, customerId: string, blocked: boolean) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Blocking customers requires company-level access');
+    const customer = await this.prisma.customers.findUnique({
+      where: { id: customerId },
+      include: { user: { select: { id: true, full_name: true } } },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const current = new Set(customer.blocked_by_company_ids ?? []);
+    if (blocked) current.add(companyId); else current.delete(companyId);
+    const updated = await this.prisma.customers.update({
+      where: { id: customerId },
+      data: { blocked_by_company_ids: Array.from(current) },
+    });
+    await this.auditMutation(user, companyId, blocked ? 'customer.block' : 'customer.unblock', 'customer', customerId, { blocked: !blocked }, { blocked });
+    return { customerId, blocked, customer: updated };
+  }
 
   async queues(user: AuthenticatedUser, companyId: string, branchId?: string) {
     const access = this.companyAccess(user, companyId);

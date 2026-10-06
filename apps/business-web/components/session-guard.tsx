@@ -6,13 +6,13 @@ import { getBusinessSession } from '@/lib/api';
 export function SessionGuard({ children, locale }: { children: React.ReactNode; locale: string }) {
   const path = usePathname();
   const router = useRouter();
-  const isLogin = path.endsWith('/login');
-  const [ready, setReady] = useState(isLogin);
+  const isPublic = path.endsWith('/login') || path.endsWith('/register') || path.endsWith('/forgot-password');
+  const [ready, setReady] = useState(isPublic);
   useEffect(() => {
-    if (isLogin) { setReady(true); return; }
+    if (isPublic) { setReady(true); return; }
     if (!getBusinessSession()) { router.replace(`/${locale}/login`); return; }
     setReady(true);
-  }, [isLogin, locale, router]);
+  }, [isPublic, locale, router]);
   if (!ready) return <div className="p-8 text-secondary">Verifying secure session…</div>;
   return <>{children}</>;
 }

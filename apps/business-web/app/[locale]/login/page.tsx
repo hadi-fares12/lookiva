@@ -39,6 +39,12 @@ export default function LoginPage() {
             <div className="flex items-center justify-between text-sm"><label className="flex items-center gap-2 text-secondary cursor-pointer"><input checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} type="checkbox" className="rounded border-border-strong bg-surface-0"/><span>{t('rememberMe')}</span></label><Link href={`/${params.locale}/forgot-password`} className="text-accent-gold-2 hover:text-accent-gold-3">{t('forgotPassword')}</Link></div>
             <button type="submit" disabled={loading} className="w-full h-11 rounded-radius-md bg-gradient-to-r from-accent-gold-1 to-accent-gold-2 text-surface-0 font-semibold disabled:opacity-50">{loading ? t('signingIn') : t('login')}</button>
           </form>
+          <div className="mt-6 border-t border-border-subtle pt-5 text-center">
+            <p className="text-sm text-muted">New to LOOKIVA Business?</p>
+            <Link href={`/${params.locale}/register`} className="mt-2 inline-flex h-10 items-center justify-center rounded-radius-md border border-accent-gold-2/50 px-4 text-sm font-semibold text-accent-gold-2 hover:bg-accent-gold-2/10">
+              Register your business
+            </Link>
+          </div>
         </div>
       </div>
     </div>

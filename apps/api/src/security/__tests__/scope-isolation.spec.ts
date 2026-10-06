@@ -57,7 +57,7 @@ describe('business scope isolation', () => {
   });
 
   it('limits business operations to the branch list for a branch-scoped account', () => {
-    const service = new BusinessOpsService({} as never) as any;
+    const service = new BusinessOpsService({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.BranchManager,
       scopeType: ScopeType.Branch,
@@ -73,7 +73,7 @@ describe('business scope isolation', () => {
   });
 
   it('keeps a true company scope company-wide', () => {
-    const service = new BusinessOpsService({} as never) as any;
+    const service = new BusinessOpsService({} as never, {} as never) as any;
     const user = userWithScope({
       roleKey: UserRole.BusinessOwner,
       scopeType: ScopeType.Company,

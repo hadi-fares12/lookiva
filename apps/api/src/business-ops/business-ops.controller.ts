@@ -5,7 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { BusinessOpsService } from './business-ops.service';
-import { CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
+import { CreateBranchDto, CreateBusinessUserDto, CreatePromotionDto, CreateQueueDto, CreateResourceDto, CreateServiceDto, UpdateBranchDto, UpdateBusinessUserDto, UpdatePromotionDto, UpdateQueueDto, UpdateResourceDto, UpdateServiceDto } from './dto/business-management.dto';
 
 @ApiTags('Business Operations')
 @ApiBearerAuth()
@@ -40,6 +40,38 @@ export class BusinessOpsController {
     return this.ops.branches(user, companyId);
   }
 
+
+  @Post('branches')
+  @RequirePermissions(PermissionKey.BusinessBranchCreate)
+  createBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() dto: CreateBranchDto,
+  ) {
+    return this.ops.createBranch(user, companyId, dto);
+  }
+
+  @Patch('branches/:branchId')
+  @RequirePermissions(PermissionKey.BusinessBranchEdit)
+  updateBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: UpdateBranchDto,
+  ) {
+    return this.ops.updateBranch(user, companyId, branchId, dto);
+  }
+
+  @Delete('branches/:branchId')
+  @RequirePermissions(PermissionKey.BusinessBranchDelete)
+  deleteBranch(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('branchId') branchId: string,
+  ) {
+    return this.ops.deleteBranch(user, companyId, branchId);
+  }
+
   @Get('customers')
   @RequirePermissions(PermissionKey.CustomerProfileView)
   customers(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string, @Query('limit') limit?: string) {
@@ -50,6 +82,31 @@ export class BusinessOpsController {
   @RequirePermissions(PermissionKey.BusinessProfessionalView)
   professionals(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
     return this.ops.professionals(user, companyId);
+  }
+
+  @Get('professionals/:professionalId/day')
+  @RequirePermissions(PermissionKey.BusinessProfessionalView)
+  @ApiOperation({ summary: 'Professional daily schedule, chair assignment, bookings and free windows' })
+  professionalDay(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Query('date') date?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.ops.professionalDay(user, companyId, professionalId, date, branchId);
+  }
+
+  @Patch('professionals/:professionalId/profile')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  @ApiOperation({ summary: 'Update professional photo and default chair/resource' })
+  updateProfessionalProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Body() body: { avatarMediaId?: string | null; defaultResourceId?: string | null },
+  ) {
+    return this.ops.updateProfessionalProfile(user, companyId, professionalId, body);
   }
 
   @Get('services')
@@ -94,6 +151,38 @@ export class BusinessOpsController {
     return this.ops.staff(user, companyId);
   }
 
+
+  @Post('staff')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  createStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() dto: CreateBusinessUserDto,
+  ) {
+    return this.ops.createBusinessUser(user, companyId, dto);
+  }
+
+  @Patch('staff/:userId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  updateStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateBusinessUserDto,
+  ) {
+    return this.ops.updateBusinessUser(user, companyId, userId, dto);
+  }
+
+  @Delete('staff/:userId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  removeStaff(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.ops.removeBusinessUser(user, companyId, userId);
+  }
+
   @Get('audit')
   @RequirePermissions(PermissionKey.SettingsView)
   audit(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string, @Query('limit') limit?: string) {
@@ -106,6 +195,59 @@ export class BusinessOpsController {
     return this.ops.subscriptions(user, companyId);
   }
 
+
+
+  @Get('conversations')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  conversations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.conversations(user, companyId, Number(limit) || 100);
+  }
+
+  @Get('conversations/:conversationId/messages')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  conversationMessages(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('conversationId') conversationId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.conversationMessages(user, companyId, conversationId, Number(limit) || 100);
+  }
+
+  @Post('conversations/:conversationId/messages')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  sendConversationMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('conversationId') conversationId: string,
+    @Body() body: { body: string; messageType?: string },
+  ) {
+    return this.ops.sendConversationMessage(user, companyId, conversationId, body.body, body.messageType || 'text');
+  }
+
+  @Post('customers/:customerId/block')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  blockCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.ops.setCustomerBlocked(user, companyId, customerId, true);
+  }
+
+  @Delete('customers/:customerId/block')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  unblockCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.ops.setCustomerBlocked(user, companyId, customerId, false);
+  }
 
   @Get('queues')
   @RequirePermissions(PermissionKey.BookingQueueManage)

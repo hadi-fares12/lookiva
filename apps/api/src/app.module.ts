@@ -69,8 +69,8 @@ import { LoggerModule } from 'nestjs-pino';
       fallbackLanguage: 'en',
       loader: I18nJsonLoader,
       loaderOptions: {
-        path: join(__dirname, '../../packages/localization/src/locales'),
-        watch: true,
+        path: join(__dirname, '../../../packages/localization/src/locales'),
+        watch: process.env.NODE_ENV !== 'production',
       },
       resolvers: [
         { use: QueryResolver, options: ['lang', 'locale', 'l'] },

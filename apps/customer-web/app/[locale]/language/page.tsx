@@ -49,7 +49,7 @@ export default function LanguagePage() {
     localStorage.setItem(KEY, '1');
     setCurrentLocale(selected);
     const onboardingDone = localStorage.getItem('lookiva-onboarding-complete') === '1';
-    router.replace(`/${selected}/${onboardingDone ? 'home' : 'onboarding'}`);
+    router.replace(onboardingDone ? '/home' : '/onboarding', { locale: selected });
   }
 
   return (

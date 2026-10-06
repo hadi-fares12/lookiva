@@ -109,6 +109,27 @@ function writeEnvFile(targetPath, envVars, overrideExisting = false) {
 const settings = parseSettings(SETTINGS_FILE);
 const envVars = toEnvVars(settings);
 
+// Values explicitly supplied by the launcher/runtime must override the
+// persisted settings file. This prevents an old backend_ipserver from
+// being baked into Next.js bundles when the LAN IP changes.
+const runtimeOverrideKeys = [
+  'PORT',
+  'API_PORT',
+  'NEXT_PUBLIC_API_URL',
+  'NEXT_PUBLIC_API_BASE_URL',
+  'NEXT_PUBLIC_MEDIA_BASE_URL',
+  'MEDIA_PUBLIC_BASE_URL',
+  'PUBLIC_CUSTOMER_WEB_URL',
+  'PUBLIC_BUSINESS_WEB_URL',
+  'CORS_ORIGINS',
+  'MINIO_ENDPOINT',
+  'MINIO_PORT',
+  'MINIO_USE_SSL',
+];
+for (const key of runtimeOverrideKeys) {
+  if (process.env[key]) envVars[key] = process.env[key];
+}
+
 const mode = process.argv[2] || 'root';
 const projectRoot = path.resolve(__dirname, '..');
 

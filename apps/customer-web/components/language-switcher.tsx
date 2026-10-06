@@ -34,10 +34,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
   const active = LOCALES.find((l) => l.code === locale) ?? LOCALES[0];
 
   function setLocale(code: (typeof LOCALES)[number]['code']) {
-    const nextPathname = pathname || '/';
-    const base = nextPathname.replace(/^\/(en|ar|fr)(\/|$)/, '/');
-    const newPath = `/${code}${base === '/' ? '/' : base}`;
-    router.replace(newPath);
+    router.replace(pathname || '/', { locale: code });
     setOpen(false);
   }
 

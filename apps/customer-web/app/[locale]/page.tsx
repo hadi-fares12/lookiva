@@ -29,14 +29,14 @@ export default function LocaleRoot() {
 
     const timer = setTimeout(() => {
       if (!langPicked && !localStorage.getItem('lookiva-locale-picker-skipped')) {
-        router.replace(`/${locale}/language`);
+        router.replace('/language');
         return;
       }
       if (!onboarded) {
-        router.replace(`/${locale}/onboarding`);
+        router.replace('/onboarding');
         return;
       }
-      router.replace(`/${locale}/home`);
+      router.replace('/home');
     }, 900);
 
     return () => clearTimeout(timer);

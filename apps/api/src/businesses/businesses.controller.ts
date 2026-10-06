@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Body,
   Type,
@@ -13,12 +14,18 @@ import { Public } from '../common/decorators/public.decorator';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { BusinessesService } from './businesses.service';
-import { PaginationQueryDto, PatchBusinessDto } from './dto/businesses.dto';
+import { CreateBusinessApplicationDto, PaginationQueryDto, PatchBusinessDto } from './dto/businesses.dto';
 
 @ApiTags('Businesses')
 @Controller('businesses')
 export class BusinessesController {
   constructor(private readonly businessesService: BusinessesService) {}
+
+  @Public()
+  @Post('applications')
+  createApplication(@Body() dto: CreateBusinessApplicationDto) {
+    return this.businessesService.createApplication(dto);
+  }
 
   @Public()
   @Get(':id')
