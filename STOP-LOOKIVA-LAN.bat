@@ -12,6 +12,9 @@ for %%P in (4000 3001 3002 3003 8081 8082) do (
   powershell.exe -NoLogo -NoProfile -Command "$c=Get-NetTCPConnection -State Listen -LocalPort %%P -ErrorAction SilentlyContinue; if($c){$c.OwningProcess ^| Sort-Object -Unique ^| ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }}" >nul 2>&1
 )
 
+echo Releasing LOOKIVA Node/Prisma processes...
+powershell.exe -NoLogo -NoProfile -Command "$root=[IO.Path]::GetFullPath('%CD%'); Get-CimInstance Win32_Process -Filter 'Name=''node.exe''' -ErrorAction SilentlyContinue ^| Where-Object { $_.CommandLine -and $_.CommandLine -like ('*' + $root + '*') } ^| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+
 set "DOCKER=docker"
 where docker >nul 2>&1
 if errorlevel 1 (
