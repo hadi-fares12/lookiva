@@ -118,7 +118,11 @@ if not errorlevel 1 goto PRISMA_GENERATE_OK
 
 if !PRISMA_TRY! GEQ 3 (
   echo [ERROR] Prisma client is still locked after !PRISMA_TRY! attempts.
-  echo Close any terminal, VS Code task, Node server, Prisma Studio, or antivirus scan using this LOOKIVA folder, then run START-LOOKIVA-LAN.bat again.
+  echo.
+  echo Running Node processes that may be holding Prisma:
+  powershell.exe -NoLogo -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'Name=''node.exe''' -ErrorAction SilentlyContinue ^| Select-Object ProcessId,CommandLine ^| Format-Table -Wrap -AutoSize"
+  echo.
+  echo Close VS Code/Prisma Studio or stop the listed Node process, then run START-LOOKIVA-LAN.bat again.
   goto FAILED
 )
 
