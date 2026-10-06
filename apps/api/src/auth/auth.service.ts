@@ -228,7 +228,7 @@ export class AuthService {
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const userId = await this.prisma.$transaction(async (tx) => {
         const user = await tx.users.create({
           data: {
             email: normalizedEmail,
@@ -254,33 +254,28 @@ export class AuthService {
           },
         });
 
-        if (customerRoleId) {
-          await tx.user_role_scopes.create({
-            data: {
-              user_id: user.id,
-              role_id: customerRoleId,
-              role_key: UserRole.Customer,
-              scope_type: ScopeType.Platform,
-            },
-          });
-        }
-
-        try {
-          await tx.customers.create({
-            data: {
-              user_id: user.id,
-            },
-          });
-        } catch (customersErr) {
-          this.logger.warn(
-            `Failed to create customers row for user ${user.id}: ${customersErr}`,
-          );
-        }
-
-        return this.generateTokens(user.id, {
-          userAgent,
-          ipAddress: reqIp,
+        await tx.user_role_scopes.create({
+          data: {
+            user_id: user.id,
+            role_id: customerRoleId,
+            role_key: UserRole.Customer,
+            scope_type: ScopeType.Platform,
+            scope_id: 'platform',
+          },
         });
+
+        await tx.customers.create({
+          data: {
+            user_id: user.id,
+          },
+        });
+
+        return user.id;
+      });
+
+      return await this.generateTokens(userId, {
+        userAgent,
+        ipAddress: reqIp,
       });
     } catch (err) {
       if (
