@@ -215,13 +215,27 @@ export default function BusinessPage() {
       <section>
         <h2 className="text-xl font-semibold text-primary">{t('professionals')}</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {professionals.map((p: any) => (
-            <Link key={p.id} href={`/${locale}/professionals/${p.id}`} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 hover:bg-surface-2">
-              <p className="font-semibold text-primary">{p.display_name}</p>
-              <p className="mt-1 text-sm text-secondary">{p.specialties?.join(', ') || t('beautyProfessional')}</p>
-              <p className="mt-3 text-xs text-muted">★ {Number(p.avg_rating || 0).toFixed(1)} · {p.review_count || 0} reviews</p>
-            </Link>
-          ))}
+          {professionals.map((p: any) => {
+            const avatarUrl = mediaUrl(p.avatar_media);
+            return (
+              <Link key={p.id} href={`/${locale}/professionals/${p.id}`} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 hover:bg-surface-2">
+                <div className="flex items-center gap-3">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={p.display_name || 'Professional'} className="h-14 w-14 rounded-full border border-border-subtle object-cover" />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-gold-2/15 font-bold text-accent-gold-2">
+                      {String(p.display_name || 'P').slice(0,1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-primary">{p.display_name}</p>
+                    <p className="mt-1 text-sm text-secondary">{p.specialties?.join(', ') || t('beautyProfessional')}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted">★ {Number(p.avg_rating || 0).toFixed(1)} · {p.review_count || 0} reviews</p>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
