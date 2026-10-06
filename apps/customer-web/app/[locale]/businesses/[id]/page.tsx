@@ -17,7 +17,7 @@ import {
   UserCheck,
   UserPlus,
 } from 'lucide-react';
-import axios, { ensureFreshAccessToken, getAccessToken } from '@/lib/axios';
+import axios, { clearAuthTokens, ensureFreshAccessToken, getAccessToken } from '@/lib/axios';
 import { useBusiness } from '@/hooks/useBusiness';
 
 function mediaUrl(media: any): string | null {
@@ -49,33 +49,6 @@ export default function BusinessPage() {
     axios.get(`/businesses/${id}/media`).then((r) => setMedia(Array.isArray(r.data) ? r.data : [])).catch(() => setMedia([]));
   }, [id]);
 
-  React.useEffect(() => {
-    if (!id || !getAccessToken()) return;
-    let active = true;
-
-    void (async () => {
-      const token = await ensureFreshAccessToken();
-      if (!active || !token) {
-        if (active) setFollowing(false);
-        return;
-      }
-
-      try {
-        const response = await axios.get('/customer/following', {
-          params: { targetType: 'business', limit: 100 },
-        });
-        if (!active) return;
-        const rows = Array.isArray(response.data) ? response.data : [];
-        setFollowing(rows.some((item: any) => item.target_id === id));
-      } catch {
-        if (active) setFollowing(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
 
   if (q.isLoading) return <div className="mx-auto max-w-6xl p-6 text-secondary">{t('loadingBusiness')}</div>;
   if (q.error || !q.data) return <div className="mx-auto max-w-6xl p-6 text-accent-red">{t('businessError')}</div>;
@@ -96,6 +69,13 @@ export default function BusinessPage() {
   async function toggleFollow() {
     setActionError('');
     if (!getAccessToken()) return requireAuth();
+
+    const token = await ensureFreshAccessToken();
+    if (!token) {
+      clearAuthTokens();
+      return requireAuth();
+    }
+
     setWorking('follow');
     try {
       if (following) {
@@ -107,6 +87,11 @@ export default function BusinessPage() {
       }
       await q.refetch();
     } catch (e: any) {
+      if (e?.response?.status === 401) {
+        clearAuthTokens();
+        requireAuth();
+        return;
+      }
       setActionError(e?.response?.data?.message || e?.message || 'Unable to update follow status');
     } finally {
       setWorking('');
