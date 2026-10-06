@@ -120,7 +120,14 @@
       "satisfied": "Satisfait",
       "neutral": "Neutre",
       "dissatisfied": "Insatisfait"
-    }
+    },
+    "searchPlaceholder": "Rechercher services, établissements, professionnels...",
+    "empty": "Rien ici pour le moment",
+    "comingSoon": "Bientôt disponible",
+    "bookNow": "Réserver maintenant",
+    "verified": "Vérifié",
+    "select": "Sélectionner",
+    "loading": "Chargement..."
   },
   "auth": {
     "login": "Connexion",
