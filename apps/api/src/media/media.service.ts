@@ -378,9 +378,18 @@ export class MediaService implements OnModuleInit {
 
   async getMediaById(id: string) {
     try {
-      return await this.prisma.media.findUnique({
+      const record = await this.prisma.media.findUnique({
         where: { id },
       });
+      if (!record) return null;
+
+      const publicBase = this.configService.get<string>('MEDIA_PUBLIC_BASE_URL')?.replace(/\/$/, '');
+      const originalUrl =
+        record.is_public && publicBase
+          ? `${publicBase}/${record.storage_bucket}/${record.storage_key}`
+          : await this.getPresignedUrl(record.storage_key, record.storage_bucket);
+
+      return { ...record, originalUrl };
     } catch (e: any) {
       this.logger.error(`Failed to fetch media ${id}: ${e.message}`);
       if (this.isProduction) throw new ServiceUnavailableException('Unable to read media record');
