@@ -678,8 +678,29 @@ export function OperationsPage({ section }: { section: string }) {
     </div>}
 
     {!loading && !error && (section === 'floor' || section === 'resources') && Array.isArray(data) && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{data.map((resource:any) => {
-      const booking=resource.activeBookings?.[0]?.appointment; const status=resource.maintenance?.length?'maintenance':booking?.status||'available';
-      return <article key={resource.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-1"><div className="flex items-start justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-radius-lg bg-accent-gold-2/10 text-xl">{resource.icon_key ? '✦' : '✂️'}</div><span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${statusClass(status)}`}>{String(status).replaceAll('_',' ')}</span></div><h2 className="mt-4 text-lg font-semibold text-primary">{resource.name}</h2><p className="text-sm text-muted">{resource.type?.replaceAll('_',' ')}{resource.branch_id ? '' : ` · ${t('labels.companyWide')}`}</p>{booking&&<div className="mt-4 rounded-radius-lg bg-surface-2 p-3 text-sm"><p className="font-semibold text-primary">{booking.participants?.[0]?.professional?.display_name || t('labels.assignedProfessional')}</p><p className="mt-1 text-muted">{booking.customer?.user?.full_name || t('labels.customer')} · {t('labels.until')} {new Date(booking.ends_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p></div>}<button onClick={()=>void mutate(`/business-ops/${session!.companyId}/resources/${resource.id}`,{method:'PATCH',body:JSON.stringify({isActive:!resource.is_active})},resource.is_active?t('messages.resourceDisabled'):t('messages.resourceEnabled'))} className="mt-4 text-sm font-semibold text-accent-gold-2">{resource.is_active?t('actions.disable'):t('actions.enable')}</button></article>})}</div>}
+      const booking=resource.currentBooking?.appointment || null;
+      const status=resource.availabilityStatus || (resource.maintenance?.length?'maintenance':booking?'busy':'available');
+      const assignedProfessionals=(resource.professionals_links || []).map((link:any)=>link.professional).filter(Boolean);
+      const nextBooking=resource.nextBooking?.appointment || null;
+      return <article key={resource.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-radius-lg bg-accent-gold-2/10 text-xl">{resource.icon_key ? '✦' : '✂️'}</div>
+          <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${statusClass(status)}`}>{String(status).replaceAll('_',' ')}</span>
+        </div>
+        <h2 className="mt-4 text-lg font-semibold text-primary">{resource.name}</h2>
+        <p className="text-sm text-muted">{resource.type?.replaceAll('_',' ')}{resource.branch_id ? '' : ` · ${t('labels.companyWide')}`}</p>
+
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Assigned professional</p>
+          {assignedProfessionals.length ? <div className="mt-2 space-y-2">{assignedProfessionals.map((professional:any)=><button type="button" key={professional.id} onClick={()=>void openProfessionalDay(professional.id,resource.branch_id)} className="flex w-full items-center gap-2 rounded-radius-md bg-surface-2 p-2 text-left hover:bg-surface-3"><MediaThumb mediaId={professional.avatar_media_id} name={professional.display_name} className="h-9 w-9" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-primary">{professional.display_name}</p><p className="text-xs text-accent-gold-2">View availability</p></div></button>)}</div> : <p className="mt-2 text-sm text-muted">No professional assigned to this chair.</p>}
+        </div>
+
+        {booking&&<div className="mt-4 rounded-radius-lg bg-accent-red/5 p-3 text-sm"><p className="font-semibold text-primary">Busy now · {booking.participants?.[0]?.professional?.display_name || t('labels.assignedProfessional')}</p><p className="mt-1 text-muted">{booking.customer?.user?.full_name || t('labels.customer')} · until {new Date(booking.ends_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p></div>}
+        {!booking&&nextBooking&&<div className="mt-4 rounded-radius-lg bg-surface-2 p-3 text-sm"><p className="font-semibold text-primary">Next booking</p><p className="mt-1 text-muted">{new Date(nextBooking.starts_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · {nextBooking.customer?.user?.full_name || 'Customer'}</p></div>}
+        {!booking&&!nextBooking&&status==='available'&&<div className="mt-4 rounded-radius-lg bg-accent-green/10 p-3 text-sm font-semibold text-accent-green">Available now · no upcoming booking in the next 12 hours</div>}
+
+        <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/resources/${resource.id}`,{method:'PATCH',body:JSON.stringify({isActive:!resource.is_active})},resource.is_active?t('messages.resourceDisabled'):t('messages.resourceEnabled'))} className="mt-4 text-sm font-semibold text-accent-gold-2">{resource.is_active?t('actions.disable'):t('actions.enable')}</button>
+      </article>})}</div>}
 
     {!loading && !error && section === 'calendar' && Array.isArray(data) && <div className="space-y-3">{data.map((a:any)=><article key={a.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2"><h2 className="font-semibold text-primary">{a.customer?.user?.full_name || t('labels.customer')}</h2><span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${statusClass(a.status)}`}>{String(a.status).replaceAll('_',' ')}</span></div><p className="mt-1 text-sm text-secondary">{a.services?.map((s:any)=>s.service?.name).filter(Boolean).join(', ') || t('labels.service')} · {a.participants?.map((p:any)=>p.professional?.display_name).filter(Boolean).join(', ') || t('labels.anyProfessional')}</p><p className="mt-1 text-xs text-muted">{new Date(a.starts_at).toLocaleString()} → {new Date(a.ends_at).toLocaleTimeString()} · {a.branch?.name}</p>{a.notes_customer&&<p className="mt-2 rounded-radius-md bg-surface-2 p-2 text-xs text-secondary">Customer note: {a.notes_customer}</p>}</div><div className="flex flex-wrap gap-2">{a.status==='pending'&&<button onClick={()=>void mutate(`/booking-v2/appointments/${a.id}/confirm`,{method:'PATCH',body:'{}'},'Booking approved and customer notified.')} className="rounded-radius-md bg-accent-green px-3 py-2 text-xs font-semibold text-surface-0">Approve</button>}{['pending','confirmed'].includes(a.status)&&<button onClick={()=>{const reason=window.prompt('Reason for rejecting this reservation?','');if(!reason?.trim())return;const note=window.prompt('Optional message to customer','')||undefined;void mutate(`/booking-v2/appointments/${a.id}/reject`,{method:'PATCH',body:JSON.stringify({reason:reason.trim(),note:note?.trim()||undefined})},'Booking rejected and customer notified.');}} className="rounded-radius-md border border-accent-red/40 px-3 py-2 text-xs font-semibold text-accent-red">Reject</button>}{a.status==='confirmed'&&<><button onClick={()=>void mutate(`/booking-v2/appointments/${a.id}/check-in`,{method:'PATCH',body:'{}'},t('messages.checkedIn'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.checkIn')}</button><button onClick={()=>void mutate(`/booking-v2/appointments/${a.id}/no-show`,{method:'PATCH',body:JSON.stringify({notes:'Marked from business dashboard'})},t('messages.markedNoShow'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.noShow')}</button></>}{a.status==='checked_in'&&<button onClick={()=>void mutate(`/booking-v2/appointments/${a.id}/start`,{method:'PATCH',body:'{}'},t('messages.serviceStarted'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.start')}</button>}{a.status==='in_progress'&&<button onClick={()=>void mutate(`/booking-v2/appointments/${a.id}/complete`,{method:'PATCH',body:'{}'},t('messages.appointmentCompleted'))} className="rounded-radius-md bg-accent-green px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.complete')}</button>}</div></div></article>)}</div>}
 
@@ -702,12 +723,27 @@ export function OperationsPage({ section }: { section: string }) {
     </form>)}</div>}
 
     {!loading && !error && section === 'staff' && Array.isArray(data) && <div className="grid gap-4 lg:grid-cols-2">{data.map((scope:any)=>{
-      const staffUser=scope.user||{}; const staffRole=scope.role||{};
+      const staffUser=scope.user||{}; const staffRole=scope.role||{}; const professional=scope.professional||null;
+      const defaultResourceLink=professional?.resources_links?.find((item:any)=>item.is_default) || professional?.resources_links?.[0];
+      const defaultResource=defaultResourceLink?.resource;
+      const availableResources=resources.filter((resource)=>!scope.branch_id || !resource.branchId || resource.branchId===scope.branch_id);
       return <article key={scope.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div><h2 className="font-semibold text-primary">{staffUser.full_name||'Business user'}</h2><p className="mt-1 text-sm text-secondary">{staffUser.email||staffUser.phone||'No contact'} · {staffRole.name||scope.role_key}</p><p className="mt-1 text-xs text-muted">{staffUser.is_active?'Active':'Disabled'}{scope.branch_id?' · Branch-scoped':' · Company-wide'}</p></div>
-          <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${staffUser.is_active?'bg-accent-green/10 text-accent-green':'bg-accent-red/10 text-accent-red'}`}>{staffUser.is_active?'Active':'Disabled'}</span>
+        <div className="flex items-start gap-3">
+          <MediaThumb mediaId={professional?.avatar_media_id || staffUser.avatar_media_id} name={staffUser.full_name||'Business user'} className="h-14 w-14" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-4">
+              <div><h2 className="font-semibold text-primary">{staffUser.full_name||'Business user'}</h2><p className="mt-1 text-sm text-secondary">{staffUser.email||staffUser.phone||'No contact'} · {staffRole.name||scope.role_key}</p><p className="mt-1 text-xs text-muted">{scope.branch_id?'Branch-scoped':'Company-wide'}{professional ? ` · ${defaultResource?.name || 'No chair assigned'}` : ''}</p></div>
+              <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${staffUser.is_active?'bg-accent-green/10 text-accent-green':'bg-accent-red/10 text-accent-red'}`}>{staffUser.is_active?'Active':'Disabled'}</span>
+            </div>
+          </div>
         </div>
+
+        {professional&&<div className="mt-4 grid gap-3 rounded-radius-lg bg-surface-2 p-4 sm:grid-cols-2">
+          <label className="text-xs text-secondary"><span className="mb-1 block font-semibold text-primary">Professional photo</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void uploadProfessionalPhoto(professional.id,e.target.files?.[0])} className="block w-full text-xs" /></label>
+          <label className="text-xs text-secondary"><span className="mb-1 block font-semibold text-primary">Assigned chair / resource</span><select value={defaultResource?.id || ''} onChange={(e)=>void assignProfessionalChair(professional.id,e.target.value)} disabled={busy===`professional-chair:${professional.id}`} className={`${inputClass} w-full`}><option value="">No default chair</option>{availableResources.map((resource)=><option key={resource.id} value={resource.id}>{resource.name}{resource.type?` · ${resource.type.replaceAll('_',' ')}`:''}</option>)}</select></label>
+          <button type="button" onClick={()=>void openProfessionalDay(professional.id,scope.branch_id)} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0 sm:col-span-2">View availability, clients & day schedule</button>
+        </div>}
+
         <form onSubmit={(e)=>void updateStaffRole(e,staffUser.id)} className="mt-4 grid gap-2 sm:grid-cols-2">
           <select name="roleKey" defaultValue={scope.role_key} className={inputClass}>
             <option value="business_manager">Business manager</option>
