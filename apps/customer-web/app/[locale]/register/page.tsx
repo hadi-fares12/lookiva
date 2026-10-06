@@ -259,13 +259,9 @@ export default function RegisterPage() {
               <span className="text-xs md:text-sm text-secondary leading-relaxed">
                 <span>{t('iAcceptTerms')}</span>
                 <span className="mx-1 text-muted">·</span>
-                <Link href={`/${locale}/terms`} className="text-accent-gold-2 font-medium">
-                  {t('termsOfService')}
-                </Link>
+                <span className="text-accent-gold-2 font-medium">{t('termsOfService')}</span>
                 <span className="mx-1 text-muted">·</span>
-                <Link href={`/${locale}/privacy`} className="text-accent-gold-2 font-medium">
-                  {t('privacyPolicy')}
-                </Link>
+                <span className="text-accent-gold-2 font-medium">{t('privacyPolicy')}</span>
               </span>
             </label>
 
