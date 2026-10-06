@@ -148,6 +148,12 @@ export class CreateBusinessUserDto {
 
   @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
   specialties?: string[];
+
+  @IsOptional() @IsString()
+  avatarMediaId?: string;
+
+  @IsOptional() @IsString()
+  defaultResourceId?: string;
 }
 
 export class UpdateBusinessUserDto {
@@ -171,6 +177,12 @@ export class UpdateBusinessUserDto {
 
   @IsOptional() @IsArray() @ArrayUnique() @IsString({ each: true })
   specialties?: string[];
+
+  @IsOptional() @IsString()
+  avatarMediaId?: string;
+
+  @IsOptional() @IsString()
+  defaultResourceId?: string;
 }
 
 
