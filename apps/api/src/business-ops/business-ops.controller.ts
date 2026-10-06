@@ -84,6 +84,31 @@ export class BusinessOpsController {
     return this.ops.professionals(user, companyId);
   }
 
+  @Get('professionals/:professionalId/day')
+  @RequirePermissions(PermissionKey.BusinessProfessionalView)
+  @ApiOperation({ summary: 'Professional daily schedule, chair assignment, bookings and free windows' })
+  professionalDay(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Query('date') date?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.ops.professionalDay(user, companyId, professionalId, date, branchId);
+  }
+
+  @Patch('professionals/:professionalId/profile')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  @ApiOperation({ summary: 'Update professional photo and default chair/resource' })
+  updateProfessionalProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Body() body: { avatarMediaId?: string | null; defaultResourceId?: string | null },
+  ) {
+    return this.ops.updateProfessionalProfile(user, companyId, professionalId, body);
+  }
+
   @Get('services')
   @RequirePermissions(PermissionKey.BusinessServiceView)
   services(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
