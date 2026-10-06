@@ -17,7 +17,7 @@ import {
   UserCheck,
   UserPlus,
 } from 'lucide-react';
-import axios, { getAccessToken } from '@/lib/axios';
+import axios, { ensureFreshAccessToken, getAccessToken } from '@/lib/axios';
 import { useBusiness } from '@/hooks/useBusiness';
 
 function mediaUrl(media: any): string | null {
@@ -51,12 +51,30 @@ export default function BusinessPage() {
 
   React.useEffect(() => {
     if (!id || !getAccessToken()) return;
-    axios.get('/customer/following', { params: { targetType: 'business', limit: 100 } })
-      .then((r) => {
-        const rows = Array.isArray(r.data) ? r.data : [];
+    let active = true;
+
+    void (async () => {
+      const token = await ensureFreshAccessToken();
+      if (!active || !token) {
+        if (active) setFollowing(false);
+        return;
+      }
+
+      try {
+        const response = await axios.get('/customer/following', {
+          params: { targetType: 'business', limit: 100 },
+        });
+        if (!active) return;
+        const rows = Array.isArray(response.data) ? response.data : [];
         setFollowing(rows.some((item: any) => item.target_id === id));
-      })
-      .catch(() => undefined);
+      } catch {
+        if (active) setFollowing(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   if (q.isLoading) return <div className="mx-auto max-w-6xl p-6 text-secondary">{t('loadingBusiness')}</div>;
