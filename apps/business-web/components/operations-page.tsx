@@ -25,7 +25,58 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'settings': { key: 'settings', endpoint: (c) => `/businesses/${c}` },
 };
 
-type Option = { id: string; name: string; avatarMediaId?: string | null };
+type Option = {
+  id: string;
+  name: string;
+  avatarMediaId?: string | null;
+  branchId?: string | null;
+  type?: string | null;
+};
+
+function localDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function MediaThumb({
+  mediaId,
+  name,
+  className = 'h-14 w-14',
+}: {
+  mediaId?: string | null;
+  name: string;
+  className?: string;
+}) {
+  const [url, setUrl] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    if (!mediaId) {
+      setUrl('');
+      return () => { active = false; };
+    }
+    businessFetch<any>(`/media/${mediaId}`)
+      .then((media) => {
+        if (active) setUrl(media?.originalUrl || '');
+      })
+      .catch(() => {
+        if (active) setUrl('');
+      });
+    return () => { active = false; };
+  }, [mediaId]);
+
+  if (url) {
+    return <img src={url} alt={name} className={`${className} rounded-radius-full object-cover border border-border-subtle`} />;
+  }
+
+  return (
+    <div className={`${className} rounded-radius-full bg-accent-gold-2/15 text-accent-gold-2 flex items-center justify-center font-bold border border-accent-gold-2/20`}>
+      {(name || '?').trim().slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
 
 function flattenRows(data: any): any[] {
   if (Array.isArray(data)) return data;
@@ -55,12 +106,16 @@ export function OperationsPage({ section }: { section: string }) {
   const [categories, setCategories] = useState<Option[]>([]);
   const session = useMemo(() => getBusinessSession(), []);
   const [professionals, setProfessionals] = useState<Option[]>([]);
+  const [resources, setResources] = useState<Option[]>([]);
   const [analyticsBranchId, setAnalyticsBranchId] = useState(session?.branchId ?? '');
   const [analyticsProfessionalId, setAnalyticsProfessionalId] = useState('');
   const [analyticsFrom, setAnalyticsFrom] = useState('');
   const [analyticsTo, setAnalyticsTo] = useState('');
   const [branchLat, setBranchLat] = useState('');
   const [branchLon, setBranchLon] = useState('');
+  const [professionalDayDate, setProfessionalDayDate] = useState(() => localDateValue(new Date()));
+  const [professionalDay, setProfessionalDay] = useState<any>(null);
+  const [professionalDayLoading, setProfessionalDayLoading] = useState(false);
 
   async function load() {
     if (!session) return;
@@ -84,14 +139,21 @@ export function OperationsPage({ section }: { section: string }) {
   async function loadLookups() {
     if (!session) return;
     try {
-      const [branchRows, categoryRows, professionalRows] = await Promise.all([
+      const [branchRows, categoryRows, professionalRows, resourceRows] = await Promise.all([
         businessFetch<any[]>(`/business-ops/${session.companyId}/branches`),
         businessFetch<any[]>(`/business-ops/${session.companyId}/categories`),
         businessFetch<any[]>(`/business-ops/${session.companyId}/professionals`),
+        businessFetch<any[]>(`/business-ops/${session.companyId}/resources`),
       ]);
       setBranches((branchRows || []).map((row) => ({ id: row.id, name: row.name })));
       setCategories((categoryRows || []).map((row) => ({ id: row.id, name: row.name })));
       setProfessionals((professionalRows || []).map((row) => ({ id: row.id, name: row.display_name || row.name || t('labels.professional'), avatarMediaId: row.avatar_media_id ?? null })));
+      setResources((resourceRows || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        branchId: row.branch_id ?? null,
+        type: row.type ?? null,
+      })));
     } catch { /* main page will still work without creation lookups */ }
   }
 
@@ -289,6 +351,88 @@ export function OperationsPage({ section }: { section: string }) {
     } finally {
       setBusy('');
     }
+  }
+
+  async function openProfessionalDay(professionalId: string, branchId?: string | null, date = professionalDayDate) {
+    if (!session) return;
+    setProfessionalDayLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ date });
+      if (branchId) params.set('branchId', branchId);
+      const result = await businessFetch<any>(
+        `/business-ops/${session.companyId}/professionals/${professionalId}/day?${params.toString()}`,
+      );
+      setProfessionalDay(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load professional availability');
+    } finally {
+      setProfessionalDayLoading(false);
+    }
+  }
+
+  async function uploadProfessionalPhoto(professionalId: string, file?: File) {
+    if (!session || !file) return;
+    setBusy(`professional-photo:${professionalId}`);
+    setError('');
+    setMessage('');
+    try {
+      const media = await businessUpload<any>(
+        `/media/upload?isPublic=true&companyId=${encodeURIComponent(session.companyId)}`,
+        file,
+      );
+      await businessFetch(
+        `/business-ops/${session.companyId}/professionals/${professionalId}/profile`,
+        { method: 'PATCH', body: JSON.stringify({ avatarMediaId: media.id }) },
+      );
+      setMessage('Professional photo updated.');
+      await Promise.all([load(), loadLookups()]);
+      if (professionalDay?.professional?.id === professionalId) {
+        await openProfessionalDay(professionalId, professionalDay.branchId);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to upload professional photo');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function assignProfessionalChair(professionalId: string, resourceId: string) {
+    if (!session) return;
+    setBusy(`professional-chair:${professionalId}`);
+    setError('');
+    setMessage('');
+    try {
+      await businessFetch(
+        `/business-ops/${session.companyId}/professionals/${professionalId}/profile`,
+        { method: 'PATCH', body: JSON.stringify({ defaultResourceId: resourceId || null }) },
+      );
+      setMessage(resourceId ? 'Default chair/resource assigned.' : 'Default chair/resource removed.');
+      await Promise.all([load(), loadLookups()]);
+      if (professionalDay?.professional?.id === professionalId) {
+        await openProfessionalDay(professionalId, professionalDay.branchId);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to assign chair/resource');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  function applyAnalyticsPreset(preset: 'today' | 'week' | 'month') {
+    const now = new Date();
+    let from = new Date(now);
+    const to = new Date(now);
+
+    if (preset === 'week') {
+      const day = (now.getDay() + 6) % 7;
+      from.setDate(now.getDate() - day);
+    } else if (preset === 'month') {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    setAnalyticsFrom(localDateValue(from));
+    setAnalyticsTo(localDateValue(to));
   }
 
   async function submitSettings(event: FormEvent<HTMLFormElement>) {
