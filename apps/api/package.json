@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "tsc -p tsconfig.json && node ../../scripts/rewrite-api-aliases.js",
+    "build": "tsc -p tsconfig.json && node ../../scripts/rewrite-api-aliases.js && node ../../scripts/copy-api-assets.js",
     "start": "node dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "typecheck": "tsc --noEmit",
