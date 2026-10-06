@@ -120,7 +120,14 @@
       "satisfied": "راضٍ",
       "neutral": "محايد",
       "dissatisfied": "غير راضٍ"
-    }
+    },
+    "searchPlaceholder": "ابحث عن خدمات، مؤسسات، محترفين...",
+    "empty": "لا يوجد محتوى بعد",
+    "comingSoon": "قريباً",
+    "bookNow": "احجز الآن",
+    "verified": "موثّق",
+    "select": "اختر",
+    "loading": "جاري التحميل..."
   },
   "auth": {
     "login": "تسجيل الدخول",
