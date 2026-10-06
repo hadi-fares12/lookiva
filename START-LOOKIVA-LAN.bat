@@ -112,7 +112,7 @@ echo [5/8] Applying database migrations...
 set /a PRISMA_TRY=0
 :PRISMA_GENERATE_RETRY
 set /a PRISMA_TRY+=1
-powershell.exe -NoLogo -NoProfile -Command "Remove-Item -LiteralPath '%CD%\node_modules\.prisma\client\query_engine-windows.dll.node.tmp*' -Force -ErrorAction SilentlyContinue" >nul 2>&1
+powershell.exe -NoLogo -NoProfile -Command "Remove-Item -Path '%CD%\node_modules\.prisma\client\query_engine-windows.dll.node.tmp*' -Force -ErrorAction SilentlyContinue" >nul 2>&1
 call pnpm --filter @lookiva/api prisma:generate
 if not errorlevel 1 goto PRISMA_GENERATE_OK
 
