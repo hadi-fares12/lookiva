@@ -5,6 +5,8 @@ import {
   Optional,
   OnModuleInit,
   ServiceUnavailableException,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -210,22 +212,22 @@ export class MediaService implements OnModuleInit {
         where: { id: companyId },
         select: { owner_user_id: true },
       });
-      if (!company) throw new ServiceUnavailableException('Company not found');
+      if (!company) throw new NotFoundException('Company not found');
       const scope = await this.prisma.user_role_scopes.findFirst({
         where: { user_id: userId, company_id: companyId },
         select: { id: true, branch_id: true, scope_type: true },
       });
       if (company.owner_user_id !== userId && !scope) {
-        throw new ServiceUnavailableException('This account cannot upload media for the company');
+        throw new ForbiddenException('This account cannot upload media for the company');
       }
       if (branchId) {
         const branch = await this.prisma.branches.findFirst({
           where: { id: branchId, company_id: companyId, deleted_at: null },
           select: { id: true },
         });
-        if (!branch) throw new ServiceUnavailableException('Branch is invalid');
+        if (!branch) throw new NotFoundException('Branch not found');
         if (scope?.scope_type === 'branch' && scope.branch_id && scope.branch_id !== branchId) {
-          throw new ServiceUnavailableException('This account cannot upload media for that branch');
+          throw new ForbiddenException('This account cannot upload media for that branch');
         }
       }
     }
