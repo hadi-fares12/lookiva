@@ -3,7 +3,6 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
-  InternalServerErrorException,
   ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
@@ -221,6 +220,13 @@ export class AuthService {
       customerRoleId = null;
     }
 
+    if (!countryId) {
+      throw new ServiceUnavailableException('No active country is configured');
+    }
+    if (!customerRoleId) {
+      throw new ServiceUnavailableException('Customer role is not configured');
+    }
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const user = await tx.users.create({
@@ -238,7 +244,7 @@ export class AuthService {
             user_id: user.id,
             first_name: dto.firstName,
             last_name: dto.lastName,
-            country_id: countryId || '',
+            country_id: countryId,
           },
         });
 
@@ -277,11 +283,15 @@ export class AuthService {
         });
       });
     } catch (err) {
-      if (err instanceof ConflictException || err instanceof BadRequestException) {
+      if (
+        err instanceof ConflictException ||
+        err instanceof BadRequestException ||
+        err instanceof ServiceUnavailableException
+      ) {
         throw err;
       }
       this.logger.error(`Registration failed: ${err}`);
-      throw new InternalServerErrorException('Registration failed');
+      throw new ServiceUnavailableException('Registration is temporarily unavailable');
     }
   }
 
