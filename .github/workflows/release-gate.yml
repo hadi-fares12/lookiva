@@ -50,6 +50,8 @@ jobs:
       - run: python3 scripts/static_audit.py
       - run: pnpm --filter @lookiva/api prisma:generate
       - run: pnpm --filter @lookiva/api prisma:migrate
+      - name: Seed required production reference data
+        run: pnpm --filter @lookiva/api prisma:seed:prod
       - run: pnpm typecheck
       - run: pnpm --filter @lookiva/workers typecheck
       - run: pnpm test
@@ -68,6 +70,16 @@ jobs:
           for attempt in $(seq 1 45); do
             if curl --fail --silent http://127.0.0.1:4000/health > /tmp/lookiva-health.json; then
               cat /tmp/lookiva-health.json
+
+              echo "Smoke testing real customer registration against compiled API..."
+              curl --fail --silent --show-error \
+                -H 'Content-Type: application/json' \
+                -d '{"email":"runtime-smoke@lookiva.test","password":"Runtime123!","firstName":"Runtime","lastName":"Smoke","locale":"en","acceptTerms":true}' \
+                http://127.0.0.1:4000/api/v1/auth/register \
+                > /tmp/lookiva-register.json
+              cat /tmp/lookiva-register.json
+              grep -q 'accessToken' /tmp/lookiva-register.json
+
               exit 0
             fi
 
