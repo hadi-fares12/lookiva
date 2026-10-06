@@ -1,10 +1,12 @@
 'use client';
 
+import { resolveBrowserApiBase } from './runtime-url';
+
 const configuredApiBase = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
 if (!configuredApiBase && process.env.NODE_ENV === 'production') {
   throw new Error('NEXT_PUBLIC_API_URL is required for production builds');
 }
-export const API_BASE = (configuredApiBase || 'http://localhost:4000/api/v1').replace(/\/$/, '');
+export const API_BASE = resolveBrowserApiBase(configuredApiBase || 'http://localhost:4000/api/v1');
 
 function unwrapEnvelope<T = unknown>(body: any): T {
   if (body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 1 && 'data' in body) return body.data as T;
