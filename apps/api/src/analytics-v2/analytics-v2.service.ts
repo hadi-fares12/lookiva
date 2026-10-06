@@ -122,8 +122,9 @@ export class AnalyticsV2Service {
         where: appointmentWhere,
         include: {
           financial_snapshot: true,
-          services: true,
-          resources: true,
+          customer: { include: { user: { select: { id: true, full_name: true } } } },
+          services: { include: { service: { select: { id: true, name: true } } } },
+          resources: { include: { resource: { select: { id: true, name: true, type: true } } } },
           participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } },
         },
       }),
@@ -172,12 +173,16 @@ export class AnalyticsV2Service {
     const resourceMinutes = new Map<string, number>();
     const professionalStats = new Map<string, {
       id: string; name: string; avatarMediaId: string | null; rating: number | null;
-      appointmentIds: Set<string>; completedIds: Set<string>; status: Record<string, number>;
+      appointmentIds: Set<string>; completedIds: Set<string>; customerIds: Set<string>;
+      status: Record<string, number>;
+      serviceCounts: Map<string, { name: string; count: number }>;
+      resourceCounts: Map<string, { name: string; type: string; count: number }>;
       byCurrency: Record<string, ProCurrency>;
     }>();
     for (const p of professionals) professionalStats.set(p.id, {
       id: p.id, name: p.display_name, avatarMediaId: p.avatar_media_id, rating: p.avg_rating,
-      appointmentIds: new Set(), completedIds: new Set(), status: {}, byCurrency: {},
+      appointmentIds: new Set(), completedIds: new Set(), customerIds: new Set(),
+      status: {}, serviceCounts: new Map(), resourceCounts: new Map(), byCurrency: {},
     });
     const proCurrency = (professionalIdKey: string, currency: string) => {
       const row = professionalStats.get(professionalIdKey);
@@ -194,6 +199,7 @@ export class AnalyticsV2Service {
       participantIds.forEach((id) => {
         const row = professionalStats.get(id); if (!row) return;
         row.appointmentIds.add(appointment.id);
+        if (appointment.customer_id) row.customerIds.add(appointment.customer_id);
         row.status[appointment.status] = (row.status[appointment.status] ?? 0) + 1;
         if (appointment.status === 'completed') row.completedIds.add(appointment.id);
       });
@@ -201,6 +207,14 @@ export class AnalyticsV2Service {
         serviceCounts.set(service.service_id, (serviceCounts.get(service.service_id) ?? 0) + service.quantity);
         const assigned = service.professional_id ?? (participantIds.length === 1 ? participantIds[0] : null);
         if (assigned) {
+          const stats = professionalStats.get(assigned);
+          if (stats) {
+            stats.appointmentIds.add(appointment.id);
+            if (appointment.customer_id) stats.customerIds.add(appointment.customer_id);
+            const serviceRow = stats.serviceCounts.get(service.service_id) ?? { name: service.service.name, count: 0 };
+            serviceRow.count += service.quantity;
+            stats.serviceCounts.set(service.service_id, serviceRow);
+          }
           const currency = appointment.financial_snapshot?.currency_code ?? company.country?.currency_code ?? 'USD';
           const row = proCurrency(assigned, currency);
           if (row) {
@@ -215,6 +229,21 @@ export class AnalyticsV2Service {
         const end = resource.ends_at ?? appointment.ends_at;
         const minutes = Math.max(0, (end.getTime() - start.getTime()) / 60_000);
         resourceMinutes.set(resource.resource_id, (resourceMinutes.get(resource.resource_id) ?? 0) + minutes);
+        const resourceProfessionals = new Set([
+          ...participantIds,
+          ...appointment.services.map((service) => service.professional_id).filter(Boolean) as string[],
+        ]);
+        for (const id of resourceProfessionals) {
+          const stats = professionalStats.get(id);
+          if (!stats) continue;
+          const row = stats.resourceCounts.get(resource.resource_id) ?? {
+            name: resource.resource.name,
+            type: resource.resource.type,
+            count: 0,
+          };
+          row.count += 1;
+          stats.resourceCounts.set(resource.resource_id, row);
+        }
       }
     }
 
@@ -264,7 +293,14 @@ export class AnalyticsV2Service {
       rating: p.rating,
       bookings: p.appointmentIds.size,
       completed: p.completedIds.size,
+      clients: p.customerIds.size,
       status: p.status,
+      selectedServices: Array.from(p.serviceCounts.entries())
+        .map(([serviceId, value]) => ({ serviceId, name: value.name, count: value.count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+      usedResources: Array.from(p.resourceCounts.entries())
+        .map(([resourceId, value]) => ({ resourceId, name: value.name, type: value.type, count: value.count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       financeByCurrency: Object.entries(p.byCurrency).map(([currency, value]) => ({
         currency,
         bookedRevenue: money(value.bookedRevenue),
