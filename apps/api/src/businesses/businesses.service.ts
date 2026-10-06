@@ -193,6 +193,30 @@ export class BusinessesService {
     const professionals = company.professionals || [];
     const posts = company.posts || [];
 
+    const professionalAvatarIds = Array.from(new Set(
+      professionals
+        .map((professional: any) => professional.avatar_media_id || professional.user?.avatar_media_id)
+        .filter(Boolean),
+    )) as string[];
+    let professionalAvatarById = new Map<string, any>();
+    if (professionalAvatarIds.length) {
+      try {
+        const avatarMedia = await this.prisma.media.findMany({
+          where: { id: { in: professionalAvatarIds }, is_public: true },
+        });
+        professionalAvatarById = new Map(avatarMedia.map((item) => [item.id, item]));
+      } catch (err) {
+        this.logger.warn(`Failed to resolve professional avatars for business ${id}: ${err.message}`);
+      }
+    }
+    const professionalsWithMedia = professionals.map((professional: any) => {
+      const avatarId = professional.avatar_media_id || professional.user?.avatar_media_id;
+      return {
+        ...professional,
+        avatar_media: avatarId ? professionalAvatarById.get(avatarId) ?? null : null,
+      };
+    });
+
     const isOpen = branches.some((b: any) => this.isBranchOpenNow(b.hours || []));
 
     let distanceMeters: number | null = null;
@@ -251,7 +275,7 @@ export class BusinessesService {
       owner: company.owner_user,
       branches,
       services,
-      professionals,
+      professionals: professionalsWithMedia,
       recent_posts: posts,
     };
   }
