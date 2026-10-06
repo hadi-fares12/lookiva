@@ -149,7 +149,7 @@ async function refreshAccessToken(): Promise<string> {
   }
 }
 
-async function ensureFreshAccessToken(): Promise<string | null> {
+export async function ensureFreshAccessToken(): Promise<string | null> {
   const token = getAccessToken();
   if (!token) return null;
   if (!isJwtExpired(token)) return token;
