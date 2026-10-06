@@ -600,7 +600,82 @@ export function OperationsPage({ section }: { section: string }) {
       </section>}
     </div>}
 
+    {professionalDay && <section className="rounded-radius-xl border border-accent-gold-2/30 bg-surface-1 p-5 shadow-shadow-1">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-center gap-3">
+          <MediaThumb mediaId={professionalDay.professional?.avatarMediaId} name={professionalDay.professional?.displayName || 'Professional'} className="h-16 w-16" />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold text-primary">{professionalDay.professional?.displayName}</h2>
+              <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${statusClass(professionalDay.availabilityStatus)}`}>{String(professionalDay.availabilityStatus || 'available').replaceAll('_',' ')}</span>
+            </div>
+            <p className="mt-1 text-sm text-secondary">{professionalDay.defaultResource ? `Assigned chair: ${professionalDay.defaultResource.name}` : 'No default chair assigned'}</p>
+            <p className="mt-1 text-xs text-muted">{professionalDay.schedule?.isOff ? 'Off today' : `Working ${professionalDay.schedule?.startsAt || '—'} → ${professionalDay.schedule?.endsAt || '—'}`} · {professionalDay.schedule?.source || 'default'} schedule</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" value={professionalDayDate} onChange={(e)=>setProfessionalDayDate(e.target.value)} className={inputClass} aria-label="Professional schedule date" />
+          <button type="button" disabled={professionalDayLoading} onClick={()=>void openProfessionalDay(professionalDay.professional.id,professionalDay.branchId,professionalDayDate)} className="h-11 rounded-radius-md bg-accent-gold-2 px-4 text-sm font-semibold text-surface-0">{professionalDayLoading?'Loading…':'Load day'}</button>
+          <button type="button" onClick={()=>setProfessionalDay(null)} className="h-11 rounded-radius-md border border-border-subtle px-4 text-sm font-semibold text-primary">Close</button>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-radius-lg bg-surface-2 p-4">
+          <h3 className="font-semibold text-primary">Free time</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(professionalDay.freeWindows || []).length
+              ? professionalDay.freeWindows.map((window:any,index:number)=><span key={`${window.startsAt}-${window.endsAt}-${index}`} className="rounded-radius-full bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green">{window.startsAt} → {window.endsAt}</span>)
+              : <span className="text-sm text-muted">No free window for this day.</span>}
+          </div>
+        </div>
+        <div className="rounded-radius-lg bg-surface-2 p-4">
+          <h3 className="font-semibold text-primary">Bookings / work</h3>
+          <div className="mt-3 space-y-2">
+            {(professionalDay.appointments || []).length
+              ? professionalDay.appointments.map((appointment:any)=><div key={appointment.id} className="rounded-radius-md border border-border-subtle bg-surface-1 p-3"><div className="flex items-center justify-between gap-3"><p className="font-semibold text-primary">{new Date(appointment.startsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} → {new Date(appointment.endsAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</p><span className={`rounded-radius-full px-2 py-1 text-[11px] font-semibold ${statusClass(appointment.status)}`}>{String(appointment.status).replaceAll('_',' ')}</span></div><p className="mt-1 text-sm text-secondary">{appointment.customer?.name || 'Customer'}</p><p className="mt-1 text-xs text-muted">{(appointment.services || []).map((service:any)=>`${service.name}${service.quantity>1?` × ${service.quantity}`:''}`).join(', ') || 'No service'}{appointment.resources?.length ? ` · ${appointment.resources.map((resource:any)=>resource.name).join(', ')}` : ''}</p></div>)
+              : <span className="text-sm text-muted">No bookings for this day.</span>}
+          </div>
+        </div>
+      </div>
+    </section>}
+
     {loading && <div className="grid gap-3 md:grid-cols-3">{[1,2,3].map(i => <div key={i} className="h-28 animate-pulse rounded-radius-xl bg-surface-2" />)}</div>}
+
+    {!loading && !error && section === 'professionals' && Array.isArray(data) && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {data.map((professional:any)=>{
+        const primaryBranch=professional.branches?.find((item:any)=>item.is_primary)?.branch || professional.branches?.[0]?.branch;
+        const defaultResourceLink=professional.resources_links?.find((item:any)=>item.is_default) || professional.resources_links?.[0];
+        const defaultResource=defaultResourceLink?.resource;
+        const availableResources=resources.filter((resource)=>!primaryBranch?.id || !resource.branchId || resource.branchId===primaryBranch.id);
+        return <article key={professional.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-1">
+          <div className="flex items-start gap-3">
+            <MediaThumb mediaId={professional.avatar_media_id || professional.user?.avatar_media_id} name={professional.display_name} className="h-16 w-16" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="truncate text-lg font-semibold text-primary">{professional.display_name}</h2>
+                <span className={`rounded-radius-full px-2.5 py-1 text-xs font-semibold ${professional.is_active?'bg-accent-green/10 text-accent-green':'bg-accent-red/10 text-accent-red'}`}>{professional.is_active?'Active':'Inactive'}</span>
+              </div>
+              <p className="mt-1 text-sm text-muted">{primaryBranch?.name || 'No branch'}{defaultResource ? ` · ${defaultResource.name}` : ' · No chair assigned'}</p>
+              <p className="mt-1 text-xs text-secondary">{professional.specialties?.join(', ') || 'No specialties defined'}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2">
+            <label className="rounded-radius-md bg-surface-2 p-3 text-xs text-secondary">
+              <span className="mb-2 block font-semibold text-primary">Profile photo</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>void uploadProfessionalPhoto(professional.id,e.target.files?.[0])} className="block w-full text-xs" />
+            </label>
+            <label className="text-xs text-secondary">
+              <span className="mb-1 block font-semibold text-primary">Default chair / resource</span>
+              <select value={defaultResource?.id || ''} onChange={(e)=>void assignProfessionalChair(professional.id,e.target.value)} disabled={busy===`professional-chair:${professional.id}`} className={`${inputClass} w-full`}>
+                <option value="">No default chair</option>
+                {availableResources.map((resource)=><option key={resource.id} value={resource.id}>{resource.name}{resource.type?` · ${resource.type.replaceAll('_',' ')}`:''}</option>)}
+              </select>
+            </label>
+          </div>
+          <button type="button" onClick={()=>void openProfessionalDay(professional.id,primaryBranch?.id)} className="mt-4 w-full rounded-radius-md bg-accent-gold-2 px-4 py-2.5 text-sm font-semibold text-surface-0">View availability & day</button>
+        </article>;
+      })}
+    </div>}
 
     {!loading && !error && (section === 'floor' || section === 'resources') && Array.isArray(data) && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{data.map((resource:any) => {
       const booking=resource.activeBookings?.[0]?.appointment; const status=resource.maintenance?.length?'maintenance':booking?.status||'available';
@@ -653,8 +728,8 @@ export function OperationsPage({ section }: { section: string }) {
       </article>;
     })}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches','professionals'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports','staff','branches','professionals'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3">{(()=>{const blocked=Array.isArray(row.blocked_by_company_ids)&&row.blocked_by_company_ids.includes(session!.companyId);return <button onClick={()=>void mutate(`/business-ops/${session!.companyId}/customers/${row.id}/block`,{method:blocked?'DELETE':'POST',body:blocked?undefined:'{}'},blocked?'Customer unblocked.':'Customer blocked.')} className={`text-xs font-semibold ${blocked?'text-accent-green':'text-accent-red'}`}>{blocked?'Unblock':'Block'}</button>})()}</td>}</tr>)}</tbody></table></div>}
   </div>;
 }
