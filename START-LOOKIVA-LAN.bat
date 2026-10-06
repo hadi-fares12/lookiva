@@ -44,6 +44,9 @@ for %%P in (%API_PORT% %CUSTOMER_PORT% %BUSINESS_PORT% %ADMIN_PORT% %CUSTOMER_FL
   powershell.exe -NoLogo -NoProfile -Command "$c=Get-NetTCPConnection -State Listen -LocalPort %%P -ErrorAction SilentlyContinue; if($c){$c.OwningProcess ^| Sort-Object -Unique ^| ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }}" >nul 2>&1
 )
 
+echo Releasing stale LOOKIVA Node/Prisma file handles...
+powershell.exe -NoLogo -NoProfile -Command "$root=[IO.Path]::GetFullPath('%CD%'); Get-CimInstance Win32_Process -Filter 'Name=''node.exe''' -ErrorAction SilentlyContinue ^| Where-Object { $_.CommandLine -and $_.CommandLine -like ('*' + $root + '*') } ^| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 700" >nul 2>&1
+
 echo [2/8] Checking Docker engine...
 "%DOCKER%" info >nul 2>&1
 if not errorlevel 1 goto DOCKER_READY
@@ -106,8 +109,24 @@ if errorlevel 1 (
 )
 
 echo [5/8] Applying database migrations...
+set /a PRISMA_TRY=0
+:PRISMA_GENERATE_RETRY
+set /a PRISMA_TRY+=1
+powershell.exe -NoLogo -NoProfile -Command "Remove-Item -LiteralPath '%CD%\node_modules\.prisma\client\query_engine-windows.dll.node.tmp*' -Force -ErrorAction SilentlyContinue" >nul 2>&1
 call pnpm --filter @lookiva/api prisma:generate
-if errorlevel 1 goto FAILED
+if not errorlevel 1 goto PRISMA_GENERATE_OK
+
+if !PRISMA_TRY! GEQ 3 (
+  echo [ERROR] Prisma client is still locked after !PRISMA_TRY! attempts.
+  echo Close any terminal, VS Code task, Node server, Prisma Studio, or antivirus scan using this LOOKIVA folder, then run START-LOOKIVA-LAN.bat again.
+  goto FAILED
+)
+
+echo Prisma engine is locked. Releasing stale LOOKIVA Node processes and retrying...
+powershell.exe -NoLogo -NoProfile -Command "$root=[IO.Path]::GetFullPath('%CD%'); Get-CimInstance Win32_Process -Filter 'Name=''node.exe''' -ErrorAction SilentlyContinue ^| Where-Object { $_.CommandLine -and $_.CommandLine -like ('*' + $root + '*') } ^| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2" >nul 2>&1
+goto PRISMA_GENERATE_RETRY
+
+:PRISMA_GENERATE_OK
 call pnpm --filter @lookiva/api prisma:migrate
 if errorlevel 1 goto FAILED
 
