@@ -7,8 +7,8 @@ import { RealtimeService } from '../realtime/realtime.service';
 export class CustomerOpsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService,
-    private readonly realtime: RealtimeService,
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   private async customerForUser(userId: string) {
@@ -120,16 +120,16 @@ export class CustomerOpsService {
       conversationId,
       message,
     };
-    this.realtime.emitConversation(conversationId, 'message:created', payload);
+    this.realtime?.emitConversation(conversationId, 'message:created', payload);
 
     const members = await this.prisma.conversation_members.findMany({
       where: { conversation_id: conversationId, left_at: null },
       select: { user_id: true },
     });
     for (const member of members) {
-      this.realtime.emitUser(member.user_id, 'message:created', payload);
+      this.realtime?.emitUser(member.user_id, 'message:created', payload);
       if (member.user_id !== userId) {
-        await this.notifications.dispatch({
+        await this.notifications?.dispatch({
           recipientUserId: member.user_id,
           notificationType: 'chat_message',
           title: message.sender?.full_name || 'New message',
