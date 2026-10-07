@@ -11,6 +11,7 @@ import { ScopeType, UserRole } from '@lookiva/shared-types';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import {
   CancelAppointmentDto,
@@ -85,6 +86,7 @@ export class BookingV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   private async notifyCustomer(
@@ -93,6 +95,19 @@ export class BookingV2Service {
     title: string,
     body: string,
   ) {
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      startsAt: appointment.starts_at?.toISOString(),
+      changeType: type,
+    };
+    this.realtime.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime.emitCompany(appointment.company_id, 'booking:changed', payload);
+    this.realtime.emitBranch(appointment.branch_id, 'booking:changed', payload);
+    if (appointment.customer_user_id) {
+      this.realtime.emitUser(appointment.customer_user_id, 'booking:changed', payload);
+    }
+
     if (!appointment.customer_user_id) return;
     try {
       await this.notifications.dispatch({
@@ -103,7 +118,7 @@ export class BookingV2Service {
         companyId: appointment.company_id,
         branchId: appointment.branch_id,
         deepLink: `/bookings/${appointment.id}`,
-        payload: { appointmentId: appointment.id, status: appointment.status, startsAt: appointment.starts_at?.toISOString() },
+        payload,
       });
     } catch (error) {
       this.logger.error(`Failed to dispatch ${type} notification for appointment ${appointment.id}: ${(error as Error).message}`);
@@ -321,7 +336,7 @@ export class BookingV2Service {
   }
 
   async createGroupBooking(user: AuthenticatedUser, dto: CreateGroupBookingDto) {
-    return this.prisma.$transaction(
+    const appointment = await this.prisma.$transaction(
       async (tx) => {
         this.assertBusinessScope(user, dto.companyId, dto.branchId);
         const serviceIds = unique(
@@ -392,6 +407,15 @@ export class BookingV2Service {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    if (appointment) {
+      await this.notifyCustomer(
+        appointment,
+        'booking_group_created',
+        appointment.status === 'confirmed' ? 'Group booking confirmed' : 'Group booking received',
+        'Your group booking has been created.',
+      );
+    }
+    return appointment;
   }
 
   async cancelAppointment(
@@ -539,8 +563,8 @@ export class BookingV2Service {
       throw new ConflictException(`Appointment cannot be checked in from ${appointment.status}`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.appointments.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.appointments.update({
         where: { id: appointmentId },
         data: {
           status: 'checked_in',
@@ -557,12 +581,16 @@ export class BookingV2Service {
           changed_by_id: user.id,
         },
       });
-      return updated;
+      return changed;
     });
+    await this.notifyCustomer(updated, 'booking_checked_in', 'Checked in', 'You are checked in for your appointment.');
+    return updated;
   }
 
   async startAppointment(user: AuthenticatedUser, appointmentId: string, notes?: string) {
-    return this.transitionAppointment(user, appointmentId, ['checked_in'], 'in_progress', { started_at: new Date() }, notes);
+    const updated = await this.transitionAppointment(user, appointmentId, ['checked_in'], 'in_progress', { started_at: new Date() }, notes);
+    await this.notifyCustomer(updated, 'booking_started', 'Service started', 'Your appointment is now in progress.');
+    return updated;
   }
 
   async completeAppointment(user: AuthenticatedUser, appointmentId: string, notes?: string) {
@@ -582,16 +610,18 @@ export class BookingV2Service {
   }
 
   async markNoShow(user: AuthenticatedUser, appointmentId: string, notes?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
       if (!appointment) throw new NotFoundException('Appointment not found');
       await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
       if (!['pending', 'confirmed'].includes(appointment.status)) throw new ConflictException(`Appointment cannot be marked no-show from ${appointment.status}`);
-      const updated = await tx.appointments.update({ where: { id: appointmentId }, data: { status: 'no_show', no_show_at: new Date() } });
+      const changed = await tx.appointments.update({ where: { id: appointmentId }, data: { status: 'no_show', no_show_at: new Date() } });
       await tx.appointment_services.updateMany({ where: { appointment_id: appointmentId }, data: { status: 'no_show' } });
       await tx.appointment_status_history.create({ data: { appointment_id: appointmentId, old_status: appointment.status, new_status: 'no_show', changed_by_id: user.id, notes: notes ?? null } });
-      return updated;
+      return changed;
     });
+    await this.notifyCustomer(updated, 'booking_no_show', 'Appointment marked no-show', 'This appointment was marked as a no-show.');
+    return updated;
   }
 
   private async transitionAppointment(user: AuthenticatedUser, appointmentId: string, allowed: string[], nextStatus: string, patch: Record<string, unknown>, notes?: string) {
@@ -630,7 +660,7 @@ export class BookingV2Service {
   }
 
   async joinQueue(user: AuthenticatedUser, branchId: string, dto: JoinQueueDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const branch = await tx.branches.findUnique({ where: { id: branchId } });
       if (!branch || !branch.is_active || branch.deleted_at) throw new NotFoundException('Branch not found');
 
@@ -734,6 +764,14 @@ export class BookingV2Service {
         },
       });
     });
+    this.realtime.emitBranch(branchId, 'queue:changed', {
+      branchId,
+      queueEntryId: created.id,
+      queueId: created.queue_id,
+      status: created.status,
+      action: 'joined',
+    });
+    return created;
   }
 
   async updateQueueEntryStatus(
@@ -794,6 +832,22 @@ export class BookingV2Service {
       } catch (error) {
         this.logger.error(`Failed to notify called queue entry ${entry.id}: ${(error as Error).message}`);
       }
+    }
+
+    this.realtime.emitBranch(entry.queue.branch.id, 'queue:changed', {
+      branchId: entry.queue.branch.id,
+      queueId: entry.queue_id,
+      queueEntryId: entry.id,
+      status,
+      action: 'status_changed',
+    });
+    if (entry.customer?.user_id) {
+      this.realtime.emitUser(entry.customer.user_id, 'queue:changed', {
+        branchId: entry.queue.branch.id,
+        queueId: entry.queue_id,
+        queueEntryId: entry.id,
+        status,
+      });
     }
 
     return updated;
