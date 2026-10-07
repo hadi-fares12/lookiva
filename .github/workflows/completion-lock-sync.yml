@@ -49,5 +49,6 @@ jobs:
             exit 0
           fi
           git commit -m "Sync completion dependency locks"
+          git restore apps/customer-mobile/analysis_options.yaml apps/business-mobile/analysis_options.yaml || true
           git pull --rebase origin complete-a-z
           git push origin HEAD:complete-a-z
