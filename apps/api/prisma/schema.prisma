@@ -423,7 +423,7 @@ model languages {
 }
 
 model currencies {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   iso_code       String   @unique
   numeric_code   String?
   name           String
@@ -434,8 +434,8 @@ model currencies {
   is_active      Boolean  @default(true)
   is_default     Boolean  @default(false)
   sort_order     Int      @default(0)
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
 }
 
 // ============================================================
@@ -3384,7 +3384,7 @@ model disputes {
 }
 
 model moderation_auto_flags {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   target_type    String
   target_id      String
   author_user_id String?
@@ -3395,8 +3395,8 @@ model moderation_auto_flags {
   reviewed_by_id String?
   reviewed_at    DateTime?
   action_taken   String?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
 
   @@index([target_type, target_id])
   @@index([author_user_id])
