@@ -645,9 +645,6 @@ export class BusinessOpsService {
           },
           participants: {
             include: {
-              professional: {
-                select: { id: true, display_name: true },
-              },
             },
           },
           financial_snapshot: true,
@@ -1007,9 +1004,6 @@ export class BusinessOpsService {
         },
         service: {
           select: { id: true, name: true },
-        },
-        professional: {
-          select: { id: true, display_name: true },
         },
         appointment: {
           select: {
