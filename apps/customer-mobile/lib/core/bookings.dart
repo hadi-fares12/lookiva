@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'booking_payment.dart';
 
 class CustomerBookingsList extends StatefulWidget {
   const CustomerBookingsList({super.key});
@@ -160,6 +161,35 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
 
   void _reload() => _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
 
+  Future<void> _payDeposit(String companyId) async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final paid = await showBookingPaymentFlow(
+        context,
+        appointmentId: widget.id,
+        companyId: companyId,
+      );
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            paid ? ct(context, 'depositPaid') : ct(context, 'paymentPending'),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
   Future<void> _cancel() async {
     final reason = TextEditingController();
     final ok = await showDialog<bool>(
@@ -258,7 +288,19 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
                 _financial(Map<String, dynamic>.from(b['financial_snapshot'] as Map)),
               if (b['status_history'] is List)
                 _listSection(ct(context, 'timeline'), b['status_history'], null, 'new_status'),
-              if (['pending', 'confirmed', 'checked_in'].contains(b['status'])) ...[
+              if (b['status'] == 'awaiting_payment' && company['id'] != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _working
+                      ? null
+                      : () => _payDeposit(company['id'].toString()),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: Text(
+                    _working ? ct(context, 'paying') : ct(context, 'payDeposit'),
+                  ),
+                ),
+              ],
+              if (['awaiting_payment', 'pending', 'confirmed', 'checked_in'].contains(b['status'])) ...[
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: _working ? null : _cancel,
