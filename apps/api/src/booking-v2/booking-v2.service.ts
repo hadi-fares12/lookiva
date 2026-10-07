@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -87,7 +88,7 @@ export class BookingV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
-    private readonly realtime: RealtimeService,
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   private async notifyCustomer(
@@ -102,11 +103,11 @@ export class BookingV2Service {
       startsAt: appointment.starts_at?.toISOString(),
       changeType: type,
     };
-    this.realtime.emitAppointment(appointment.id, 'booking:changed', payload);
-    this.realtime.emitCompany(appointment.company_id, 'booking:changed', payload);
-    this.realtime.emitBranch(appointment.branch_id, 'booking:changed', payload);
+    this.realtime?.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime?.emitCompany(appointment.company_id, 'booking:changed', payload);
+    this.realtime?.emitBranch(appointment.branch_id, 'booking:changed', payload);
     if (appointment.customer_user_id) {
-      this.realtime.emitUser(appointment.customer_user_id, 'booking:changed', payload);
+      this.realtime?.emitUser(appointment.customer_user_id, 'booking:changed', payload);
     }
 
     if (!appointment.customer_user_id) return;
@@ -783,7 +784,7 @@ export class BookingV2Service {
         },
       });
     });
-    this.realtime.emitBranch(branchId, 'queue:changed', {
+    this.realtime?.emitBranch(branchId, 'queue:changed', {
       branchId,
       queueEntryId: created.id,
       queueId: created.queue_id,
@@ -853,7 +854,7 @@ export class BookingV2Service {
       }
     }
 
-    this.realtime.emitBranch(entry.queue.branch.id, 'queue:changed', {
+    this.realtime?.emitBranch(entry.queue.branch.id, 'queue:changed', {
       branchId: entry.queue.branch.id,
       queueId: entry.queue_id,
       queueEntryId: entry.id,
@@ -861,7 +862,7 @@ export class BookingV2Service {
       action: 'status_changed',
     });
     if (entry.customer?.user_id) {
-      this.realtime.emitUser(entry.customer.user_id, 'queue:changed', {
+      this.realtime?.emitUser(entry.customer.user_id, 'queue:changed', {
         branchId: entry.queue.branch.id,
         queueId: entry.queue_id,
         queueEntryId: entry.id,
