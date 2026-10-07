@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsNumber,
+  IsBoolean,
   IsOptional,
   IsString,
   Max,
@@ -55,4 +56,45 @@ export class AiParseSearchDto {
   @IsArray()
   @IsString({ each: true })
   enabledProviders?: string[];
+}
+
+
+export class CreateModerationAppealDto {
+  @IsString()
+  targetType!: string;
+
+  @IsString()
+  targetId!: string;
+
+  @IsOptional()
+  @IsString()
+  strikeId?: string;
+
+  @IsString()
+  reasonReversal!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  evidenceMediaIds?: string[];
+}
+
+export class ResolveModerationAppealDto {
+  @IsString()
+  status!: string;
+
+  @IsString()
+  resolution!: string;
+
+  @IsOptional()
+  @IsString()
+  resolutionNotes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  restoreContent?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  clearStrike?: boolean;
 }
