@@ -124,6 +124,19 @@ export function AdminOperationsPage({section}:{section:string}){
       const status=String(r.verification?.status||r.verification_status||'draft');
       return <div className="flex flex-wrap gap-2"><button disabled={!!busy||status==='approved'} onClick={()=>void post(id+'a',`/admin/businesses/${id}/verification`,{status:'approved'},t('messages.verificationApproved'))} className="action-btn">{t('approve')}</button><button disabled={!!busy} onClick={()=>{const reason=window.prompt(t('prompts.rejectionReason'),'');if(reason?.trim())void post(id+'r',`/admin/businesses/${id}/verification`,{status:'rejected',reason:reason.trim()},t('messages.verificationRejected'));}} className="action-btn danger">{t('reject')}</button></div>;
     }
+    if(section==='bookings'&&id){
+      const status=String(r.status||'');
+      const cancellable=['awaiting_payment','pending','confirmed','checked_in'].includes(status);
+      return <button disabled={!!busy||!cancellable} onClick={()=>{const reason=window.prompt('Cancellation reason','Cancelled by platform administrator');if(!reason?.trim())return;void post(id+'cancel',`/admin/bookings/${id}/cancel`,{reason:reason.trim()},'Booking cancelled.');}} className="action-btn danger">{cancellable?'Cancel booking':'Closed'}</button>;
+    }
+    if(section==='payments'&&id){
+      const status=String(r.status||'');
+      const refundable=['succeeded','partially_refunded'].includes(status);
+      const total=Number(r.amount||0);
+      const refunded=Array.isArray(r.refunds)?r.refunds.filter((x:any)=>String(x.status)==='succeeded').reduce((sum:number,x:any)=>sum+Number(x.amount||0),0):0;
+      const remaining=Math.max(0,total-refunded);
+      return <button disabled={!!busy||!refundable||remaining<=0} onClick={()=>{const amountRaw=window.prompt(`Refund amount (max ${remaining.toFixed(2)} ${r.currency_code||''})`,remaining.toFixed(2));if(amountRaw===null)return;const amount=Number(amountRaw);if(!Number.isFinite(amount)||amount<=0||amount>remaining){setError('Enter a valid refund amount within the refundable balance.');return;}const reason=window.prompt('Refund reason','Approved by platform administrator');if(!reason?.trim())return;void post(id+'refund',`/admin/payments/${id}/refund`,{amount,reason:reason.trim()},'Refund completed.');}} className="action-btn danger">{remaining>0?'Refund':'Refunded'}</button>;
+    }
     if(section==='categories'&&id){
       const active=r.is_active!==false;
       return <button disabled={busy===id} onClick={()=>void mutate(id,`/admin/categories/${id}`,{isActive:!active},active?t('messages.categoryDisabled'):t('messages.categoryEnabled'))} className="action-btn">{active?t('disable'):t('enable')}</button>;
@@ -194,7 +207,21 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','branches','professionals','services','moderation','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','moderation','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+
+  const applyAuditFilters=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();
+    const fd=new FormData(event.currentTarget);
+    const params=new URLSearchParams({limit:'100'});
+    for(const key of ['actorUserId','entityType','action','from','to']){
+      const value=String(fd.get(key)||'').trim();
+      if(value)params.set(key,value);
+    }
+    setLoading(true);setError('');setNotice('');
+    try{setData(await adminFetch('/admin/audit?'+params.toString()));}
+    catch(e){setError(e instanceof Error?e.message:t('loadError'));}
+    finally{setLoading(false);}
+  };
 
   const startImpersonation=async(userId:string)=>{
     setBusy(userId+'impersonate');setError('');setNotice('');
@@ -246,6 +273,14 @@ export function AdminOperationsPage({section}:{section:string}){
   return <div className="space-y-6">
     <style>{`.action-btn{border:1px solid var(--border-subtle);background:var(--surface-2);padding:.45rem .7rem;border-radius:.65rem;font-size:.75rem;font-weight:700;color:var(--text-primary);white-space:nowrap}.action-btn:hover:not(:disabled){filter:brightness(1.08)}.action-btn:disabled{opacity:.5;cursor:not-allowed}.action-btn.danger{border-color:color-mix(in srgb,var(--accent-red) 45%,transparent);color:var(--accent-red)}`}</style>
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-gold-2">{t('eyebrow')}</p><h1 className="mt-2 text-3xl font-bold text-primary">{t(`sections.${cfg.key}.title`)}</h1><p className="mt-2 text-secondary">{t(`sections.${cfg.key}.subtitle`)}</p></div><button onClick={()=>void load()} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('refresh')}</button></div>
+    {section==='audit'&&<form onSubmit={applyAuditFilters} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
+      <input name="actorUserId" placeholder="Actor user ID" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/>
+      <input name="entityType" placeholder="Entity type" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/>
+      <input name="action" placeholder="Action contains…" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/>
+      <input name="from" type="date" aria-label="Audit from date" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/>
+      <input name="to" type="date" aria-label="Audit to date" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/>
+      <div className="flex gap-2"><button disabled={loading} className="h-11 flex-1 rounded-radius-md bg-accent-gold-2 px-4 font-semibold text-surface-0">Apply</button><button type="button" onClick={(e)=>{e.currentTarget.form?.reset();void load();}} className="h-11 rounded-radius-md border border-border-subtle bg-surface-2 px-4 font-semibold text-primary">Clear</button></div>
+    </form>}
     {section==='regions'&&<form onSubmit={createRegion} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4"><input name="countryId" required placeholder="Country ID" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="code" placeholder="Region code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Region name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create region</button></form>}
     {section==='languages'&&<form onSubmit={createLanguage} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required placeholder="ISO code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Language name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="nativeName" required placeholder="Native name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><select name="direction" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"><option value="ltr">LTR</option><option value="rtl">RTL</option></select><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create language</button></form>}
     {section==='currencies'&&<form onSubmit={createCurrency} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required maxLength={3} placeholder="USD" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Currency name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="symbol" required placeholder="$" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="decimalDigits" type="number" min="0" max="6" defaultValue="2" aria-label="Decimal digits" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create currency</button></form>}
