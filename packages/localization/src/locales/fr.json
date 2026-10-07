@@ -582,7 +582,8 @@
         "featureFlags": "Fonctionnalités",
         "remoteConfig": "Configuration distante",
         "audit": "Journal d’audit",
-        "system": "Système"
+        "system": "Système",
+        "strikes": "Sanctions utilisateurs"
       }
     }
   },
@@ -888,6 +889,10 @@
       "remote-config": {
         "title": "Configuration distante",
         "subtitle": "Configuration opérationnelle pilotée par serveur."
+      },
+      "strikes": {
+        "title": "Sanctions utilisateurs",
+        "subtitle": "Avertissements, sanctions, expiration et état d’application."
       }
     },
     "prompts": {
