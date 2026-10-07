@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'booking_payment.dart';
@@ -163,6 +164,78 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
   void _reload() {
     _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
     _consentsFuture = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}/consents');
+  }
+
+  Future<void> _showCheckInQr() async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final raw = await LookivaApi.instance.get(
+        '/booking-v2/appointments/${widget.id}/check-in-token',
+      );
+      if (!mounted) return;
+      if (raw is! Map || raw['token'] == null) {
+        throw StateError(ct(context, 'qrUnavailable'));
+      }
+      final token = raw['token'].toString();
+      final expiresAt = DateTime.tryParse(raw['expiresAt']?.toString() ?? '');
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(ct(context, 'checkInQr')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                ct(context, 'qrHint'),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: QrImageView(
+                    data: token,
+                    version: QrVersions.auto,
+                    size: 220,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              if (expiresAt != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '${ct(context, 'qrExpires')}: '
+                  '${MaterialLocalizations.of(context).formatTimeOfDay(
+                    TimeOfDay.fromDateTime(expiresAt.toLocal()),
+                    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+                  )}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   Future<void> _payDeposit(String companyId) async {
@@ -432,6 +505,18 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
               ),
               if (b['status_history'] is List)
                 _listSection(ct(context, 'timeline'), b['status_history'], null, 'new_status'),
+              if (['pending', 'confirmed'].contains(b['status'])) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: _working ? null : _showCheckInQr,
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: Text(
+                    _working
+                        ? ct(context, 'working')
+                        : ct(context, 'showCheckInQr'),
+                  ),
+                ),
+              ],
               if (b['status'] == 'awaiting_payment' && company['id'] != null) ...[
                 const SizedBox(height: 16),
                 FilledButton.icon(
