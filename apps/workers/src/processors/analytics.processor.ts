@@ -1,16 +1,26 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../common/prisma.service';
+import { DeadLetterService } from '../common/dead-letter.service';
 
 @Processor('analytics-queue')
 @Injectable()
 export class AnalyticsProcessor extends WorkerHost {
   private readonly logger = new Logger(AnalyticsProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly deadLetters: DeadLetterService,
+  ) {
     super();
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job | undefined, error: Error) {
+    if (!job) return;
+    await this.deadLetters.capture('analytics-queue', job, error);
   }
 
   async process(job: Job) {
