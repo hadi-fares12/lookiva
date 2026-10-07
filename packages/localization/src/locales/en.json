@@ -753,7 +753,12 @@
       "uploading": "Uploading…",
       "publishPortfolio": "Publish portfolio post",
       "verifyWork": "Verify work",
-      "archive": "Archive"
+      "archive": "Archive",
+      "previous": "Previous",
+      "today": "Today",
+      "next": "Next",
+      "quickAdd": "Quick add",
+      "createBooking": "Create booking"
     },
     "labels": {
       "serviceName": "Service name",
@@ -864,7 +869,14 @@
       "verifiedWork": "Verified Work",
       "mediaItems": "media",
       "verifiedReviewId": "Verified review ID",
-      "selectVerifiedReview": "Select a verified review"
+      "selectVerifiedReview": "Select a verified review",
+      "calendarDate": "Calendar date",
+      "allResources": "All chairs / resources",
+      "anyResource": "Any chair / resource",
+      "calendarDragHint": "Drag an eligible pending/confirmed booking onto another day to reschedule it safely.",
+      "startTime": "Start time",
+      "staffNote": "Staff note",
+      "emptyDay": "No bookings"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -906,7 +918,18 @@
       "portfolioPublished": "Portfolio post published.",
       "portfolioPublishedVerified": "Portfolio post published as Verified Work.",
       "portfolioVerified": "Portfolio post verified.",
-      "portfolioArchived": "Portfolio post archived."
+      "portfolioArchived": "Portfolio post archived.",
+      "calendarQuickAddRequired": "Branch, customer, service and start time are required.",
+      "calendarBookingCreated": "Booking created.",
+      "calendarBookingMoved": "Booking rescheduled."
+    },
+    "calendarViews": {
+      "day": "Day",
+      "fourDay": "4 days",
+      "week": "Week",
+      "twoWeek": "2 weeks",
+      "month": "Month",
+      "list": "List"
     }
   },
   "adminOps": {
