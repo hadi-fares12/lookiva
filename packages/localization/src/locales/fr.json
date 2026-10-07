@@ -1075,7 +1075,18 @@
     "notesPlaceholder": "Indiquez au professionnel ce que vous souhaitez…",
     "processing": "Traitement…",
     "confirm": "Vérifier et confirmer",
-    "signIn": "Se connecter pour réserver"
+    "signIn": "Se connecter pour réserver",
+    "paymentRequired": "Acompte requis",
+    "depositReserved": "Votre créneau et votre ressource sont réservés. Payez l’acompte requis pour finaliser la confirmation.",
+    "payDeposit": "Payer l’acompte",
+    "paymentMethod": "Mode de paiement",
+    "giftCardCode": "Code carte cadeau",
+    "paying": "Paiement en cours…",
+    "depositPaid": "Acompte payé",
+    "paymentPending": "Le paiement a commencé. Terminez le paiement chez le prestataire pour confirmer la réservation.",
+    "noPaymentMethods": "Aucun mode de paiement n’est actuellement disponible. Contactez l’établissement.",
+    "amountDueNow": "Montant dû maintenant",
+    "bookingPendingBusiness": "Acompte reçu. En attente de confirmation de l’établissement."
   },
   "customerChat": {
     "back": "Messages",
