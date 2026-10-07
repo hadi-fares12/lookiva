@@ -63,6 +63,16 @@ export class SocialV2Controller {
     return this.social.verifyWork(user, id, dto);
   }
 
+  @Delete('posts/:id')
+  @RequirePermissions(PermissionKey.SocialPostCreate)
+  @ApiOperation({ summary: 'Soft-archive a portfolio/social post within the authorized business scope' })
+  archivePost(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.social.archivePost(user, id);
+  }
+
   @Post('posts/:id/save')
   @RequirePermissions(PermissionKey.CustomerFavoritesAdd)
   @ApiOperation({ summary: 'Save a post as a favorite' })
