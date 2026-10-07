@@ -5,6 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -17,15 +19,72 @@ import {
 
 @Injectable()
 export class PlatformOpsV2Service {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('dead-letter-queue')
+    private readonly deadLetterQueue: Queue,
+  ) {}
 
-  workersStatus() {
+  async workersStatus() {
+    const deadLetterCounts = await this.deadLetterQueue.getJobCounts(
+      'waiting',
+      'delayed',
+      'failed',
+    );
     return {
-      queues: ['email', 'notifications', 'media', 'analytics'],
+      queues: ['email', 'notifications', 'media', 'analytics', 'dead-letter'],
       provider: 'BullMQ',
       localStatus: 'configured',
-      note: 'Runtime queue depth is exposed by workers when Redis is running.',
+      deadLetterCounts,
+      note: 'Terminal worker failures are retained in the dead-letter queue for authorized inspection.',
     };
+  }
+
+  async deadLetters(limit = 100) {
+    const take = Math.min(Math.max(Number(limit) || 100, 1), 250);
+    const jobs = await this.deadLetterQueue.getJobs(
+      ['waiting', 'delayed', 'failed'],
+      0,
+      take - 1,
+      false,
+    );
+    return Promise.all(
+      jobs.map(async (job) => ({
+        id: String(job.id ?? ''),
+        name: job.name,
+        data: job.data,
+        attemptsMade: job.attemptsMade,
+        failedReason: job.failedReason ?? null,
+        timestamp: job.timestamp,
+        processedOn: job.processedOn ?? null,
+        finishedOn: job.finishedOn ?? null,
+        state: await job.getState(),
+      })),
+    );
+  }
+
+  async removeDeadLetter(user: AuthenticatedUser, id: string) {
+    const job = await this.deadLetterQueue.getJob(id);
+    if (!job) throw new NotFoundException('Dead-letter job not found');
+    const snapshot = {
+      id: String(job.id ?? ''),
+      name: job.name,
+      data: job.data,
+      attemptsMade: job.attemptsMade,
+      failedReason: job.failedReason ?? null,
+    };
+    await job.remove();
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'workers.dead_letter.remove',
+        entity_type: 'dead_letter_job',
+        entity_id: id,
+        old_value: snapshot as any,
+      },
+    });
+    return { id, removed: true };
   }
 
   realtimeStatus() {
