@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { businessFetch, getBusinessSession } from '@/lib/api';
 import { useBusinessRealtimeReload } from '@/lib/realtime';
+import { downloadCsv, downloadXlsx } from '@/lib/export-data';
 
 const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?: string) => string }> = {
   'calendar': { key: 'calendar', endpoint: (c, b) => `/business-ops/${c}/appointments${b ? `?branchId=${b}` : ''}` },
@@ -487,12 +488,25 @@ export function OperationsPage({ section }: { section: string }) {
     }, t('messages.settingsSaved'));
   }
 
+  function exportCurrent(format: 'csv' | 'xlsx') {
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = 'lookiva-' + section + '-' + date;
+    if (format === 'csv') downloadCsv(data, filename + '.csv');
+    else downloadXlsx(data, filename + '.xlsx');
+  }
+
   const inputClass = 'h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-sm text-primary outline-none focus:border-accent-gold-2';
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-gold-2">{t('eyebrow')}</p><h1 className="mt-2 text-3xl font-bold text-primary">{t(`sections.${config.key}.title`)}</h1><p className="mt-2 text-secondary">{t(`sections.${config.key}.subtitle`)}</p></div>
-      <button onClick={() => void load()} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('actions.refresh')}</button>
+      <div className="flex flex-wrap gap-2">
+        {['finance','analytics','reports'].includes(section)&&data&&<>
+          <button type="button" onClick={()=>exportCurrent('csv')} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('actions.exportCsv')}</button>
+          <button type="button" onClick={()=>exportCurrent('xlsx')} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('actions.exportXlsx')}</button>
+        </>}
+        <button onClick={() => void load()} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('actions.refresh')}</button>
+      </div>
     </div>
     {updated && <p className="text-xs text-muted">Last synchronized {updated.toLocaleTimeString()}</p>}
     {message && <div className="rounded-radius-lg border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green">{message}</div>}
