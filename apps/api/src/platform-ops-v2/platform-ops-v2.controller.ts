@@ -82,6 +82,24 @@ export class PlatformOpsV2Controller {
     return this.ops.moderateReport(user, id, dto);
   }
 
+  @Get('moderation/auto-flags')
+  @RequirePermissions(PermissionKey.ModerationView)
+  @ApiOperation({ summary: 'List automatic high-confidence moderation flags' })
+  automaticFlags(@Query('status') status?: string) {
+    return this.ops.listAutomaticModerationFlags(status);
+  }
+
+  @Patch('moderation/auto-flags/:id')
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @ApiOperation({ summary: 'Dismiss or escalate an automatic moderation flag' })
+  reviewAutomaticFlag(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { action?: string; notes?: string },
+  ) {
+    return this.ops.reviewAutomaticModerationFlag(user, id, body);
+  }
+
   @Post('moderation/appeals')
   @RequirePermissions(PermissionKey.ModerationAppealCreate)
   @ApiOperation({ summary: 'Submit an appeal for your own moderated content or strike' })
