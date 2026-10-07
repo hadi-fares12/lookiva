@@ -9,6 +9,7 @@ import { UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { BookingV2Service } from '../booking-v2/booking-v2.service';
+import { evaluateAutomaticViolation } from '../common/moderation/auto-violation';
 import {
   BookThisLookDto,
   CreateCollectionDto,
@@ -347,6 +348,24 @@ export class SocialV2Service {
           published_at: new Date(),
         },
       });
+
+      const autoViolation = evaluateAutomaticViolation([
+        dto.title,
+        dto.bodyPlain,
+        ...(dto.tags ?? []),
+      ]);
+      if (autoViolation) {
+        await tx.moderation_auto_flags.create({
+          data: {
+            target_type: 'post',
+            target_id: post.id,
+            author_user_id: user.id,
+            reason_type: autoViolation.reasonType,
+            confidence: autoViolation.confidence,
+            details: autoViolation.details,
+          },
+        });
+      }
 
       for (const [index, mediaId] of requestedMediaIds.entries()) {
         const media = mediaById.get(mediaId)!;
