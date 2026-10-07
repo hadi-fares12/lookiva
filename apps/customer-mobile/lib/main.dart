@@ -15,6 +15,7 @@ import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
 import 'core/l10n.dart';
+import 'core/mobile_services.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
 const String _prefLocale = 'cust_locale_code';
@@ -455,6 +456,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!onboardingSeen) {
       context.go('/onboarding');
     } else if (hasSession) {
+      await CustomerMobileServices.instance.initialize(
+        openDeepLink: (path) => _router.go(path),
+      );
+      if (!mounted) return;
       context.go('/home');
     } else {
       context.go('/login');
@@ -826,6 +831,10 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
         _password.text,
         rememberMe: _rememberMe,
       );
+      await CustomerMobileServices.instance.initialize(
+        openDeepLink: (path) => _router.go(path),
+      );
+      await CustomerMobileServices.instance.onSignedIn();
       if (mounted) context.go('/home');
     } catch (error) {
       if (mounted) {
