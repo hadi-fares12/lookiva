@@ -117,7 +117,17 @@ const _strings = <String, Map<String, String>>{
     'item': 'Item',
     'items': 'items',
     'noDiscovery': 'No discovery results yet',
-    'bookThisService': 'Book this service'
+    'bookThisService': 'Book this service',
+    'paymentRequired': 'Deposit required',
+    'amountDueNow': 'Amount due now',
+    'paymentMethod': 'Payment method',
+    'giftCardCode': 'Gift card code',
+    'payDeposit': 'Pay deposit',
+    'paying': 'Processing payment…',
+    'paymentPending': 'Payment started. Complete checkout to confirm your booking.',
+    'noPaymentMethods': 'No payment method is currently available. Contact the business.',
+    'depositPaid': 'Deposit paid',
+    'bookingPendingBusiness': 'Deposit received. Waiting for business confirmation.'
   },
   'ar': {
     'splashTagline': 'الجمال والعناية بأسلوب فاخر',
@@ -233,7 +243,17 @@ const _strings = <String, Map<String, String>>{
     'item': 'عنصر',
     'items': 'عناصر',
     'noDiscovery': 'لا توجد نتائج اكتشاف بعد',
-    'bookThisService': 'احجز هذه الخدمة'
+    'bookThisService': 'احجز هذه الخدمة',
+    'paymentRequired': 'مطلوب عربون',
+    'amountDueNow': 'المبلغ المطلوب الآن',
+    'paymentMethod': 'طريقة الدفع',
+    'giftCardCode': 'رمز بطاقة الهدية',
+    'payDeposit': 'دفع العربون',
+    'paying': 'جارٍ معالجة الدفع…',
+    'paymentPending': 'بدأت عملية الدفع. أكمل الدفع لتأكيد الحجز.',
+    'noPaymentMethods': 'لا توجد طريقة دفع متاحة حالياً. تواصل مع المنشأة.',
+    'depositPaid': 'تم دفع العربون',
+    'bookingPendingBusiness': 'تم استلام العربون. بانتظار تأكيد المنشأة.'
   },
   'fr': {
     'splashTagline': 'Beauté et bien-être premium',
@@ -351,7 +371,17 @@ const _strings = <String, Map<String, String>>{
     'item': 'Élément',
     'items': 'éléments',
     'noDiscovery': 'Aucun résultat pour le moment',
-    'bookThisService': 'Réserver ce service'
+    'bookThisService': 'Réserver ce service',
+    'paymentRequired': 'Acompte requis',
+    'amountDueNow': 'Montant dû maintenant',
+    'paymentMethod': 'Mode de paiement',
+    'giftCardCode': 'Code carte cadeau',
+    'payDeposit': 'Payer l’acompte',
+    'paying': 'Paiement en cours…',
+    'paymentPending': 'Le paiement a commencé. Terminez le paiement pour confirmer la réservation.',
+    'noPaymentMethods': 'Aucun mode de paiement n’est disponible. Contactez l’établissement.',
+    'depositPaid': 'Acompte payé',
+    'bookingPendingBusiness': 'Acompte reçu. En attente de confirmation.'
   },
 };
 
