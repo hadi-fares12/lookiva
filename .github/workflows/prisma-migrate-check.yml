@@ -25,6 +25,9 @@ jobs:
     name: Validate & Diff Schema
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
+      DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
 
     services:
       postgres:
