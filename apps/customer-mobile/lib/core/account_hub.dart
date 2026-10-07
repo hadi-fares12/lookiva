@@ -93,6 +93,7 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
     (Icons.notifications_none_rounded, 'notifications', 'notificationsDesc', '/account/notifications'),
     (Icons.location_on_outlined, 'nearbyPrefs', 'nearbyPrefsDesc', '/account/nearby-settings'),
     (Icons.security_rounded, 'security', 'securityDesc', '/account/security'),
+    (Icons.privacy_tip_outlined, 'privacyData', 'privacyDesc', '/account/privacy'),
   ];
 
   String _initials(String? name) {
