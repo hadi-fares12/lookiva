@@ -317,6 +317,82 @@ export class PlatformOpsV2Service {
     });
   }
 
+  listAutomaticModerationFlags(status?: string) {
+    return this.prisma.moderation_auto_flags.findMany({
+      where: status ? { status } : {},
+      orderBy: [{ confidence: 'desc' }, { created_at: 'desc' }],
+      take: 200,
+    });
+  }
+
+  async reviewAutomaticModerationFlag(
+    user: AuthenticatedUser,
+    flagId: string,
+    body: { action?: string; notes?: string },
+  ) {
+    const action = String(body.action || '').trim().toLowerCase();
+    if (!['dismiss', 'escalate'].includes(action)) {
+      throw new BadRequestException('action must be dismiss or escalate');
+    }
+    const flag = await this.prisma.moderation_auto_flags.findUnique({
+      where: { id: flagId },
+    });
+    if (!flag) throw new NotFoundException('Automatic moderation flag not found');
+    if (flag.status !== 'pending') {
+      throw new ConflictException('Automatic moderation flag was already reviewed');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let reportId: string | null = null;
+      if (action === 'escalate') {
+        const report = await tx.moderation_reports.create({
+          data: {
+            reporter_user_id: user.id,
+            target_type: flag.target_type,
+            target_id: flag.target_id,
+            reason_type: 'auto_' + flag.reason_type,
+            details: [
+              'Escalated from automatic moderation flag ' + flag.id + '.',
+              body.notes?.trim() || '',
+              flag.details ? JSON.stringify(flag.details) : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+          },
+        });
+        reportId = report.id;
+      }
+
+      const updated = await tx.moderation_auto_flags.update({
+        where: { id: flag.id },
+        data: {
+          status: action === 'escalate' ? 'escalated' : 'dismissed',
+          reviewed_by_id: user.id,
+          reviewed_at: new Date(),
+          action_taken: action,
+        },
+      });
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: user.id,
+          actor_role: user.roleScopes[0]?.roleKey ?? null,
+          action: 'moderation.auto_flag.' + action,
+          entity_type: 'moderation_auto_flag',
+          entity_id: flag.id,
+          old_value: flag as any,
+          new_value: {
+            flag: updated,
+            reportId,
+            notes: body.notes?.trim() || null,
+          } as any,
+        },
+      });
+
+      return { flag: updated, reportId };
+    });
+  }
+
   async createModerationAppeal(
     user: AuthenticatedUser,
     dto: CreateModerationAppealDto,
