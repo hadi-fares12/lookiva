@@ -1009,6 +1009,31 @@ export class FinanceV2Service {
     return this.maskBankAccount(updated);
   }
 
+  async listAllWithdrawals(
+    user: AuthenticatedUser,
+    status?: string,
+    limit = 100,
+  ) {
+    if (!this.hasPlatformRole(user)) {
+      throw new ForbiddenException('Only platform finance staff may list all withdrawals');
+    }
+    const rows = await this.prisma.withdrawal_requests.findMany({
+      where: status ? { status } : {},
+      include: {
+        company: {
+          select: { id: true, display_name: true, slug: true },
+        },
+        bank_account: true,
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+    return rows.map((row) => ({
+      ...row,
+      bank_account: this.maskBankAccount(row.bank_account),
+    }));
+  }
+
   async listWithdrawals(
     user: AuthenticatedUser,
     companyId: string,
