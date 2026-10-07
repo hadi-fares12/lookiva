@@ -594,7 +594,8 @@
         "regions": "المناطق",
         "currencies": "العملات",
         "plans": "الخطط",
-        "appeals": "الاعتراضات"
+        "appeals": "الاعتراضات",
+        "withdrawals": "السحوبات"
       }
     }
   },
@@ -1026,13 +1027,19 @@
       "appeals": {
         "title": "اعتراضات الإشراف",
         "subtitle": "راجع الاعتراضات واعكس الإجراءات الخاطئة واستعد المحتوى وألغِ المخالفات المرتبطة."
+      },
+      "withdrawals": {
+        "title": "مراجعة السحوبات",
+        "subtitle": "وافق على طلبات سحب المؤسسات أو عالجها أو أكملها أو ارفضها للحسابات البنكية الموثقة."
       }
     },
     "prompts": {
       "reason": "السبب (اختياري)",
       "rejectionReason": "سبب الرفض (مطلوب)",
       "resolution": "ملاحظة الحل",
-      "newValue": "قيمة جديدة لـ {key}"
+      "newValue": "قيمة جديدة لـ {key}",
+      "withdrawalRejectionReason": "سبب رفض السحب",
+      "withdrawalReference": "مرجع البنك/المزود (اختياري)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -1052,8 +1059,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "تمت الموافقة على السحب.",
+        "rejected": "تم رفض السحب.",
+        "processing": "تم نقل السحب إلى المعالجة.",
+        "completed": "تم إكمال السحب وتسجيله في دفتر الأستاذ.",
+        "failed": "تم تحديد السحب كفاشل."
+      }
+    },
+    "startProcessing": "بدء المعالجة",
+    "completeWithdrawal": "إكمال السحب",
+    "markFailed": "تحديد كفاشل",
+    "retryProcessing": "إعادة المعالجة"
   },
   "customerAccount": {
     "eyebrow": "حساب لوكيفا",
