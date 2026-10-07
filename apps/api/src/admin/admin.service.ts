@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
+import { UserRole } from '@lookiva/shared-types';
 
 function pageArgs(page: number, limit: number, max = 250) {
   const safePage = Math.max(1, page);
@@ -9,7 +11,10 @@ function pageArgs(page: number, limit: number, max = 250) {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
+  ) {}
 
   private async writeAudit(actorUserId: string, action: string, entityType: string, entityId: string, oldValue?: unknown, newValue?: unknown, companyId?: string | null) {
     await this.prisma.audit_logs.create({
@@ -200,6 +205,388 @@ export class AdminService {
       this.prisma.users.count(),
     ]);
     return { items, total, page: p.page, limit: p.limit, totalPages: Math.ceil(total / p.limit) };
+  }
+
+
+  async branches(page = 1, limit = 50, companyId?: string) {
+    const p = pageArgs(page, limit);
+    const where = companyId ? { company_id: companyId } : {};
+    const [items, total] = await Promise.all([
+      this.prisma.branches.findMany({
+        where,
+        orderBy: [{ is_active: 'desc' }, { created_at: 'desc' }],
+        take: p.limit,
+        skip: p.skip,
+        include: {
+          company: { select: { id: true, display_name: true } },
+          country: { select: { id: true, iso_code: true, name: true } },
+          _count: { select: { appointments: true, resources: true } },
+        },
+      }),
+      this.prisma.branches.count({ where }),
+    ]);
+    return { items, total, page: p.page, limit: p.limit, totalPages: Math.ceil(total / p.limit) };
+  }
+
+  async professionals(page = 1, limit = 50, companyId?: string) {
+    const p = pageArgs(page, limit);
+    const where = { ...(companyId ? { company_id: companyId } : {}), deleted_at: null };
+    const [items, total] = await Promise.all([
+      this.prisma.professionals.findMany({
+        where,
+        orderBy: [{ is_active: 'desc' }, { created_at: 'desc' }],
+        take: p.limit,
+        skip: p.skip,
+        include: {
+          company: { select: { id: true, display_name: true } },
+          user: { select: { id: true, full_name: true, email: true, phone: true, is_active: true } },
+          branches: { include: { branch: { select: { id: true, name: true } } } },
+        },
+      }),
+      this.prisma.professionals.count({ where }),
+    ]);
+    return { items, total, page: p.page, limit: p.limit, totalPages: Math.ceil(total / p.limit) };
+  }
+
+  async services(page = 1, limit = 50, companyId?: string) {
+    const p = pageArgs(page, limit);
+    const where = { ...(companyId ? { company_id: companyId } : {}), deleted_at: null };
+    const [items, total] = await Promise.all([
+      this.prisma.services.findMany({
+        where,
+        orderBy: [{ is_active: 'desc' }, { created_at: 'desc' }],
+        take: p.limit,
+        skip: p.skip,
+        include: {
+          company: { select: { id: true, display_name: true } },
+          category: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.services.count({ where }),
+    ]);
+    return { items, total, page: p.page, limit: p.limit, totalPages: Math.ceil(total / p.limit) };
+  }
+
+  regions() {
+    return this.prisma.regions.findMany({
+      include: { country: { select: { id: true, iso_code: true, name: true } } },
+      orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  languages() {
+    return this.prisma.languages.findMany({
+      orderBy: [{ is_default: 'desc' }, { is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  currencies() {
+    return this.prisma.currencies.findMany({
+      orderBy: [{ is_default: 'desc' }, { is_active: 'desc' }, { sort_order: 'asc' }, { iso_code: 'asc' }],
+    });
+  }
+
+  plans() {
+    return this.prisma.subscription_plans.findMany({
+      include: { features: { orderBy: { sort_order: 'asc' } }, _count: { select: { subscriptions: true } } },
+      orderBy: [{ is_active: 'desc' }, { tier_level: 'asc' }, { sort_order: 'asc' }],
+    });
+  }
+
+  async updateBranch(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.branches.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Branch not found');
+    const updated = await this.prisma.branches.update({
+      where: { id },
+      data: {
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.bookingEnabled !== undefined ? { booking_enabled: Boolean(patch.bookingEnabled) } : {}),
+        ...(patch.walkInsEnabled !== undefined ? { walk_ins_enabled: Boolean(patch.walkInsEnabled) } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.branch.update', 'branch', id, existing, updated, existing.company_id);
+    return updated;
+  }
+
+  async updateProfessional(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.professionals.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Professional not found');
+    const updated = await this.prisma.professionals.update({
+      where: { id },
+      data: {
+        ...(patch.displayName !== undefined ? { display_name: String(patch.displayName).trim() } : {}),
+        ...(patch.isVerified !== undefined ? { is_verified: Boolean(patch.isVerified), verified_at: patch.isVerified ? new Date() : null } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.professional.update', 'professional', id, existing, updated, existing.company_id);
+    return updated;
+  }
+
+  async updateService(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.services.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Service not found');
+    const updated = await this.prisma.services.update({
+      where: { id },
+      data: {
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.basePrice !== undefined ? { base_price: Number(patch.basePrice) } : {}),
+        ...(patch.durationMinutes !== undefined ? { duration_minutes: Math.max(1, Math.trunc(Number(patch.durationMinutes))) } : {}),
+        ...(patch.isFeatured !== undefined ? { is_featured: Boolean(patch.isFeatured) } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.service.update', 'service', id, existing, updated, existing.company_id);
+    return updated;
+  }
+
+  async createRegion(actorUserId: string, body: any) {
+    const countryId = String(body.countryId || '');
+    const name = String(body.name || '').trim();
+    if (!countryId || !name) throw new BadRequestException('countryId and name are required');
+    const country = await this.prisma.countries.findUnique({ where: { id: countryId }, select: { id: true } });
+    if (!country) throw new NotFoundException('Country not found');
+    const region = await this.prisma.regions.create({
+      data: {
+        country_id: countryId,
+        code: body.code ? String(body.code).trim() : null,
+        name,
+        native_name: body.nativeName || null,
+        latitude: body.latitude == null ? null : Number(body.latitude),
+        longitude: body.longitude == null ? null : Number(body.longitude),
+        sort_order: Math.trunc(Number(body.sortOrder ?? 0)),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.region.create', 'region', region.id, undefined, region);
+    return region;
+  }
+
+  async updateRegion(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.regions.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Region not found');
+    const updated = await this.prisma.regions.update({
+      where: { id },
+      data: {
+        ...(patch.code !== undefined ? { code: patch.code || null } : {}),
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.nativeName !== undefined ? { native_name: patch.nativeName || null } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+        ...(patch.sortOrder !== undefined ? { sort_order: Math.trunc(Number(patch.sortOrder)) } : {}),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.region.update', 'region', id, existing, updated);
+    return updated;
+  }
+
+  async createLanguage(actorUserId: string, body: any) {
+    const isoCode = String(body.isoCode || '').trim().toLowerCase();
+    const name = String(body.name || '').trim();
+    const nativeName = String(body.nativeName || name).trim();
+    if (!isoCode || !name) throw new BadRequestException('isoCode and name are required');
+    const language = await this.prisma.languages.create({
+      data: {
+        iso_code: isoCode,
+        iso3_code: body.iso3Code || null,
+        name,
+        native_name: nativeName,
+        direction: body.direction === 'rtl' ? 'rtl' : 'ltr',
+        flag_emoji: body.flagEmoji || null,
+        is_default: body.isDefault === true,
+        sort_order: Math.trunc(Number(body.sortOrder ?? 0)),
+      },
+    });
+    if (language.is_default) {
+      await this.prisma.languages.updateMany({ where: { id: { not: language.id } }, data: { is_default: false } });
+    }
+    await this.writeAudit(actorUserId, 'admin.language.create', 'language', language.id, undefined, language);
+    return language;
+  }
+
+  async updateLanguage(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.languages.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Language not found');
+    const updated = await this.prisma.languages.update({
+      where: { id },
+      data: {
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.nativeName !== undefined ? { native_name: String(patch.nativeName).trim() } : {}),
+        ...(patch.direction !== undefined ? { direction: patch.direction === 'rtl' ? 'rtl' : 'ltr' } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+        ...(patch.isDefault !== undefined ? { is_default: Boolean(patch.isDefault) } : {}),
+      },
+    });
+    if (updated.is_default) {
+      await this.prisma.languages.updateMany({ where: { id: { not: id } }, data: { is_default: false } });
+    }
+    await this.writeAudit(actorUserId, 'admin.language.update', 'language', id, existing, updated);
+    return updated;
+  }
+
+  async createCurrency(actorUserId: string, body: any) {
+    const isoCode = String(body.isoCode || '').trim().toUpperCase();
+    const name = String(body.name || '').trim();
+    const symbol = String(body.symbol || '').trim();
+    if (isoCode.length !== 3 || !name || !symbol) {
+      throw new BadRequestException('3-letter isoCode, name and symbol are required');
+    }
+    const currency = await this.prisma.currencies.create({
+      data: {
+        iso_code: isoCode,
+        numeric_code: body.numericCode || null,
+        name,
+        symbol,
+        native_symbol: body.nativeSymbol || null,
+        decimal_digits: Math.max(0, Math.min(6, Math.trunc(Number(body.decimalDigits ?? 2)))),
+        rounding: Number(body.rounding ?? 0),
+        is_default: body.isDefault === true,
+        sort_order: Math.trunc(Number(body.sortOrder ?? 0)),
+      },
+    });
+    if (currency.is_default) {
+      await this.prisma.currencies.updateMany({ where: { id: { not: currency.id } }, data: { is_default: false } });
+    }
+    await this.writeAudit(actorUserId, 'admin.currency.create', 'currency', currency.id, undefined, currency);
+    return currency;
+  }
+
+  async updateCurrency(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.currencies.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Currency not found');
+    const updated = await this.prisma.currencies.update({
+      where: { id },
+      data: {
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.symbol !== undefined ? { symbol: String(patch.symbol) } : {}),
+        ...(patch.decimalDigits !== undefined ? { decimal_digits: Math.max(0, Math.min(6, Math.trunc(Number(patch.decimalDigits)))) } : {}),
+        ...(patch.rounding !== undefined ? { rounding: Number(patch.rounding) } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+        ...(patch.isDefault !== undefined ? { is_default: Boolean(patch.isDefault) } : {}),
+      },
+    });
+    if (updated.is_default) {
+      await this.prisma.currencies.updateMany({ where: { id: { not: id } }, data: { is_default: false } });
+    }
+    await this.writeAudit(actorUserId, 'admin.currency.update', 'currency', id, existing, updated);
+    return updated;
+  }
+
+  async createPlan(actorUserId: string, body: any) {
+    const name = String(body.name || '').trim();
+    const code = String(body.code || '').trim().toLowerCase();
+    const currencyCode = String(body.currencyCode || '').trim().toUpperCase();
+    if (!name || !code || currencyCode.length !== 3) {
+      throw new BadRequestException('name, code and 3-letter currencyCode are required');
+    }
+    const plan = await this.prisma.subscription_plans.create({
+      data: {
+        name,
+        code,
+        description: body.description || null,
+        price_monthly: Number(body.priceMonthly ?? 0),
+        price_yearly: Number(body.priceYearly ?? 0),
+        currency_code: currencyCode,
+        trial_days: Math.max(0, Math.trunc(Number(body.trialDays ?? 0))),
+        tier_level: Math.max(1, Math.trunc(Number(body.tierLevel ?? 1))),
+        sort_order: Math.trunc(Number(body.sortOrder ?? 0)),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.plan.create', 'subscription_plan', plan.id, undefined, plan);
+    return plan;
+  }
+
+  async updatePlan(actorUserId: string, id: string, patch: any) {
+    const existing = await this.prisma.subscription_plans.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Plan not found');
+    const updated = await this.prisma.subscription_plans.update({
+      where: { id },
+      data: {
+        ...(patch.name !== undefined ? { name: String(patch.name).trim() } : {}),
+        ...(patch.description !== undefined ? { description: patch.description || null } : {}),
+        ...(patch.priceMonthly !== undefined ? { price_monthly: Number(patch.priceMonthly) } : {}),
+        ...(patch.priceYearly !== undefined ? { price_yearly: Number(patch.priceYearly) } : {}),
+        ...(patch.trialDays !== undefined ? { trial_days: Math.max(0, Math.trunc(Number(patch.trialDays))) } : {}),
+        ...(patch.isActive !== undefined ? { is_active: Boolean(patch.isActive) } : {}),
+        ...(patch.tierLevel !== undefined ? { tier_level: Math.max(1, Math.trunc(Number(patch.tierLevel))) } : {}),
+      },
+    });
+    await this.writeAudit(actorUserId, 'admin.plan.update', 'subscription_plan', id, existing, updated);
+    return updated;
+  }
+
+  async sendUserPasswordReset(actorUserId: string, userId: string) {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, full_name: true, is_active: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.email) throw new BadRequestException('User does not have an email address');
+    await this.auth.forgotPassword(user.email);
+    await this.writeAudit(actorUserId, 'admin.user.password_reset.send', 'user', userId, undefined, { deliveredToUser: true });
+    return { sent: true, userId, channel: 'email' };
+  }
+
+  async sendUserOtp(actorUserId: string, userId: string) {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: { id: true, phone: true, full_name: true, is_active: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.phone) throw new BadRequestException('User does not have a phone number');
+    await this.auth.sendPhoneOtp(user.phone, 'verify');
+    await this.writeAudit(actorUserId, 'admin.user.otp.send', 'user', userId, undefined, { deliveredToUser: true });
+    return { sent: true, userId, channel: 'sms' };
+  }
+
+  async impersonateUser(actorUserId: string, targetUserId: string) {
+    if (actorUserId === targetUserId) throw new BadRequestException('You cannot impersonate your own account');
+    const target = await this.prisma.users.findUnique({
+      where: { id: targetUserId },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        is_active: true,
+        role_scopes: { select: { role_key: true } },
+      },
+    });
+    if (!target || !target.is_active) throw new NotFoundException('Active user not found');
+    const protectedRoles = new Set<UserRole>([
+      UserRole.SuperAdmin,
+      UserRole.PlatformAdmin,
+      UserRole.CountryManager,
+      UserRole.PlatformModerator,
+      UserRole.PlatformSupport,
+    ]);
+    if (target.role_scopes.some((scope) => protectedRoles.has(scope.role_key as UserRole))) {
+      throw new BadRequestException('Platform privileged accounts cannot be impersonated');
+    }
+
+    const tokens = await this.auth.generateTokens(target.id, {
+      deviceName: 'LOOKIVA audited admin impersonation',
+      deviceType: 'admin_impersonation',
+      familyId: 'impersonation:' + actorUserId + ':' + Date.now(),
+    });
+    const refreshHash = this.auth.hashToken(tokens.refreshToken);
+    await this.prisma.sessions.updateMany({
+      where: { user_id: target.id, refresh_token_hash: refreshHash },
+      data: { expires_at: new Date(Date.now() + 30 * 60_000) },
+    });
+    await this.writeAudit(actorUserId, 'admin.user.impersonate', 'user', targetUserId, undefined, {
+      impersonation: true,
+      expiresInMinutes: 30,
+    });
+    return {
+      target: {
+        id: target.id,
+        fullName: target.full_name,
+        email: target.email,
+        phone: target.phone,
+      },
+      ...tokens,
+      impersonationExpiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+    };
   }
 
   async bookings(page = 1, limit = 50, status?: string) {
