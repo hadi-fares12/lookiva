@@ -708,7 +708,14 @@
       "complete": "Complete",
       "call": "Call",
       "served": "Served",
-      "viewOnly": "View only"
+      "viewOnly": "View only",
+      "structure": "Structure",
+      "close": "Close",
+      "saveDependencies": "Save dependencies",
+      "addStage": "Add stage",
+      "saveStages": "Save stages",
+      "remove": "Remove",
+      "useTemplate": "Use template"
     },
     "labels": {
       "serviceName": "Service name",
@@ -761,7 +768,20 @@
       "anyProfessional": "Any professional",
       "until": "until",
       "allAuthorizedBranches": "All authorized branches",
-      "resetFilters": "Reset filters"
+      "resetFilters": "Reset filters",
+      "formTemplates": "Form templates",
+      "formTemplatesHint": "Start from a reusable consent or intake template, then customize it for your business.",
+      "serviceStructure": "Service structure",
+      "serviceStructureHint": "Configure prerequisite services and the ordered stages required to deliver this service.",
+      "dependencies": "Dependencies",
+      "dependenciesHint": "Select services that must happen before this service.",
+      "minutes": "minutes",
+      "noDependencyOptions": "No other active services are available as prerequisites.",
+      "serviceStages": "Service stages",
+      "serviceStagesHint": "Break the service into ordered operational stages. Combined duration cannot exceed the service duration.",
+      "stageName": "Stage name",
+      "stageDuration": "Stage duration (minutes)",
+      "noStages": "No stages configured. Add a stage if this service has a multi-step workflow."
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -783,7 +803,10 @@
       "serviceDisabled": "Service disabled.",
       "serviceEnabled": "Service enabled.",
       "promotionPaused": "Promotion paused.",
-      "promotionActivated": "Promotion activated."
+      "promotionActivated": "Promotion activated.",
+      "dependenciesSaved": "Service dependencies saved.",
+      "stagesSaved": "Service stages saved.",
+      "templateCreated": "Consent form created from template."
     }
   },
   "adminOps": {
