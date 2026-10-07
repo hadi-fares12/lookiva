@@ -47,6 +47,8 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LOOKIVA lets you choose photos and videos to share in salon chats.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LOOKIVA uses your location to show nearby salons and available professionals.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
