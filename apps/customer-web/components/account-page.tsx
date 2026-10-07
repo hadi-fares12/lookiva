@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import axios, { getAccessToken } from '@/lib/axios';
+import { useCustomerRealtimeReload } from '@/lib/realtime';
 
 const CONFIG: Record<string,{key:string;endpoint:string}> = {
   'profile':{key:'profile',endpoint:'/customer/profile'},
@@ -49,6 +50,7 @@ export function AccountPage({section}:{section:string}){
     try{const {data}=await axios.get(cfg.endpoint);setData(data);}catch(e){setError(e instanceof Error?e.message:t('loadError'));}finally{setLoading(false);}
   }
   React.useEffect(()=>{if(!getAccessToken()){setLoading(false);setError(t('signInRequired'));return;}void load();},[section]);
+  useCustomerRealtimeReload(['booking:changed','notification:created','message:created','queue:changed'],()=>void load());
 
   async function mutate(key:string,request:()=>Promise<unknown>,message:string){
     setBusy(key);setError('');setNotice('');
