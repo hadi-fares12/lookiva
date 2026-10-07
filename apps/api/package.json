@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "pnpm dlx @nestjs/cli@10.4.9 build",
-    "start": "node dist/apps/api/src/main.js",
+    "start": "node --require ./otel-register.cjs dist/apps/api/src/main.js",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --config vitest.unit.config.ts",
@@ -56,7 +56,9 @@
     "zod": "^3.22.0",
     "@nestjs/platform-socket.io": "^10.4.22",
     "@nestjs/websockets": "^10.4.22",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "0.80.0"
   },
   "devDependencies": {
     "@lookiva/eslint-config": "workspace:*",
