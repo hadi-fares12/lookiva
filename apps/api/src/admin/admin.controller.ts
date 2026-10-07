@@ -53,6 +53,33 @@ export class AdminController {
   }
 
   @RequirePermissions(PermissionKey.AdminUsersManage)
+  @Post('users/:id/password-reset')
+  sendPasswordReset(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.adminService.sendUserPasswordReset(actor.id, id);
+  }
+
+  @RequirePermissions(PermissionKey.AdminUsersManage)
+  @Post('users/:id/send-otp')
+  sendUserOtp(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.adminService.sendUserOtp(actor.id, id);
+  }
+
+  @RequirePermissions(PermissionKey.AdminImpersonate)
+  @Post('users/:id/impersonate')
+  impersonateUser(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.adminService.impersonateUser(actor.id, id);
+  }
+
+  @RequirePermissions(PermissionKey.AdminUsersManage)
   @Post('users/:id/revoke-sessions')
   revokeUserSessions(
     @CurrentUser() actor: AuthenticatedUser,
@@ -66,6 +93,154 @@ export class AdminController {
   @Patch('users/:id/status')
   setUserStatus(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string, @Body() dto: SetActiveDto) {
     return this.adminService.setUserActive(actor.id, id, dto.isActive, dto.reason);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('branches')
+  branches(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.adminService.branches(Number(page) || 1, Number(limit) || 50, companyId);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('branches/:id')
+  updateBranch(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateBranch(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('professionals')
+  professionals(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.adminService.professionals(Number(page) || 1, Number(limit) || 50, companyId);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('professionals/:id')
+  updateProfessional(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateProfessional(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('services')
+  services(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.adminService.services(Number(page) || 1, Number(limit) || 50, companyId);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('services/:id')
+  updateService(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateService(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('regions')
+  regions() {
+    return this.adminService.regions();
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Post('regions')
+  createRegion(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createRegion(actor.id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('regions/:id')
+  updateRegion(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateRegion(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('languages')
+  languages() {
+    return this.adminService.languages();
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Post('languages')
+  createLanguage(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createLanguage(actor.id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('languages/:id')
+  updateLanguage(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateLanguage(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('currencies')
+  currencies() {
+    return this.adminService.currencies();
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Post('currencies')
+  createCurrency(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createCurrency(actor.id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('currencies/:id')
+  updateCurrency(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updateCurrency(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformView)
+  @Get('plans')
+  plans() {
+    return this.adminService.plans();
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Post('plans')
+  createPlan(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createPlan(actor.id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminPlatformManage)
+  @Patch('plans/:id')
+  updatePlan(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.updatePlan(actor.id, id, body);
   }
 
   @RequirePermissions(PermissionKey.BookingView)
