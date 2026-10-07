@@ -174,6 +174,85 @@ export class SocialV2Service {
     };
   }
 
+  async portfolio(user: AuthenticatedUser, companyId: string) {
+    if (!companyId) throw new BadRequestException('companyId is required');
+    const canManage = this.canManageCompany(user, companyId);
+    const ownedProfessional = canManage
+      ? null
+      : await this.prisma.professionals.findFirst({
+          where: {
+            company_id: companyId,
+            user_id: user.id,
+            deleted_at: null,
+          },
+          select: { id: true },
+        });
+    if (!canManage && !ownedProfessional) {
+      throw new ForbiddenException('You are not authorized to manage this business portfolio');
+    }
+
+    return this.prisma.posts.findMany({
+      where: {
+        company_id: companyId,
+        deleted_at: null,
+        ...(canManage
+          ? {}
+          : {
+              OR: [
+                { author_user_id: user.id },
+                { professional_id: ownedProfessional!.id },
+              ],
+            }),
+      },
+      include: {
+        author: {
+          select: { id: true, full_name: true, avatar_media_id: true },
+        },
+        professional: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_media_id: true,
+            is_verified: true,
+          },
+        },
+        media_list: { orderBy: { sort_order: 'asc' } },
+        services: {
+          orderBy: { is_primary: 'desc' },
+          include: {
+            service: {
+              select: {
+                id: true,
+                name: true,
+                duration_minutes: true,
+                base_price: true,
+                currency_code: true,
+                is_active: true,
+              },
+            },
+          },
+        },
+        verified_review: {
+          select: {
+            id: true,
+            overall_rating: true,
+            is_verified: true,
+            status: true,
+          },
+        },
+        verified_appointment: {
+          select: {
+            id: true,
+            status: true,
+            completed_at: true,
+          },
+        },
+      },
+      orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
+      take: 250,
+    });
+  }
+
   async createPost(user: AuthenticatedUser, dto: CreatePostV2Dto) {
     if (dto.companyId && !this.canManageCompany(user, dto.companyId)) {
       const professional = dto.professionalId
