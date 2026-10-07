@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { evaluateAutomaticViolation } from '../common/moderation/auto-violation';
 
 @Injectable()
 export class SocialService {
@@ -178,6 +179,19 @@ export class SocialService {
             status: 'published',
           },
         });
+        const autoViolation = evaluateAutomaticViolation([clean]);
+        if (autoViolation) {
+          await tx.moderation_auto_flags.create({
+            data: {
+              target_type: 'comment',
+              target_id: created.id,
+              author_user_id: userId,
+              reason_type: autoViolation.reasonType,
+              confidence: autoViolation.confidence,
+              details: autoViolation.details,
+            },
+          });
+        }
         try {
           await tx.posts.update({
             where: { id: postId },
