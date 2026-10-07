@@ -43,6 +43,7 @@ class BusinessRemoteBody extends StatefulWidget {
     'subscription': (titleKey: 'subscription', path: '/business-ops/{companyId}/subscriptions', icon: Icons.workspace_premium_outlined),
     'audit': (titleKey: 'audit', path: '/business-ops/{companyId}/audit', icon: Icons.fact_check_outlined),
     'finance': (titleKey: 'finance', path: '/finance-v2/companies/{companyId}/reconciliation', icon: Icons.account_balance_wallet_outlined),
+    'banking': (titleKey: 'banking', path: '/finance-v2/bank-accounts?ownerType=company&ownerId={companyId}', icon: Icons.account_balance_rounded),
     'analytics': (titleKey: 'analytics', path: '/analytics-v2/companies/{companyId}/dashboard', icon: Icons.analytics_outlined),
     'queue': (titleKey: 'queue', path: '/business-ops/{companyId}/queues', icon: Icons.groups_rounded),
   };
@@ -292,7 +293,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                 const SizedBox(height: 10),
                 Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_notice!))),
               ],
-              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts'}.contains(widget.section)) ...[
+              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts', 'banking'}.contains(widget.section)) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -319,6 +320,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'queue') return 'Add queue';
     if (widget.section == 'commissions') return bt(context, 'addCommission');
     if (widget.section == 'payouts') return bt(context, 'createPayout');
+    if (widget.section == 'banking') return bt(context, 'addBankAccount');
     return 'Add';
   }
 
@@ -329,6 +331,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'queue') return _createQueue();
     if (widget.section == 'commissions') return _createCommissionRule();
     if (widget.section == 'payouts') return _createPayout();
+    if (widget.section == 'banking') return _createBankAccount();
   }
 
   Future<void> _createService() async {
@@ -509,6 +512,153 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
       }),
       'Queue created.',
     );
+  }
+
+  Future<void> _createBankAccount() async {
+    final session = await LookivaBusinessApi.instance.restoreSession();
+    if (!mounted || session == null) return;
+
+    final bankName = TextEditingController();
+    final accountHolder = TextEditingController();
+    final accountNumber = TextEditingController();
+    final iban = TextEditingController();
+    final swift = TextEditingController();
+    final routing = TextEditingController();
+    final currency = TextEditingController(text: 'USD');
+    final verification = TextEditingController();
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(bt(context, 'addBankAccount')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: bankName,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'bankName'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: accountHolder,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'accountHolder'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: iban,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'IBAN'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: accountNumber,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'accountNumber'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: swift,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'SWIFT / BIC'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: routing,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'routingNumber'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: currency,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'currency'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: verification,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'verificationDocument'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    bt(context, 'bankVerificationHint'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(bt(context, 'cancel')),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final hasDestination =
+                      iban.text.trim().isNotEmpty ||
+                      accountNumber.text.trim().isNotEmpty;
+                  Navigator.pop(dialogContext, hasDestination);
+                },
+                child: Text(bt(context, 'save')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (ok == true) {
+      await _mutate(
+        () => LookivaBusinessApi.instance.postScoped(
+          '/finance-v2/bank-accounts',
+          data: {
+            'ownerType': 'company',
+            'ownerId': session.companyId,
+            if (bankName.text.trim().isNotEmpty)
+              'bankName': bankName.text.trim(),
+            if (accountHolder.text.trim().isNotEmpty)
+              'accountHolder': accountHolder.text.trim(),
+            if (accountNumber.text.trim().isNotEmpty)
+              'accountNumber': accountNumber.text.trim(),
+            if (iban.text.trim().isNotEmpty) 'iban': iban.text.trim(),
+            if (swift.text.trim().isNotEmpty)
+              'swiftBic': swift.text.trim(),
+            if (routing.text.trim().isNotEmpty)
+              'routingNumber': routing.text.trim(),
+            'currencyCode':
+                currency.text.trim().isEmpty
+                    ? 'USD'
+                    : currency.text.trim().toUpperCase(),
+            if (verification.text.trim().isNotEmpty)
+              'verificationDocId': verification.text.trim(),
+            'payoutEnabled': true,
+          },
+        ),
+        bt(context, 'bankAccountCreated'),
+      );
+    }
+
+    for (final controller in [
+      bankName,
+      accountHolder,
+      accountNumber,
+      iban,
+      swift,
+      routing,
+      currency,
+      verification,
+    ]) {
+      controller.dispose();
+    }
   }
 
   Future<void> _createCommissionRule() async {
@@ -821,6 +971,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'professionals') return _professionals(data);
     if (widget.section == 'commissions') return _commissionRules(data);
     if (widget.section == 'payouts') return _payouts(data);
+    if (widget.section == 'banking') return _bankAccounts(data);
 
     final rows = _rows(data);
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
@@ -1496,6 +1647,63 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                         data: {'isActive': next},
                       ),
                       bt(context, 'commissionUpdated'),
+                    ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _bankAccounts(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    }
+    return rows.map((row) {
+      final id = row['id']?.toString() ?? '';
+      final enabled = _optimisticActive['bank:' + id] ??
+          (row['payout_enabled'] != false);
+      final verified = row['is_verified'] == true;
+      final destination = row['iban']?.toString() ??
+          row['account_number']?.toString() ??
+          '—';
+      return Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            child: Icon(
+              verified ? Icons.verified_rounded : Icons.account_balance_rounded,
+            ),
+          ),
+          title: Text(
+            row['bank_name']?.toString() ?? bt(context, 'bankAccount'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            (row['account_holder']?.toString() ?? '—') +
+                ' • ' +
+                destination +
+                '\n' +
+                (row['currency_code']?.toString() ?? '') +
+                ' • ' +
+                (verified
+                    ? bt(context, 'verified')
+                    : bt(context, 'verificationPending')),
+          ),
+          isThreeLine: true,
+          trailing: Switch(
+            value: enabled,
+            onChanged: _busy || id.isEmpty
+                ? null
+                : (next) => _toggleActiveOptimistically(
+                      'bank:' + id,
+                      next,
+                      () => LookivaBusinessApi.instance.patchScoped(
+                        '/finance-v2/bank-accounts/' + id,
+                        data: {'payoutEnabled': next},
+                      ),
+                      next
+                          ? bt(context, 'bankAccountEnabled')
+                          : bt(context, 'bankAccountDisabled'),
                     ),
           ),
         ),
