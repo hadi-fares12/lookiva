@@ -43,6 +43,21 @@ export class BusinessOpsService {
     throw new ForbiddenException('This account is not authorized for the requested company');
   }
 
+  private assertCompanyOwner(user: AuthenticatedUser, companyId: string) {
+    if (user.roleScopes.some((scope) => platformRoles.has(scope.roleKey))) return;
+    const owner = user.roleScopes.some(
+      (scope) =>
+        scope.roleKey === UserRole.BusinessOwner &&
+        scope.scopeType === ScopeType.Company &&
+        (scope.companyId === companyId || scope.scopeId === companyId),
+    );
+    if (!owner) {
+      throw new ForbiddenException(
+        'Only the business owner can grant or revoke accountant access',
+      );
+    }
+  }
+
   private assertRequestedBranch(access: { allBranches: boolean; branchIds: string[] }, branchId?: string) {
     if (!branchId || access.allBranches) return;
     if (!access.branchIds.includes(branchId)) {
@@ -251,6 +266,169 @@ export class BusinessOpsService {
       include: { user: { select: { id: true, full_name: true, email: true, phone: true, is_active: true, last_login_at: true } }, role: { select: { id: true, key: true, name: true } } },
       orderBy: { created_at: 'desc' },
     });
+  }
+
+  accountants(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.user_role_scopes.findMany({
+      where: {
+        company_id: companyId,
+        role_key: UserRole.BusinessAccountant,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            is_active: true,
+            last_login_at: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async grantAccountant(
+    user: AuthenticatedUser,
+    companyId: string,
+    dto: { identifier?: string; expiresAt?: string | null },
+  ) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const identifier = String(dto.identifier || '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Accountant email or phone is required');
+    }
+    const target = await this.prisma.users.findFirst({
+      where: {
+        OR: [{ email: identifier.toLowerCase() }, { phone: identifier }],
+        deleted_at: null,
+        is_active: true,
+      },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        role_scopes: { select: { role_key: true } },
+      },
+    });
+    if (!target) throw new NotFoundException('Active user account not found');
+    if (target.id === user.id) {
+      throw new BadRequestException(
+        'The business owner cannot assign accountant access to their own account',
+      );
+    }
+    if (
+      target.role_scopes.some((scope) =>
+        platformRoles.has(scope.role_key as UserRole),
+      )
+    ) {
+      throw new BadRequestException(
+        'Platform privileged accounts cannot be assigned as business accountants',
+      );
+    }
+
+    const role = await this.prisma.roles.findUnique({
+      where: { key: UserRole.BusinessAccountant },
+      select: { id: true },
+    });
+    if (!role) {
+      throw new NotFoundException('Business accountant role is not configured');
+    }
+
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (
+      expiresAt &&
+      (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date())
+    ) {
+      throw new BadRequestException('expiresAt must be a future ISO date');
+    }
+
+    const scope = await this.prisma.user_role_scopes.upsert({
+      where: {
+        user_id_role_id_scope_type_scope_id: {
+          user_id: target.id,
+          role_id: role.id,
+          scope_type: ScopeType.Company,
+          scope_id: companyId,
+        },
+      },
+      create: {
+        user_id: target.id,
+        role_id: role.id,
+        role_key: UserRole.BusinessAccountant,
+        scope_type: ScopeType.Company,
+        scope_id: companyId,
+        company_id: companyId,
+        granted_by_user_id: user.id,
+        expires_at: expiresAt,
+      },
+      update: {
+        company_id: companyId,
+        granted_by_user_id: user.id,
+        expires_at: expiresAt,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            is_active: true,
+          },
+        },
+      },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'staff.accountant.grant',
+      'user_role_scope',
+      scope.id,
+      undefined,
+      {
+        userId: target.id,
+        roleKey: UserRole.BusinessAccountant,
+        expiresAt,
+      },
+    );
+    return scope;
+  }
+
+  async revokeAccountant(
+    user: AuthenticatedUser,
+    companyId: string,
+    scopeId: string,
+  ) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const existing = await this.prisma.user_role_scopes.findFirst({
+      where: {
+        id: scopeId,
+        company_id: companyId,
+        role_key: UserRole.BusinessAccountant,
+      },
+    });
+    if (!existing) throw new NotFoundException('Accountant access not found');
+
+    await this.prisma.user_role_scopes.delete({
+      where: { id: existing.id },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'staff.accountant.revoke',
+      'user_role_scope',
+      existing.id,
+      existing,
+      { revoked: true },
+    );
+    return { revoked: true, id: existing.id, userId: existing.user_id };
   }
 
   audit(user: AuthenticatedUser, companyId: string, limit: number) {
