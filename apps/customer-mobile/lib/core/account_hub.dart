@@ -86,6 +86,7 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
   static const _menu = <(IconData,String,String,String)>[
     (Icons.calendar_month_rounded, 'bookings', 'bookingsDesc', '/bookings'),
     (Icons.favorite_border_rounded, 'favorites', 'favoritesDesc', '/account/favorites'),
+    (Icons.collections_bookmark_outlined, 'collections', 'collectionsDesc', '/account/collections'),
     (Icons.person_add_alt_1_rounded, 'following', 'followingDesc', '/account/following'),
     (Icons.chat_bubble_outline_rounded, 'messages', 'messagesDesc', '/messages'),
     (Icons.rate_review_outlined, 'myReviews', 'reviewsDesc', '/account/reviews'),
