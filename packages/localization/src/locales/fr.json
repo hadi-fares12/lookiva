@@ -717,7 +717,9 @@
       "remove": "Supprimer",
       "useTemplate": "Utiliser le modèle",
       "saveCrm": "Enregistrer CRM",
-      "mergeDuplicate": "Fusionner un doublon"
+      "mergeDuplicate": "Fusionner un doublon",
+      "viewCrm": "Ouvrir le CRM",
+      "merge": "Fusionner le doublon"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -784,15 +786,24 @@
       "stageName": "Nom de l’étape",
       "stageDuration": "Durée de l’étape (minutes)",
       "noStages": "Aucune étape configurée. Ajoutez-en une pour un service en plusieurs phases.",
-      "crmProfile": "Profil CRM",
+      "crmProfile": "CRM client",
       "crmNotes": "Notes de l’entreprise",
-      "crmNotesHint": "Notes privées pour cette entreprise uniquement.",
+      "crmNotesHint": "Contexte opérationnel privé pour ce client dans votre entreprise.",
       "crmTags": "Étiquettes client",
       "crmTagsHint": "VIP, coloration, préfère Hadi…",
       "duplicateCustomerId": "ID du client en doublon à fusionner",
-      "mergedAliases": "Profils doublons fusionnés",
+      "mergedAliases": "Alias fusionnés",
       "recentAppointments": "Rendez-vous récents",
-      "recentPayments": "Paiements récents"
+      "recentPayments": "Paiements récents",
+      "crmNotesTags": "Notes et tags entreprise",
+      "tags": "Tags",
+      "tagsHint": "vip, cliente-couleur, préfère-hadi",
+      "privateNotes": "Notes privées",
+      "privateNotesHint": "Préférences, contexte, suivi ou considérations de service visibles par le personnel autorisé.",
+      "mergeDuplicate": "Fusionner un client en doublon",
+      "mergeDuplicateHint": "Choisissez un autre dossier représentant la même personne. L’historique est conservé sous ce client canonique.",
+      "chooseDuplicate": "Choisir le doublon",
+      "mergeConfirm": "Fusionner {name} dans ce client ? L’historique est conservé et ce client devient le dossier canonique."
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -818,9 +829,9 @@
       "dependenciesSaved": "Dépendances du service enregistrées.",
       "stagesSaved": "Étapes du service enregistrées.",
       "templateCreated": "Formulaire créé à partir du modèle.",
-      "crmSaved": "Profil CRM client enregistré.",
+      "crmSaved": "CRM client enregistré.",
       "mergeSameCustomer": "Choisissez un autre client en doublon.",
-      "customerMerged": "Client en doublon fusionné pour cette entreprise."
+      "customerMerged": "Client en doublon fusionné."
     }
   },
   "adminOps": {
