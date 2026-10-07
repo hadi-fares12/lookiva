@@ -982,6 +982,10 @@
       "nearby-settings": {
         "title": "Nearby recommendations",
         "subtitle": "Control opt-in location recommendations, distance and quiet hours."
+      },
+      "privacy": {
+        "title": "Privacy & data",
+        "subtitle": "Download your account data or permanently delete your LOOKIVA account."
       }
     },
     "actions": {
@@ -994,7 +998,9 @@
       "revoking": "Revoking…",
       "savePreferences": "Save preferences",
       "saveNearby": "Save nearby settings",
-      "saveProfile": "Save profile"
+      "saveProfile": "Save profile",
+      "downloadData": "Download my data",
+      "deleteAccount": "Delete account permanently"
     },
     "empty": {
       "bookings": "No bookings yet. Discover a professional and book your first appointment.",
@@ -1053,7 +1059,10 @@
       "noConversations": "No conversations yet.",
       "noMessages": "No messages yet.",
       "loyaltyPoints": "Loyalty points",
-      "standard": "Standard"
+      "standard": "Standard",
+      "privacyIntro": "Your export contains account, preferences, bookings, payments, messages and other data linked to your account.",
+      "deleteWarning": "Deletion is permanent. Active or future bookings must be completed or cancelled first.",
+      "deletePhrase": "Type DELETE MY ACCOUNT to confirm."
     },
     "messages": {
       "favoriteRemoved": "Removed from favorites.",
@@ -1063,7 +1072,9 @@
       "sessionRevoked": "Session revoked.",
       "preferencesSaved": "Preferences saved.",
       "nearbySaved": "Nearby settings saved.",
-      "profileSaved": "Profile saved."
+      "profileSaved": "Profile saved.",
+      "exportReady": "Your account data export is ready.",
+      "accountDeleted": "Your account was permanently deleted."
     }
   },
   "customerBooking": {
