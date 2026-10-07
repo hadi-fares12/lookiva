@@ -21,7 +21,7 @@ export class SocialV2Controller {
   constructor(private readonly social: SocialV2Service) {}
 
   @Get('feed')
-  @RequirePermissions(PermissionKey.SocialPostView)
+  @RequirePermissions(PermissionKey.DiscoveryView)
   @ApiOperation({ summary: 'Personalized reels/social feed with cursor pagination' })
   feed(
     @CurrentUser() user: AuthenticatedUser,
@@ -56,7 +56,7 @@ export class SocialV2Controller {
   }
 
   @Post('posts/:id/book-this-look')
-  @RequirePermissions(PermissionKey.BookingHold)
+  @RequirePermissions(PermissionKey.BookingCreate)
   @ApiOperation({ summary: 'Create a booking hold from the primary service linked to a look' })
   bookThisLook(
     @CurrentUser() user: AuthenticatedUser,
