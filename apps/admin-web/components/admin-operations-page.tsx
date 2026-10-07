@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { adminFetch } from '@/lib/api';
 
@@ -159,12 +159,12 @@ export function AdminOperationsPage({section}:{section:string}){
   };
   const hasActions=['users','businesses','verification','moderation','strikes','categories','countries','themes','support','disputes','feature-flags','remote-config'].includes(section);
 
-  const createCategory=async(event:React.FormEvent<HTMLFormElement>)=>{
+  const createCategory=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();const fd=new FormData(event.currentTarget);
     await post('create-category','/admin/categories',{name:String(fd.get('name')||''),slug:String(fd.get('slug')||'')||undefined,iconKey:String(fd.get('iconKey')||'')||undefined},'Category created.');
     event.currentTarget.reset();
   };
-  const createCountry=async(event:React.FormEvent<HTMLFormElement>)=>{
+  const createCountry=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();const fd=new FormData(event.currentTarget);
     await post('create-country','/admin/countries',{isoCode:String(fd.get('isoCode')||''),name:String(fd.get('name')||''),dialCode:String(fd.get('dialCode')||''),currencyCode:String(fd.get('currencyCode')||'')},'Country created.');
     event.currentTarget.reset();
