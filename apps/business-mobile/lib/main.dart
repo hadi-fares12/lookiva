@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'core/lookiva_api.dart';
 import 'core/remote_page.dart';
 import 'core/l10n.dart';
+import 'core/checkin_scanner.dart';
 
 const String _prefThemeMode = 'biz_theme_mode';
 const String _prefLocale = 'biz_locale_code';
@@ -294,6 +295,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const BusinessOnboardingPage(),
+    ),
+    GoRoute(
+      path: '/scan-check-in',
+      builder: (context, state) => const BusinessCheckInScannerPage(),
     ),
     GoRoute(
       path: '/ops/:section',
@@ -935,6 +940,11 @@ class _BusinessDashboardPageState extends State<BusinessDashboardPage> {
             },
           ),
           IconButton(
+            tooltip: bt(context, 'scanCheckInQr'),
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            onPressed: () => context.push('/scan-check-in'),
+          ),
+          IconButton(
             tooltip: bt(context, 'notifications'),
             icon: const Icon(Icons.notifications_none_rounded),
             onPressed: () {},
@@ -1028,6 +1038,21 @@ class BusinessMoreTab extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
+        Card(
+          child: ListTile(
+            leading: Icon(
+              Icons.qr_code_scanner_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: Text(
+              bt(context, 'scanCheckInQr'),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(bt(context, 'scanQrHint')),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/scan-check-in'),
+          ),
+        ),
         ..._items.map(
           (item) => Card(
             child: ListTile(
