@@ -77,6 +77,15 @@ export class CustomerOpsController {
     );
   }
 
+  @Get('conversations/:id/attachments/:mediaId/access')
+  attachmentAccess(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('mediaId') mediaId: string,
+  ) {
+    return this.ops.conversationAttachmentAccess(user.id, id, mediaId);
+  }
+
   @Patch('conversations/:id/read')
   markConversationRead(
     @CurrentUser() user: AuthenticatedUser,
