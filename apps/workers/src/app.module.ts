@@ -6,6 +6,7 @@ import { MediaProcessor } from './processors/media.processor';
 import { NotificationProcessor } from './processors/notification.processor';
 import { AnalyticsProcessor } from './processors/analytics.processor';
 import { PrismaService } from './common/prisma.service';
+import { DeadLetterService } from './common/dead-letter.service';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PrismaService } from './common/prisma.service';
       { name: 'media-process-queue' },
       { name: 'notification-queue' },
       { name: 'analytics-queue' },
+      { name: 'dead-letter-queue' },
     ),
   ],
   providers: [
@@ -42,6 +44,7 @@ import { PrismaService } from './common/prisma.service';
     NotificationProcessor,
     AnalyticsProcessor,
     PrismaService,
+    DeadLetterService,
   ],
 })
 export class AppModule {}
