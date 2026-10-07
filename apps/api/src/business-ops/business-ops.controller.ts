@@ -83,6 +83,30 @@ export class BusinessOpsController {
     );
   }
 
+  @Get('package-redemptions')
+  @RequirePermissions(PermissionKey.PackagesView)
+  packageRedemptions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.packageRedemptions(
+      user,
+      companyId,
+      Number(limit) || 100,
+    );
+  }
+
+  @Post('package-redemptions')
+  @RequirePermissions(PermissionKey.PackagesManage)
+  redeemPackage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.redeemPackage(user, companyId, body);
+  }
+
   @Get('inventory')
   @RequirePermissions(PermissionKey.SettingsView)
   inventory(
