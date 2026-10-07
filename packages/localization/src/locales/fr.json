@@ -590,7 +590,8 @@
         "services": "Services",
         "regions": "Régions",
         "currencies": "Devises",
-        "plans": "Forfaits"
+        "plans": "Forfaits",
+        "appeals": "Recours"
       }
     }
   },
@@ -972,6 +973,10 @@
       "plans": {
         "title": "Forfaits d’abonnement",
         "subtitle": "Niveaux, tarifs et périodes d’essai de la plateforme."
+      },
+      "appeals": {
+        "title": "Recours de modération",
+        "subtitle": "Examinez les recours, annulez les actions erronées, restaurez le contenu et les sanctions liées."
       }
     },
     "prompts": {
