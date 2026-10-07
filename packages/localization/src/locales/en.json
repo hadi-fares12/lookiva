@@ -863,7 +863,8 @@
       "portfolioPost": "Portfolio post",
       "verifiedWork": "Verified Work",
       "mediaItems": "media",
-      "verifiedReviewId": "Verified review ID"
+      "verifiedReviewId": "Verified review ID",
+      "selectVerifiedReview": "Select a verified review"
     },
     "messages": {
       "serviceCreated": "Service created.",
