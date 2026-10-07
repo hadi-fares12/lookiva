@@ -582,7 +582,8 @@
         "featureFlags": "Feature flags",
         "remoteConfig": "Remote config",
         "audit": "Audit",
-        "system": "System"
+        "system": "System",
+        "strikes": "User strikes"
       }
     }
   },
@@ -888,6 +889,10 @@
       "remote-config": {
         "title": "Remote configuration",
         "subtitle": "Server-driven operational configuration."
+      },
+      "strikes": {
+        "title": "User strikes",
+        "subtitle": "Warnings, policy strikes, expiry and active enforcement state."
       }
     },
     "prompts": {
