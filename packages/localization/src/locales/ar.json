@@ -555,7 +555,8 @@
         "commissions": "العمولات",
         "forms": "نماذج الموافقة",
         "banking": "الحسابات البنكية",
-        "packageRedemptions": "استخدام الباقات"
+        "packageRedemptions": "استخدام الباقات",
+        "withdrawals": "السحوبات"
       }
     },
     "admin": {
@@ -697,6 +698,10 @@
       "packageRedemptions": {
         "title": "استخدام الباقات",
         "subtitle": "استخدم جلسات الباقات بأمان وراجع سجل الاستخدام."
+      },
+      "withdrawals": {
+        "title": "السحوبات",
+        "subtitle": "اطلب تحويلات إلى حسابات بنكية موثقة وتابع حالة المعالجة."
       }
     },
     "actions": {
@@ -736,7 +741,9 @@
       "disablePayouts": "تعطيل الدفعات",
       "exportCsv": "تصدير CSV",
       "exportXlsx": "تصدير XLSX",
-      "redeemPackage": "استخدام الباقة"
+      "redeemPackage": "استخدام الباقة",
+      "requestWithdrawal": "طلب سحب",
+      "cancelWithdrawal": "إلغاء الطلب"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -832,7 +839,12 @@
       "packagePurchaseId": "معرّف شراء الباقة",
       "serviceId": "معرّف الخدمة",
       "appointmentId": "معرّف الموعد",
-      "sessionsUsed": "عدد الجلسات المستخدمة"
+      "sessionsUsed": "عدد الجلسات المستخدمة",
+      "chooseBankAccount": "اختر حساباً بنكياً موثقاً",
+      "bankAccount": "الحساب البنكي",
+      "withdrawalAmount": "مبلغ السحب",
+      "referenceCode": "رمز المرجع",
+      "withdrawalReason": "السبب / ملاحظة"
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -865,7 +877,11 @@
       "bankAccountCreated": "تمت إضافة الحساب البنكي.",
       "bankAccountEnabled": "تم تفعيل الدفعات لهذا الحساب.",
       "bankAccountDisabled": "تم تعطيل الدفعات لهذا الحساب.",
-      "packageRedeemed": "تم استخدام جلسة من الباقة."
+      "packageRedeemed": "تم استخدام جلسة من الباقة.",
+      "withdrawalBankRequired": "اختر حساباً بنكياً موثقاً.",
+      "withdrawalRequested": "تم إرسال طلب السحب.",
+      "noVerifiedBank": "أضف حساب دفع بنكي وتحقق منه قبل طلب السحب.",
+      "withdrawalCancelled": "تم إلغاء طلب السحب."
     }
   },
   "adminOps": {
