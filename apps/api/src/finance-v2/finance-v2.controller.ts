@@ -112,6 +112,54 @@ export class FinanceV2Controller {
     return this.finance.updateBankAccount(user, id, body);
   }
 
+  @Get('companies/:companyId/withdrawals')
+  @RequirePermissions(PermissionKey.FinancePayoutView)
+  @ApiOperation({ summary: 'List withdrawal requests for a company' })
+  withdrawals(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.finance.listWithdrawals(
+      user,
+      companyId,
+      status,
+      Number(limit) || 100,
+    );
+  }
+
+  @Post('withdrawals')
+  @RequirePermissions(PermissionKey.FinancePayoutManage)
+  @ApiOperation({ summary: 'Create a withdrawal request to a verified payout bank account' })
+  createWithdrawal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.finance.createWithdrawal(user, body);
+  }
+
+  @Patch('withdrawals/:id/cancel')
+  @RequirePermissions(PermissionKey.FinancePayoutManage)
+  @ApiOperation({ summary: 'Cancel a pending withdrawal request' })
+  cancelWithdrawal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.finance.cancelWithdrawal(user, id);
+  }
+
+  @Patch('withdrawals/:id/review')
+  @RequirePermissions(PermissionKey.FinancePayoutManage)
+  @ApiOperation({ summary: 'Platform-review a withdrawal request' })
+  reviewWithdrawal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.finance.reviewWithdrawal(user, id, body);
+  }
+
   @Get('companies/:companyId/payouts')
   @RequirePermissions(PermissionKey.FinancePayoutView)
   @ApiOperation({ summary: 'List professional payout history for a company' })
