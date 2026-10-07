@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -50,8 +51,8 @@ export class FinanceV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentProvider: PaymentProviderService,
-    private readonly notifications: NotificationsService,
-    private readonly realtime: RealtimeService,
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   private hasPlatformRole(user: AuthenticatedUser) {
@@ -963,12 +964,12 @@ export class FinanceV2Service {
       startsAt: appointment.startsAt.toISOString(),
       changeType: 'required_deposit_paid',
     };
-    this.realtime.emitAppointment(appointment.id, 'booking:changed', payload);
-    this.realtime.emitCompany(appointment.companyId, 'booking:changed', payload);
-    this.realtime.emitBranch(appointment.branchId, 'booking:changed', payload);
+    this.realtime?.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime?.emitCompany(appointment.companyId, 'booking:changed', payload);
+    this.realtime?.emitBranch(appointment.branchId, 'booking:changed', payload);
     if (appointment.customerUserId) {
-      this.realtime.emitUser(appointment.customerUserId, 'booking:changed', payload);
-      await this.notifications.dispatch({
+      this.realtime?.emitUser(appointment.customerUserId, 'booking:changed', payload);
+      await this.notifications?.dispatch({
         recipientUserId: appointment.customerUserId,
         notificationType: 'booking_deposit_paid',
         title: appointment.status === 'confirmed' ? 'Booking confirmed' : 'Deposit received',
