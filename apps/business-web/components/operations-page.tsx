@@ -174,82 +174,6 @@ export function OperationsPage({ section }: { section: string }) {
     }
   }
 
-  async function openCustomerCrm(customer: any) {
-    if (!session || !customer?.id) return;
-    setBusy(`customer:${customer.id}`);
-    setMessage('');
-    setError('');
-    try {
-      const detail = await businessFetch<any>(
-        `/business-ops/${session.companyId}/customers/${customer.id}`,
-      );
-      setCustomerDetail(detail);
-      setCrmNotes(String(detail?.crmProfile?.notes || ''));
-      setCrmTags(
-        Array.isArray(detail?.crmProfile?.tags)
-          ? detail.crmProfile.tags.join(', ')
-          : '',
-      );
-      setMergeDuplicateId('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('operationError'));
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function saveCustomerCrm() {
-    if (!session || !customerDetail?.canonicalCustomerId) return;
-    const customerId = String(customerDetail.canonicalCustomerId);
-    await mutate(
-      `/business-ops/${session.companyId}/customers/${customerId}/crm`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          notes: crmNotes,
-          tags: crmTags
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-        }),
-      },
-      t('messages.crmSaved'),
-    );
-    await openCustomerCrm({ id: customerId });
-  }
-
-  async function mergeCustomerDuplicate() {
-    if (
-      !session ||
-      !customerDetail?.canonicalCustomerId ||
-      !mergeDuplicateId
-    ) {
-      return;
-    }
-    const customerId = String(customerDetail.canonicalCustomerId);
-    const duplicate = rows.find(
-      (row: any) => String(row.id) === mergeDuplicateId,
-    );
-    const duplicateName =
-      duplicate?.user?.full_name || duplicate?.display_name || mergeDuplicateId;
-    if (
-      !window.confirm(
-        t('labels.mergeConfirm', { name: String(duplicateName) }),
-      )
-    ) {
-      return;
-    }
-    await mutate(
-      `/business-ops/${session.companyId}/customers/${customerId}/merge-duplicate`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ duplicateCustomerId: mergeDuplicateId }),
-      },
-      t('messages.customerMerged'),
-    );
-    await openCustomerCrm({ id: customerId });
-  }
-
   async function loadConsentTemplates() {
     if (!session || section !== 'forms') {
       setConsentTemplates([]);
@@ -787,6 +711,6 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','customers'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='customers'&&<td className="px-4 py-3"><button onClick={()=>void openCustomerCrm(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.viewCrm')}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}</tr>)}</tbody></table></div>}
   </div>;
 }
