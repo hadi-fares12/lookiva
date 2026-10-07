@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'share.dart';
 
 class CustomerReelsPage extends StatelessWidget {
   const CustomerReelsPage({super.key});
@@ -334,6 +335,25 @@ class _ReelCard extends StatelessWidget {
                                 ? ct(context, 'saved')
                                 : ct(context, 'save'),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: ct(context, 'share'),
+                          onPressed: () => shareLookiva(
+                            title: ct(context, 'shareReelTitle'),
+                            text: [
+                              professional['display_name']?.toString() ??
+                                  company['display_name']?.toString() ??
+                                  'LOOKIVA',
+                              post['title']?.toString() ??
+                                  service['name']?.toString() ??
+                                  '',
+                              service['name']?.toString() ?? '',
+                            ].where((value) => value.trim().isNotEmpty).join('\n'),
+                            path: '/reels?postId=' +
+                                Uri.encodeQueryComponent(post['id'].toString()),
+                          ),
+                          icon: const Icon(Icons.share_outlined),
                         ),
                       ],
                     ),
