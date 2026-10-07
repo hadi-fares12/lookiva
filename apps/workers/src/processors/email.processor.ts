@@ -1,12 +1,22 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DeadLetterService } from '../common/dead-letter.service';
 
 @Processor('email-queue')
 export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
-  constructor(private readonly config: ConfigService) { super(); }
+  constructor(
+    private readonly config: ConfigService,
+    private readonly deadLetters: DeadLetterService,
+  ) { super(); }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job | undefined, error: Error) {
+    if (!job) return;
+    await this.deadLetters.capture('email-queue', job, error);
+  }
 
   async process(job: Job) {
     const { to, subject, template, vars, html, text } = job.data as {
