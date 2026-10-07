@@ -529,6 +529,23 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => shareLookiva(
+                  title: ct(context, 'shareBookingTitle'),
+                  text: [
+                    company['display_name']?.toString() ??
+                        ct(context, 'booking'),
+                    branch['name']?.toString() ?? '',
+                    b['starts_at']?.toString() ?? '',
+                    ct(context, 'bookingId') + ': ' + widget.id,
+                    b['status']?.toString() ?? '',
+                  ].where((value) => value.trim().isNotEmpty).join('\n'),
+                  path: '/bookings/' + Uri.encodeComponent(widget.id),
+                ),
+                icon: const Icon(Icons.share_outlined),
+                label: Text(ct(context, 'share')),
+              ),
               if (['awaiting_payment', 'pending', 'confirmed', 'checked_in'].contains(b['status'])) ...[
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
