@@ -133,6 +133,11 @@ export class CheckInDto {
   longitude?: number;
 }
 
+export class QrCheckInDto extends CheckInDto {
+  @IsString()
+  token!: string;
+}
+
 export class AppointmentTransitionDto {
   @IsOptional()
   @IsString()
