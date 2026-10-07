@@ -728,7 +728,9 @@
       "merge": "دمج التكرار",
       "addBankAccount": "إضافة حساب بنكي",
       "enablePayouts": "تفعيل الدفعات",
-      "disablePayouts": "تعطيل الدفعات"
+      "disablePayouts": "تعطيل الدفعات",
+      "exportCsv": "تصدير CSV",
+      "exportXlsx": "تصدير XLSX"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
