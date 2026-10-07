@@ -45,6 +45,7 @@ class BusinessRemoteBody extends StatefulWidget {
     'audit': (titleKey: 'audit', path: '/business-ops/{companyId}/audit', icon: Icons.fact_check_outlined),
     'finance': (titleKey: 'finance', path: '/finance-v2/companies/{companyId}/reconciliation', icon: Icons.account_balance_wallet_outlined),
     'banking': (titleKey: 'banking', path: '/finance-v2/bank-accounts?ownerType=company&ownerId={companyId}', icon: Icons.account_balance_rounded),
+    'withdrawals': (titleKey: 'withdrawals', path: '/finance-v2/companies/{companyId}/withdrawals', icon: Icons.outbound_rounded),
     'analytics': (titleKey: 'analytics', path: '/analytics-v2/companies/{companyId}/dashboard', icon: Icons.analytics_outlined),
     'queue': (titleKey: 'queue', path: '/business-ops/{companyId}/queues', icon: Icons.groups_rounded),
   };
@@ -294,7 +295,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                 const SizedBox(height: 10),
                 Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_notice!))),
               ],
-              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts', 'banking', 'package-redemptions'}.contains(widget.section)) ...[
+              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts', 'banking', 'package-redemptions', 'withdrawals'}.contains(widget.section)) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -323,6 +324,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'payouts') return bt(context, 'createPayout');
     if (widget.section == 'banking') return bt(context, 'addBankAccount');
     if (widget.section == 'package-redemptions') return bt(context, 'redeemPackage');
+    if (widget.section == 'withdrawals') return bt(context, 'requestWithdrawal');
     return 'Add';
   }
 
@@ -335,6 +337,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'payouts') return _createPayout();
     if (widget.section == 'banking') return _createBankAccount();
     if (widget.section == 'package-redemptions') return _redeemPackage();
+    if (widget.section == 'withdrawals') return _createWithdrawal();
   }
 
   Future<void> _createService() async {
@@ -515,6 +518,159 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
       }),
       'Queue created.',
     );
+  }
+
+  Future<void> _createWithdrawal() async {
+    final session = await LookivaBusinessApi.instance.restoreSession();
+    if (!mounted || session == null) return;
+
+    final raw = await LookivaBusinessApi.instance.getScoped(
+      '/finance-v2/bank-accounts?ownerType=company&ownerId={companyId}',
+    );
+    if (!mounted) return;
+    final banks = (raw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where(
+          (row) =>
+              row['is_verified'] == true &&
+              row['payout_enabled'] != false,
+        )
+        .toList();
+
+    if (banks.isEmpty) {
+      setState(() => _notice = bt(context, 'noVerifiedBank'));
+      return;
+    }
+
+    String bankAccountId = banks.first['id'].toString();
+    final amount = TextEditingController();
+    final reason = TextEditingController();
+    final reference = TextEditingController();
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) {
+              final selectedBank = banks.firstWhere(
+                (row) => row['id']?.toString() == bankAccountId,
+                orElse: () => banks.first,
+              );
+              return AlertDialog(
+                title: Text(bt(context, 'requestWithdrawal')),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: bankAccountId,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'bankAccount'),
+                        ),
+                        items: banks
+                            .map(
+                              (row) => DropdownMenuItem(
+                                value: row['id'].toString(),
+                                child: Text(
+                                  (row['bank_name']?.toString() ??
+                                          bt(context, 'bankAccount')) +
+                                      ' • ' +
+                                      (row['account_number']?.toString() ??
+                                          row['iban']?.toString() ??
+                                          '••••') +
+                                      ' • ' +
+                                      (row['currency_code']?.toString() ??
+                                          ''),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setLocal(() => bankAccountId = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: amount,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText:
+                              bt(context, 'withdrawalAmount') +
+                                  ' (' +
+                                  (selectedBank['currency_code']?.toString() ??
+                                      '') +
+                                  ')',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: reference,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'reference'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: reason,
+                        minLines: 2,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'withdrawalReason'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(bt(context, 'cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(bt(context, 'requestWithdrawal')),
+                  ),
+                ],
+              );
+            },
+          ),
+        ) ??
+        false;
+
+    if (ok != true) {
+      amount.dispose();
+      reason.dispose();
+      reference.dispose();
+      return;
+    }
+
+    final selectedBank = banks.firstWhere(
+      (row) => row['id']?.toString() == bankAccountId,
+      orElse: () => banks.first,
+    );
+    await _mutate(
+      () => LookivaBusinessApi.instance.postScoped(
+        '/finance-v2/withdrawals',
+        data: {
+          'companyId': session.companyId,
+          'bankAccountId': bankAccountId,
+          'amount': double.tryParse(amount.text) ?? 0,
+          'currencyCode':
+              selectedBank['currency_code']?.toString() ?? '',
+          if (reason.text.trim().isNotEmpty)
+            'reason': reason.text.trim(),
+          if (reference.text.trim().isNotEmpty)
+            'referenceCode': reference.text.trim(),
+        },
+      ),
+      bt(context, 'withdrawalRequested'),
+    );
+    amount.dispose();
+    reason.dispose();
+    reference.dispose();
   }
 
   Future<void> _redeemPackage() async {
@@ -1275,6 +1431,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'payouts') return _payouts(data);
     if (widget.section == 'banking') return _bankAccounts(data);
     if (widget.section == 'package-redemptions') return _packageRedemptions(data);
+    if (widget.section == 'withdrawals') return _withdrawals(data);
 
     final rows = _rows(data);
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
@@ -2008,6 +2165,101 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                           ? bt(context, 'bankAccountEnabled')
                           : bt(context, 'bankAccountDisabled'),
                     ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _withdrawals(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [
+        _EmptyState(
+          icon: config.icon,
+          label: bt(context, 'noWithdrawals'),
+        ),
+      ];
+    }
+    return rows.map((row) {
+      final bank = row['bank_account'] is Map
+          ? Map<String, dynamic>.from(row['bank_account'] as Map)
+          : <String, dynamic>{};
+      final status = row['status']?.toString() ?? 'pending';
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const CircleAvatar(
+                    child: Icon(Icons.outbound_rounded),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      (row['amount']?.toString() ?? '0') +
+                          ' ' +
+                          (row['currency_code']?.toString() ?? ''),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                  Chip(label: Text(status)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                (bank['bank_name']?.toString() ??
+                        bt(context, 'bankAccount')) +
+                    ' • ' +
+                    (bank['account_number']?.toString() ??
+                        bank['iban']?.toString() ??
+                        '••••'),
+              ),
+              if (row['reason'] != null &&
+                  row['reason'].toString().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(row['reason'].toString()),
+              ],
+              if (row['rejection_reason'] != null &&
+                  row['rejection_reason'].toString().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  row['rejection_reason'].toString(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                row['created_at']?.toString() ?? '',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              if (status == 'pending') ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _mutate(
+                            () => LookivaBusinessApi.instance.patchScoped(
+                              '/finance-v2/withdrawals/' +
+                                  row['id'].toString() +
+                                  '/cancel',
+                              data: <String, dynamic>{},
+                            ),
+                            bt(context, 'withdrawalCancelled'),
+                          ),
+                  icon: const Icon(Icons.close_rounded),
+                  label: Text(bt(context, 'cancelWithdrawal')),
+                ),
+              ],
+            ],
           ),
         ),
       );
