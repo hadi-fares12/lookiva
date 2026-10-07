@@ -298,21 +298,50 @@ class LookivaBusinessApi {
     return getScoped('/business-ops/{companyId}/$suffix', query: query);
   }
 
-  Future<dynamic> getScoped(
-    String pathTemplate, {
-    Map<String, dynamic>? query,
-  }) async {
+  Future<String> _resolveScopedPath(String pathTemplate) async {
     final session = await restoreSession();
     if (session == null) throw StateError('Session expired');
     var path = pathTemplate.replaceAll('{companyId}', session.companyId);
     if (path.contains('{branchId}')) {
-      final branchId = session.branchId;
+      var branchId = session.branchId;
       if (branchId == null || branchId.isEmpty) {
-        throw StateError('Select or assign a branch before using this section');
+        final branches = await _dio.get<dynamic>('/business-ops/${session.companyId}/branches');
+        final raw = _unwrap(branches.data);
+        final list = (raw as List? ?? const []).whereType<Map>().toList();
+        branchId = list.isNotEmpty ? list.first['id']?.toString() : null;
+      }
+      if (branchId == null || branchId.isEmpty) {
+        throw StateError('No active branch is available for this business');
       }
       path = path.replaceAll('{branchId}', branchId);
     }
+    return path;
+  }
+
+  Future<dynamic> getScoped(
+    String pathTemplate, {
+    Map<String, dynamic>? query,
+  }) async {
+    final path = await _resolveScopedPath(pathTemplate);
     final response = await _dio.get<dynamic>(path, queryParameters: query);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> postScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.post<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> patchScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.patch<dynamic>(path, data: data);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> deleteScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.delete<dynamic>(path, data: data);
     return _unwrap(response.data);
   }
 
