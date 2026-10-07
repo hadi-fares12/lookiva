@@ -41,6 +41,16 @@ export class FinanceV2Controller {
     return this.finance.processPaymentWebhook(req.rawBody, signature, dto);
   }
 
+  @Get('appointments/:appointmentId/payment-options')
+  @RequirePermissions(PermissionKey.BookingCreate)
+  @ApiOperation({ summary: 'Get customer-safe payment options and required deposit for a booking' })
+  paymentOptions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('appointmentId') appointmentId: string,
+  ) {
+    return this.finance.getAppointmentPaymentOptions(user, appointmentId);
+  }
+
   @Post('payments/:id/refund')
   @RequirePermissions(PermissionKey.PaymentsManage)
   @ApiOperation({ summary: 'Refund a payment and write reverse ledger entries' })
