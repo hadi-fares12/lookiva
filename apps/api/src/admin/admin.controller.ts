@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiQuery } from '@nestjs/swagger';
 import { PermissionKey } from '@lookiva/shared-types';
 import { RequirePermissions } from '../common/decorators/permissions.decorator';
@@ -53,6 +53,16 @@ export class AdminController {
   }
 
   @RequirePermissions(PermissionKey.AdminUsersManage)
+  @Post('users/:id/revoke-sessions')
+  revokeUserSessions(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.revokeUserSessions(actor.id, id, body.reason);
+  }
+
+  @RequirePermissions(PermissionKey.AdminUsersManage)
   @Patch('users/:id/status')
   setUserStatus(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string, @Body() dto: SetActiveDto) {
     return this.adminService.setUserActive(actor.id, id, dto.isActive, dto.reason);
@@ -80,6 +90,18 @@ export class AdminController {
   @Get('categories') categories() { return this.adminService.categories(); }
 
   @RequirePermissions(PermissionKey.AdminCategoriesManage)
+  @Post('categories')
+  createCategory(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createCategory(actor.id, body);
+  }
+
+  @RequirePermissions(PermissionKey.AdminCategoriesManage)
+  @Delete('categories/:id')
+  archiveCategory(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string) {
+    return this.adminService.archiveCategory(actor.id, id);
+  }
+
+  @RequirePermissions(PermissionKey.AdminCategoriesManage)
   @Patch('categories/:id')
   updateCategory(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.adminService.updateCategory(actor.id, id, dto);
@@ -87,6 +109,12 @@ export class AdminController {
 
   @RequirePermissions(PermissionKey.AdminCountriesView)
   @Get('countries') countries() { return this.adminService.countries(); }
+
+  @RequirePermissions(PermissionKey.AdminCountriesManage)
+  @Post('countries')
+  createCountry(@CurrentUser() actor: AuthenticatedUser, @Body() body: Record<string, any>) {
+    return this.adminService.createCountry(actor.id, body);
+  }
 
   @RequirePermissions(PermissionKey.AdminCountriesManage)
   @Patch('countries/:id')
@@ -121,6 +149,22 @@ export class AdminController {
     return this.adminService.support(Number(page) || 1, Number(limit) || 50);
   }
 
+  @RequirePermissions(PermissionKey.ComplianceView)
+  @Get('support/:id')
+  supportDetails(@Param('id') id: string) {
+    return this.adminService.supportDetails(id);
+  }
+
+  @RequirePermissions(PermissionKey.ComplianceManage)
+  @Post('support/:id/replies')
+  replySupport(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.replySupportTicket(actor.id, id, body);
+  }
+
   @RequirePermissions(PermissionKey.ComplianceManage)
   @Patch('support/:id')
   updateSupport(@CurrentUser() actor: AuthenticatedUser, @Param('id') id: string, @Body() dto: UpdateSupportTicketDto) {
@@ -139,10 +183,82 @@ export class AdminController {
     return this.adminService.resolveDispute(actor.id, id, dto);
   }
 
+  @RequirePermissions(PermissionKey.ModerationView)
+  @Get('moderation/reports')
+  moderationReports(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.moderationReports(Number(page) || 1, Number(limit) || 50, status);
+  }
+
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @Patch('moderation/reports/:id')
+  resolveModerationReport(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.resolveModerationReport(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.ModerationView)
+  @Get('strikes')
+  userStrikes(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('userId') userId?: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    return this.adminService.userStrikes(
+      Number(page) || 1,
+      Number(limit) || 50,
+      userId,
+      activeOnly === 'true',
+    );
+  }
+
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @Post('users/:id/strikes')
+  createUserStrike(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.createUserStrike(actor.id, id, body);
+  }
+
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @Delete('strikes/:id')
+  deactivateUserStrike(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.adminService.deactivateUserStrike(actor.id, id, body.reason);
+  }
+
   @RequirePermissions(PermissionKey.AuditView)
   @Get('audit')
-  audit(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.adminService.audit(Number(page) || 1, Number(limit) || 100);
+  audit(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('actorUserId') actorUserId?: string,
+    @Query('action') action?: string,
+    @Query('entityType') entityType?: string,
+    @Query('companyId') companyId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminService.audit(Number(page) || 1, Number(limit) || 100, {
+      actorUserId,
+      action,
+      entityType,
+      companyId,
+      from,
+      to,
+    });
   }
 
   @RequirePermissions(PermissionKey.FeatureFlagsView)
