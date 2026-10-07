@@ -1447,6 +1447,7 @@
     "by": "Par",
     "empty": "Aucun Reel disponible pour le moment.",
     "collections": "Collections",
-    "createCollection": "Créer une collection"
+    "createCollection": "Créer une collection",
+    "verifiedWork": "Verified Work"
   }
 }
