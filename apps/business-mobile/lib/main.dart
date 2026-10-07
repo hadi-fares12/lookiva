@@ -1014,6 +1014,7 @@ class BusinessMoreTab extends StatelessWidget {
     (Icons.account_balance_wallet_outlined, 'finance', 'finance'),
     (Icons.account_balance_outlined, 'payouts', 'payouts'),
     (Icons.account_balance_rounded, 'banking', 'banking'),
+    (Icons.outbound_rounded, 'withdrawals', 'withdrawals'),
     (Icons.analytics_outlined, 'analytics', 'analytics'),
     (Icons.groups_rounded, 'queue', 'queue'),
     (Icons.local_offer_rounded, 'promotions', 'promotions'),
