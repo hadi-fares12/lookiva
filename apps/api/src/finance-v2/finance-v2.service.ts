@@ -794,6 +794,45 @@ export class FinanceV2Service {
     };
   }
 
+  async listPayouts(
+    user: AuthenticatedUser,
+    companyId: string,
+    professionalId?: string,
+    limit = 100,
+  ) {
+    this.assertBusinessScope(user, companyId);
+    return this.prisma.professional_payouts.findMany({
+      where: {
+        company_id: companyId,
+        ...(professionalId ? { professional_id: professionalId } : {}),
+      },
+      include: {
+        professional: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_media_id: true,
+          },
+        },
+        items: {
+          orderBy: { created_at: 'asc' },
+        },
+        commissions: {
+          select: {
+            id: true,
+            appointment_id: true,
+            payment_id: true,
+            commission_amount: true,
+            currency_code: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: [{ payout_period_end: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
   async createPayout(user: AuthenticatedUser, dto: CreatePayoutDto) {
     const start = parseDate(dto.payoutPeriodStart, 'payoutPeriodStart');
     const end = parseDate(dto.payoutPeriodEnd, 'payoutPeriodEnd');
