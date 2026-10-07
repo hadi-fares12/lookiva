@@ -14,6 +14,7 @@ const CONFIG: Record<string, Config> = {
   'bookings': { key: 'bookings', endpoint: '/admin/bookings?limit=100' },
   'payments': { key: 'payments', endpoint: '/admin/payments?limit=100' },
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
+  'withdrawals': { key: 'withdrawals', endpoint: '/finance-v2/withdrawals?limit=100' },
   'moderation': { key: 'moderation', endpoint: '/platform-ops-v2/moderation/reports' },
   'appeals': { key: 'appeals', endpoint: '/platform-ops-v2/moderation/appeals' },
   'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
@@ -138,6 +139,33 @@ export function AdminOperationsPage({section}:{section:string}){
       const remaining=Math.max(0,total-refunded);
       return <button disabled={!!busy||!refundable||remaining<=0} onClick={()=>{const amountRaw=window.prompt(`Refund amount (max ${remaining.toFixed(2)} ${r.currency_code||''})`,remaining.toFixed(2));if(amountRaw===null)return;const amount=Number(amountRaw);if(!Number.isFinite(amount)||amount<=0||amount>remaining){setError('Enter a valid refund amount within the refundable balance.');return;}const reason=window.prompt('Refund reason','Approved by platform administrator');if(!reason?.trim())return;void post(id+'refund',`/admin/payments/${id}/refund`,{amount,reason:reason.trim()},'Refund completed.');}} className="action-btn danger">{remaining>0?'Refund':'Refunded'}</button>;
     }
+    if(section==='withdrawals'&&id){
+      const status=String(r.status||'pending');
+      const review=(nextStatus:string,label:string,danger=false)=>{
+        return <button
+          disabled={!!busy}
+          onClick={()=>{
+            const body:any={status:nextStatus};
+            if(nextStatus==='rejected'){
+              const reason=window.prompt(t('prompts.withdrawalRejectionReason'),'');
+              if(!reason?.trim())return;
+              body.rejectionReason=reason.trim();
+            }
+            if(['processing','completed'].includes(nextStatus)){
+              const reference=window.prompt(t('prompts.withdrawalReference'),String(r.reference_code||''))||undefined;
+              if(reference?.trim())body.referenceCode=reference.trim();
+            }
+            void mutate(id+nextStatus,`/finance-v2/withdrawals/${id}/review`,body,t(`messages.withdrawal.${nextStatus}`));
+          }}
+          className={danger?'action-btn danger':'action-btn'}
+        >{label}</button>;
+      };
+      if(status==='pending')return <div className="flex flex-wrap gap-2">{review('approved',t('approve'))}{review('rejected',t('reject'),true)}</div>;
+      if(status==='approved')return <div className="flex flex-wrap gap-2">{review('processing',t('startProcessing'))}{review('rejected',t('reject'),true)}</div>;
+      if(status==='processing')return <div className="flex flex-wrap gap-2">{review('completed',t('completeWithdrawal'))}{review('failed',t('markFailed'),true)}</div>;
+      if(status==='failed')return <div className="flex flex-wrap gap-2">{review('processing',t('retryProcessing'))}{review('rejected',t('reject'),true)}</div>;
+      return <StatusPill value={status}/>;
+    }
     if(section==='categories'&&id){
       const active=r.is_active!==false;
       return <button disabled={busy===id} onClick={()=>void mutate(id,`/admin/categories/${id}`,{isActive:!active},active?t('messages.categoryDisabled'):t('messages.categoryEnabled'))} className="action-btn">{active?t('disable'):t('enable')}</button>;
@@ -222,7 +250,7 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','moderation','appeals','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','withdrawals','moderation','appeals','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
 
   const applyAuditFilters=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
