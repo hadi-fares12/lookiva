@@ -199,12 +199,13 @@ export function AdminOperationsPage({section}:{section:string}){
   const startImpersonation=async(userId:string)=>{
     setBusy(userId+'impersonate');setError('');setNotice('');
     try{
-      const result=await adminFetch(`/admin/users/${userId}/impersonate`,{method:'POST',body:'{}'});
-      const access=encodeURIComponent(String(result?.accessToken||''));
-      const refresh=encodeURIComponent(String(result?.refreshToken||''));
+      const result=await adminFetch<{accessToken:string;refreshToken:string;target?:{fullName?:string|null;email?:string|null}}>(`/admin/users/${userId}/impersonate`,{method:'POST',body:'{}'});
+      const access=encodeURIComponent(String(result.accessToken||''));
+      const refresh=encodeURIComponent(String(result.refreshToken||''));
+      const target=encodeURIComponent(String(result.target?.fullName||result.target?.email||'User'));
       if(!access||!refresh)throw new Error('Impersonation tokens were not returned');
       const customerBase=(process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL||'http://localhost:3001').replace(/\/$/,'');
-      window.open(`${customerBase}/en/impersonate#access=${access}&refresh=${refresh}`,'_blank','noopener,noreferrer');
+      window.open(`${customerBase}/en/impersonate#access=${access}&refresh=${refresh}&target=${target}`,'_blank','noopener,noreferrer');
       setNotice('Audited impersonation session opened in a new tab.');
     }catch(e){setError(e instanceof Error?e.message:t('operationError'));}
     finally{setBusy('');}
