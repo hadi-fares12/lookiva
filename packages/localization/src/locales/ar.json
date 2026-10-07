@@ -863,7 +863,8 @@
       "portfolioPost": "منشور معرض الأعمال",
       "verifiedWork": "عمل موثّق",
       "mediaItems": "وسائط",
-      "verifiedReviewId": "معرّف المراجعة الموثّقة"
+      "verifiedReviewId": "معرّف المراجعة الموثّقة",
+      "selectVerifiedReview": "اختر مراجعة موثّقة"
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
