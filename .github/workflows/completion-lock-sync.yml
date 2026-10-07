@@ -49,4 +49,5 @@ jobs:
             exit 0
           fi
           git commit -m "Sync completion dependency locks"
+          git pull --rebase origin complete-a-z
           git push origin HEAD:complete-a-z
