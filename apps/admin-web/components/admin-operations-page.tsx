@@ -15,6 +15,7 @@ const CONFIG: Record<string, Config> = {
   'payments': { key: 'payments', endpoint: '/admin/payments?limit=100' },
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
   'moderation': { key: 'moderation', endpoint: '/admin/moderation/reports?limit=100' },
+  'appeals': { key: 'appeals', endpoint: '/platform-ops-v2/moderation/appeals' },
   'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
   'categories': { key: 'categories', endpoint: '/admin/categories' },
   'countries': { key: 'countries', endpoint: '/admin/countries' },
@@ -166,6 +167,13 @@ export function AdminOperationsPage({section}:{section:string}){
         <button disabled={!!busy||closed} onClick={()=>void mutate(id+'dismiss',`/admin/moderation/reports/${id}`,{status:'dismissed',actionTaken:'dismissed'},'Moderation report dismissed.')} className="action-btn">Dismiss</button>
       </div>;
     }
+    if(section==='appeals'&&id){
+      const closed=['upheld','reversed','partially_reversed','dismissed'].includes(String(r.status));
+      return <div className="flex flex-wrap gap-2">
+        <button disabled={!!busy||closed} onClick={()=>{const note=window.prompt('Resolution notes','Appeal upheld after platform review.')||undefined;void mutate(id+'upheld',`/platform-ops-v2/moderation/appeals/${id}`,{status:'upheld',resolution:'Original moderation action upheld',resolutionNotes:note},'Appeal upheld.');}} className="action-btn">Uphold</button>
+        <button disabled={!!busy||closed} onClick={()=>{const note=window.prompt('Resolution notes','Moderation action reversed after review.')||undefined;void mutate(id+'reverse',`/platform-ops-v2/moderation/appeals/${id}`,{status:'reversed',resolution:'Moderation action reversed',resolutionNotes:note,restoreContent:true,clearStrike:true},'Appeal reversed and eligible content/strike restored.');}} className="action-btn">Reverse</button>
+      </div>;
+    }
     if(section==='strikes'&&id){
       return <button disabled={!!busy||r.is_active===false} onClick={()=>void remove(id,`/admin/strikes/${id}`,{reason:'Cleared by platform admin'},'Strike deactivated.')} className="action-btn">{r.is_active===false?'Inactive':'Deactivate'}</button>;
     }
@@ -207,7 +215,7 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','moderation','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','moderation','appeals','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
 
   const applyAuditFilters=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
