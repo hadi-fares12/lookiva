@@ -900,6 +900,290 @@ export class BusinessOpsService {
     };
   }
 
+  async packageRedemptions(
+    user: AuthenticatedUser,
+    companyId: string,
+    limit = 100,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    return this.prisma.package_usage.findMany({
+      where: {
+        package_purchase: {
+          package: { company_id: companyId },
+        },
+        ...(access.allBranches
+          ? {}
+          : {
+              appointment: {
+                branch_id: { in: access.branchIds },
+              },
+            }),
+      },
+      include: {
+        package_purchase: {
+          include: {
+            package: {
+              select: {
+                id: true,
+                name: true,
+                service_ids: true,
+                total_sessions_count: true,
+                currency_code: true,
+              },
+            },
+            customer: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    full_name: true,
+                    phone: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        service: {
+          select: { id: true, name: true },
+        },
+        professional: {
+          select: { id: true, display_name: true },
+        },
+        appointment: {
+          select: {
+            id: true,
+            status: true,
+            starts_at: true,
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ used_at: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
+  async redeemPackage(
+    user: AuthenticatedUser,
+    companyId: string,
+    dto: any,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    const packagePurchaseId = String(dto.packagePurchaseId || '').trim();
+    const serviceId = String(dto.serviceId || '').trim();
+    const appointmentId = dto.appointmentId
+      ? String(dto.appointmentId).trim()
+      : null;
+    const professionalId = dto.professionalId
+      ? String(dto.professionalId).trim()
+      : null;
+    const sessionsUsed = Math.max(
+      1,
+      Math.min(25, Math.trunc(Number(dto.sessionsUsed ?? 1))),
+    );
+
+    if (!packagePurchaseId || !serviceId) {
+      throw new BadRequestException(
+        'packagePurchaseId and serviceId are required',
+      );
+    }
+
+    const purchase = await this.prisma.package_purchases.findUnique({
+      where: { id: packagePurchaseId },
+      include: {
+        package: true,
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!purchase || purchase.package.company_id !== companyId) {
+      throw new NotFoundException('Package purchase not found');
+    }
+    if (purchase.status !== 'active') {
+      throw new ConflictException('Package purchase is not active');
+    }
+    if (purchase.expires_at && purchase.expires_at <= new Date()) {
+      throw new ConflictException('Package purchase has expired');
+    }
+    if (!purchase.package.service_ids.includes(serviceId)) {
+      throw new BadRequestException(
+        'Selected service is not included in this package',
+      );
+    }
+
+    const service = await this.prisma.services.findFirst({
+      where: {
+        id: serviceId,
+        company_id: companyId,
+        deleted_at: null,
+        is_active: true,
+      },
+      select: { id: true, name: true },
+    });
+    if (!service) {
+      throw new BadRequestException('Selected service is unavailable');
+    }
+
+    let appointment:
+      | {
+          id: string;
+          branch_id: string;
+          customer_id: string | null;
+          status: string;
+          services: Array<{ service_id: string }>;
+        }
+      | null = null;
+    if (appointmentId) {
+      appointment = await this.prisma.appointments.findFirst({
+        where: { id: appointmentId, company_id: companyId },
+        select: {
+          id: true,
+          branch_id: true,
+          customer_id: true,
+          status: true,
+          services: { select: { service_id: true } },
+        },
+      });
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+      this.assertRequestedBranch(access, appointment.branch_id);
+      if (appointment.customer_id !== purchase.customer_id) {
+        throw new ConflictException(
+          'Package purchase customer does not match the appointment customer',
+        );
+      }
+      if (!appointment.services.some((item) => item.service_id === serviceId)) {
+        throw new ConflictException(
+          'Selected service is not part of the appointment',
+        );
+      }
+      if (['cancelled', 'no_show'].includes(appointment.status)) {
+        throw new ConflictException(
+          'Cancelled or no-show appointments cannot redeem package sessions',
+        );
+      }
+    } else if (!access.allBranches) {
+      throw new BadRequestException(
+        'Branch-scoped users must redeem a package against an appointment',
+      );
+    }
+
+    if (professionalId) {
+      const professional = await this.prisma.professionals.findFirst({
+        where: {
+          id: professionalId,
+          company_id: companyId,
+          deleted_at: null,
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      if (!professional) {
+        throw new BadRequestException('Professional is invalid');
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.package_purchases.updateMany({
+        where: {
+          id: purchase.id,
+          status: 'active',
+          sessions_remaining: { gte: sessionsUsed },
+          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        },
+        data: {
+          sessions_remaining: { decrement: sessionsUsed },
+        },
+      });
+      if (consumed.count !== 1) {
+        throw new ConflictException(
+          'Package sessions are no longer available for this redemption',
+        );
+      }
+
+      const usage = await tx.package_usage.create({
+        data: {
+          package_purchase_id: purchase.id,
+          appointment_id: appointmentId,
+          service_id: serviceId,
+          professional_id: professionalId,
+          sessions_used: sessionsUsed,
+        },
+        include: {
+          service: { select: { id: true, name: true } },
+          professional: { select: { id: true, display_name: true } },
+          appointment: {
+            select: {
+              id: true,
+              status: true,
+              starts_at: true,
+              branch: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      const updatedPurchase = await tx.package_purchases.findUnique({
+        where: { id: purchase.id },
+      });
+      if (updatedPurchase && updatedPurchase.sessions_remaining <= 0) {
+        await tx.package_purchases.update({
+          where: { id: purchase.id },
+          data: { status: 'exhausted' },
+        });
+      }
+
+      return {
+        usage,
+        packagePurchase: {
+          ...updatedPurchase,
+          status:
+            updatedPurchase && updatedPurchase.sessions_remaining <= 0
+              ? 'exhausted'
+              : updatedPurchase?.status,
+        },
+        customer: purchase.customer,
+        package: purchase.package,
+      };
+    });
+
+    await this.auditMutation(
+      user,
+      companyId,
+      'package.redeem',
+      'package_purchase',
+      purchase.id,
+      {
+        sessionsRemaining: purchase.sessions_remaining,
+        status: purchase.status,
+      },
+      {
+        sessionsUsed,
+        serviceId,
+        appointmentId,
+        professionalId,
+        sessionsRemaining: result.packagePurchase?.sessions_remaining,
+        status: result.packagePurchase?.status,
+      },
+      appointment?.branch_id ?? null,
+    );
+
+    return result;
+  }
+
   async inventory(user: AuthenticatedUser, companyId: string, branchId?: string) {
     const access = this.companyAccess(user, companyId);
     this.assertRequestedBranch(access, branchId);
