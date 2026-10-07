@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import axios, { getAccessToken } from '@/lib/axios';
 
 function isoLocalValue(date: Date) {
@@ -13,6 +13,8 @@ function isoLocalValue(date: Date) {
 
 export default function BookingPage() {
   const { serviceId } = useParams<{ serviceId: string }>();
+  const searchParams = useSearchParams();
+  const postId = searchParams.get('postId');
   const locale = useLocale();
   const t = useTranslations('customerBooking');
 
@@ -114,15 +116,23 @@ export default function BookingPage() {
       }
 
       setStatus(t('holding'));
-      const hold = await axios.post('/booking-v2/holds', common);
-      const token = hold.data?.hold_token || hold.data?.holdToken;
+      const hold = postId
+        ? await axios.post(`/social-v2/posts/${postId}/book-this-look`, {
+            startsAt: start.toISOString(),
+            branchId,
+            professionalId: professionalId || undefined,
+            resourceIds: resourceId ? [resourceId] : [],
+          })
+        : await axios.post('/booking-v2/holds', common);
+      const holdPayload = postId ? hold.data?.hold : hold.data;
+      const token = holdPayload?.hold_token || holdPayload?.holdToken;
       setStatus(t('confirming'));
 
       const created = await axios.post('/booking-v2/appointments', {
         ...common,
         holdToken: token,
         notesCustomer: notes || undefined,
-        source: 'customer_web',
+        source: postId ? 'customer_web_book_this_look' : 'customer_web',
       });
       setCreatedBooking(created.data);
 
