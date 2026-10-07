@@ -372,7 +372,6 @@ export class SocialV2Service {
     const post = await this.prisma.posts.findFirst({
       where: {
         id: postId,
-        author_user_id: user.id,
         status: 'published',
         deleted_at: null,
       },
@@ -381,7 +380,13 @@ export class SocialV2Service {
       },
     });
     if (!post) {
-      throw new NotFoundException('Published post not found or you are not its author');
+      throw new NotFoundException('Published post not found');
+    }
+    if (
+      post.author_user_id !== user.id &&
+      (!post.company_id || !this.canManageCompany(user, post.company_id))
+    ) {
+      throw new ForbiddenException('You are not authorized to verify this portfolio post');
     }
 
     const review = await this.prisma.reviews.findFirst({
@@ -492,6 +497,47 @@ export class SocialV2Service {
     });
 
     return updated;
+  }
+
+  async archivePost(user: AuthenticatedUser, postId: string) {
+    const post = await this.prisma.posts.findFirst({
+      where: { id: postId, deleted_at: null },
+    });
+    if (!post) throw new NotFoundException('Post not found');
+    if (
+      post.author_user_id !== user.id &&
+      (!post.company_id || !this.canManageCompany(user, post.company_id))
+    ) {
+      throw new ForbiddenException('You are not authorized to archive this post');
+    }
+    const updated = await this.prisma.posts.update({
+      where: { id: post.id },
+      data: {
+        status: 'archived',
+        deleted_at: new Date(),
+        is_verified_work: false,
+      },
+    });
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'social.post.archive',
+        entity_type: 'post',
+        entity_id: post.id,
+        company_id: post.company_id,
+        branch_id: post.branch_id,
+        old_value: {
+          status: post.status,
+          isVerifiedWork: post.is_verified_work,
+        },
+        new_value: {
+          status: updated.status,
+          deletedAt: updated.deleted_at,
+        },
+      },
+    });
+    return { id: post.id, archived: true };
   }
 
   async savePost(user: AuthenticatedUser, postId: string) {
