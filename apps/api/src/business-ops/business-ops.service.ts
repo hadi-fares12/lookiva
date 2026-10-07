@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PermissionKey, ScopeType, UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
