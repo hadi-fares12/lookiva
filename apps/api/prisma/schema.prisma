@@ -1526,6 +1526,7 @@ model appointments {
   queues                 queue_entries[]
   package_usage          package_usage[]
   consent_form_responses consent_form_responses[]
+  verified_work_posts    posts[] @relation("PostVerifiedAppointment")
 
   @@index([company_id])
   @@index([branch_id])
@@ -2136,7 +2137,8 @@ model reviews {
   media_list   review_media[]
   reports      review_reports[]
   customers    customers?       @relation(fields: [customersId], references: [id])
-  customersId  String?
+  customersId        String?
+  verified_work_posts posts[] @relation("PostVerifiedReview")
 
   @@index([author_user_id])
   @@index([company_id])
@@ -2226,8 +2228,12 @@ model posts {
   like_count         Int       @default(0)
   comment_count      Int       @default(0)
   share_count        Int       @default(0)
-  bookmark_count     Int       @default(0)
-  status             String    @default("published")
+  bookmark_count           Int       @default(0)
+  verified_review_id       String?
+  verified_appointment_id  String?
+  is_verified_work         Boolean   @default(false)
+  verified_work_at         DateTime?
+  status                   String    @default("published")
   scheduled_at       DateTime?
   published_at       DateTime?
   created_at         DateTime  @default(now())
@@ -2237,7 +2243,9 @@ model posts {
   author       users              @relation("PostAuthor", fields: [author_user_id], references: [id])
   company      companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
   branch       branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  professional professionals?     @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  professional         professionals? @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  verified_review       reviews?       @relation("PostVerifiedReview", fields: [verified_review_id], references: [id], onDelete: SetNull)
+  verified_appointment  appointments?  @relation("PostVerifiedAppointment", fields: [verified_appointment_id], references: [id], onDelete: SetNull)
   media_list   post_media[]
   services     post_services[]
   likes        likes[]
@@ -2255,6 +2263,9 @@ model posts {
   @@index([created_at])
   @@index([like_count])
   @@index([view_count])
+  @@index([verified_review_id])
+  @@index([verified_appointment_id])
+  @@index([is_verified_work])
   @@index([slug])
 }
 
