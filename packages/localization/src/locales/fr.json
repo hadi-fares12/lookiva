@@ -1213,7 +1213,16 @@
     "total": "Total",
     "currency": "Devise",
     "timeline": "Chronologie",
-    "notAvailable": "Indisponible"
+    "notAvailable": "Indisponible",
+    "consents": "Formulaires de consentement",
+    "consentRequired": "Action requise",
+    "signed": "Signé",
+    "sign": "Examiner et signer",
+    "signatureName": "Saisissez votre nom complet comme signature",
+    "accept": "J’ai lu et j’accepte ces conditions",
+    "signing": "Signature…",
+    "consentSigned": "Consentement signé.",
+    "noConsents": "Aucun formulaire de consentement n’est requis pour cette réservation."
   },
   "availableNowPage": {
     "realOpenings": "créneaux réellement disponibles",
