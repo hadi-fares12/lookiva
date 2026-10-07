@@ -794,6 +794,221 @@ export class FinanceV2Service {
     };
   }
 
+  private maskBankAccount<T extends {
+    account_number: string | null;
+    iban: string | null;
+    routing_number: string | null;
+    swift_bic: string | null;
+  }>(account: T) {
+    const mask = (value: string | null) => {
+      if (!value) return null;
+      const compact = value.replace(/\s+/g, '');
+      if (compact.length <= 4) return '••••' + compact;
+      return '••••' + compact.slice(-4);
+    };
+    return {
+      ...account,
+      account_number: mask(account.account_number),
+      iban: mask(account.iban),
+      routing_number: mask(account.routing_number),
+      swift_bic: account.swift_bic,
+    };
+  }
+
+  private async bankOwnerCompany(ownerType: string, ownerId: string) {
+    if (ownerType === 'company') {
+      const company = await this.prisma.companies.findFirst({
+        where: { id: ownerId, deleted_at: null },
+        select: { id: true },
+      });
+      if (!company) throw new NotFoundException('Bank account business owner not found');
+      return company.id;
+    }
+    if (ownerType === 'professional') {
+      const professional = await this.prisma.professionals.findFirst({
+        where: { id: ownerId, deleted_at: null },
+        select: { id: true, company_id: true },
+      });
+      if (!professional) throw new NotFoundException('Bank account professional owner not found');
+      return professional.company_id;
+    }
+    throw new BadRequestException('ownerType must be company or professional');
+  }
+
+  async listBankAccounts(
+    user: AuthenticatedUser,
+    ownerType: string,
+    ownerId: string,
+  ) {
+    const companyId = await this.bankOwnerCompany(ownerType, ownerId);
+    this.assertBusinessScope(user, companyId);
+    const accounts = await this.prisma.bank_accounts.findMany({
+      where: { owner_type: ownerType, owner_id: ownerId },
+      orderBy: [{ payout_enabled: 'desc' }, { created_at: 'desc' }],
+    });
+    return accounts.map((account) => this.maskBankAccount(account));
+  }
+
+  async createBankAccount(
+    user: AuthenticatedUser,
+    dto: Record<string, any>,
+  ) {
+    const ownerType = String(dto.ownerType || '').trim();
+    const ownerId = String(dto.ownerId || '').trim();
+    const companyId = await this.bankOwnerCompany(ownerType, ownerId);
+    this.assertBusinessScope(user, companyId);
+
+    const currencyCode = String(dto.currencyCode || '').trim().toUpperCase();
+    if (currencyCode.length !== 3) {
+      throw new BadRequestException('currencyCode must be a 3-letter currency code');
+    }
+    const hasDestination = [dto.accountNumber, dto.iban].some(
+      (value) => typeof value === 'string' && value.trim().length >= 4,
+    );
+    if (!hasDestination) {
+      throw new BadRequestException('Provide an accountNumber or IBAN');
+    }
+
+    const account = await this.prisma.bank_accounts.create({
+      data: {
+        owner_type: ownerType,
+        owner_id: ownerId,
+        bank_name: dto.bankName ? String(dto.bankName).trim() : null,
+        account_number: dto.accountNumber ? String(dto.accountNumber).replace(/\s+/g, '') : null,
+        account_holder: dto.accountHolder ? String(dto.accountHolder).trim() : null,
+        routing_number: dto.routingNumber ? String(dto.routingNumber).replace(/\s+/g, '') : null,
+        iban: dto.iban ? String(dto.iban).replace(/\s+/g, '').toUpperCase() : null,
+        swift_bic: dto.swiftBic ? String(dto.swiftBic).replace(/\s+/g, '').toUpperCase() : null,
+        currency_code: currencyCode,
+        verification_doc_id: dto.verificationDocId ? String(dto.verificationDocId) : null,
+        is_verified: this.hasPlatformRole(user) && dto.isVerified === true,
+        payout_enabled: dto.payoutEnabled !== false,
+      },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'bank_account.create',
+        entity_type: 'bank_account',
+        entity_id: account.id,
+        company_id: companyId,
+        new_value: {
+          ownerType,
+          ownerId,
+          bankName: account.bank_name,
+          currencyCode: account.currency_code,
+          payoutEnabled: account.payout_enabled,
+          verified: account.is_verified,
+        },
+      },
+    });
+    return this.maskBankAccount(account);
+  }
+
+  async updateBankAccount(
+    user: AuthenticatedUser,
+    bankAccountId: string,
+    dto: Record<string, any>,
+  ) {
+    const existing = await this.prisma.bank_accounts.findUnique({
+      where: { id: bankAccountId },
+    });
+    if (!existing) throw new NotFoundException('Bank account not found');
+    const companyId = await this.bankOwnerCompany(
+      existing.owner_type,
+      existing.owner_id,
+    );
+    this.assertBusinessScope(user, companyId);
+
+    const updated = await this.prisma.bank_accounts.update({
+      where: { id: existing.id },
+      data: {
+        ...(dto.bankName !== undefined
+          ? { bank_name: dto.bankName ? String(dto.bankName).trim() : null }
+          : {}),
+        ...(dto.accountHolder !== undefined
+          ? { account_holder: dto.accountHolder ? String(dto.accountHolder).trim() : null }
+          : {}),
+        ...(dto.accountNumber !== undefined
+          ? {
+              account_number: dto.accountNumber
+                ? String(dto.accountNumber).replace(/\s+/g, '')
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.iban !== undefined
+          ? {
+              iban: dto.iban
+                ? String(dto.iban).replace(/\s+/g, '').toUpperCase()
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.routingNumber !== undefined
+          ? {
+              routing_number: dto.routingNumber
+                ? String(dto.routingNumber).replace(/\s+/g, '')
+                : null,
+            }
+          : {}),
+        ...(dto.swiftBic !== undefined
+          ? {
+              swift_bic: dto.swiftBic
+                ? String(dto.swiftBic).replace(/\s+/g, '').toUpperCase()
+                : null,
+            }
+          : {}),
+        ...(dto.currencyCode !== undefined
+          ? {
+              currency_code: String(dto.currencyCode).trim().toUpperCase(),
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.verificationDocId !== undefined
+          ? {
+              verification_doc_id: dto.verificationDocId
+                ? String(dto.verificationDocId)
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.payoutEnabled !== undefined
+          ? { payout_enabled: Boolean(dto.payoutEnabled) }
+          : {}),
+        ...(this.hasPlatformRole(user) && dto.isVerified !== undefined
+          ? { is_verified: Boolean(dto.isVerified) }
+          : {}),
+      },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'bank_account.update',
+        entity_type: 'bank_account',
+        entity_id: existing.id,
+        company_id: companyId,
+        old_value: {
+          bankName: existing.bank_name,
+          currencyCode: existing.currency_code,
+          payoutEnabled: existing.payout_enabled,
+          verified: existing.is_verified,
+        },
+        new_value: {
+          bankName: updated.bank_name,
+          currencyCode: updated.currency_code,
+          payoutEnabled: updated.payout_enabled,
+          verified: updated.is_verified,
+        },
+      },
+    });
+    return this.maskBankAccount(updated);
+  }
+
   async listPayouts(
     user: AuthenticatedUser,
     companyId: string,
