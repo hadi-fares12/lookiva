@@ -151,6 +151,7 @@ class CustomerBookingDetailsPage extends StatefulWidget {
 
 class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage> {
   late Future<dynamic> _future;
+  late Future<dynamic> _consentsFuture;
   bool _working = false;
 
   @override
@@ -159,7 +160,10 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
     _reload();
   }
 
-  void _reload() => _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
+  void _reload() {
+    _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
+    _consentsFuture = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}/consents');
+  }
 
   Future<void> _payDeposit(String companyId) async {
     if (_working) return;
@@ -178,6 +182,91 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
             paid ? ct(context, 'depositPaid') : ct(context, 'paymentPending'),
           ),
         ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _signConsent(Map<String, dynamic> form) async {
+    if (_working) return;
+    final signature = TextEditingController();
+    bool accepted = false;
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) => AlertDialog(
+              title: Text(form['name']?.toString() ?? ct(context, 'consents')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (form['description'] != null)
+                      Text(form['description'].toString()),
+                    const SizedBox(height: 10),
+                    Text(form['content_plain']?.toString() ?? ''),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: signature,
+                      decoration: InputDecoration(
+                        labelText: ct(context, 'signatureName'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: accepted,
+                      onChanged: (value) =>
+                          setLocal(() => accepted = value == true),
+                      title: Text(ct(context, 'acceptConsent')),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(ct(context, 'keepBooking')),
+                ),
+                FilledButton(
+                  onPressed: !accepted
+                      ? null
+                      : () => Navigator.pop(
+                            dialogContext,
+                            signature.text.trim().isNotEmpty,
+                          ),
+                  child: Text(ct(context, 'signConsent')),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+    final typed = signature.text.trim();
+    signature.dispose();
+    if (!ok || typed.isEmpty) return;
+
+    setState(() => _working = true);
+    try {
+      await LookivaApi.instance.post(
+        '/customer-ops/bookings/${widget.id}/consents/${form['id']}/sign',
+        data: {
+          'accepted': true,
+          'typedSignature': typed,
+          'responses': {'acceptedFrom': 'customer_flutter'},
+        },
+      );
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ct(context, 'consentSigned'))),
       );
     } catch (error) {
       if (mounted) {
@@ -286,6 +375,61 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
               _listSection(ct(context, 'resources'), b['resources'], 'resource', 'name'),
               if (b['financial_snapshot'] is Map)
                 _financial(Map<String, dynamic>.from(b['financial_snapshot'] as Map)),
+              FutureBuilder<dynamic>(
+                future: _consentsFuture,
+                builder: (context, consentSnapshot) {
+                  if (consentSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: LinearProgressIndicator(),
+                      ),
+                    );
+                  }
+                  final forms = (consentSnapshot.data as List? ?? const [])
+                      .whereType<Map>()
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList();
+                  if (forms.isEmpty) return const SizedBox.shrink();
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ct(context, 'consents'),
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 8),
+                          ...forms.map(
+                            (form) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                form['name']?.toString() ??
+                                    ct(context, 'consents'),
+                              ),
+                              subtitle: Text(
+                                form['signed'] == true
+                                    ? ct(context, 'signed')
+                                    : ct(context, 'consentRequired'),
+                              ),
+                              trailing: form['signed'] == true
+                                  ? const Icon(Icons.verified_rounded)
+                                  : TextButton(
+                                      onPressed: _working
+                                          ? null
+                                          : () => _signConsent(form),
+                                      child: Text(ct(context, 'signConsent')),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               if (b['status_history'] is List)
                 _listSection(ct(context, 'timeline'), b['status_history'], null, 'new_status'),
               if (b['status'] == 'awaiting_payment' && company['id'] != null) ...[
