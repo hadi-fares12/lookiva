@@ -3383,6 +3383,27 @@ model disputes {
   @@index([disputed_type, disputed_id])
 }
 
+model moderation_auto_flags {
+  id             String   @id @default(cuid())
+  target_type    String
+  target_id      String
+  author_user_id String?
+  reason_type    String
+  confidence     Float
+  details        Json?
+  status         String   @default("pending")
+  reviewed_by_id String?
+  reviewed_at    DateTime?
+  action_taken   String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@index([target_type, target_id])
+  @@index([author_user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
 model moderation_reports {
   id                 String    @id @default(cuid())
   reporter_user_id   String
