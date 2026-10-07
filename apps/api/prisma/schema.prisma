@@ -584,6 +584,7 @@ model companies {
   customer_company_profiles customer_company_profiles[] @relation("CompanyCustomerProfiles")
   commission_rules          commission_rules[]
   disputes                  disputes[]
+  withdrawal_requests      withdrawal_requests[]
 
   @@index([owner_user_id])
   @@index([country_id])
@@ -3708,5 +3709,36 @@ model bank_accounts {
   @@index([owner_type, owner_id])
   @@index([currency_code])
   @@index([is_verified])
+  withdrawals withdrawal_requests[]
+
   @@index([payout_enabled])
 }
+
+model withdrawal_requests {
+  id                   String    @id @default(cuid())
+  company_id           String
+  bank_account_id      String
+  requested_by_user_id String
+  amount               Float
+  currency_code        String
+  status               String    @default("pending")
+  reason               String?
+  reference_code       String?
+  reviewed_by_user_id  String?
+  reviewed_at          DateTime?
+  rejection_reason     String?
+  processed_at         DateTime?
+  metadata             Json?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  company      companies     @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  bank_account bank_accounts @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+
+  @@index([company_id])
+  @@index([bank_account_id])
+  @@index([status])
+  @@index([currency_code])
+  @@index([created_at])
+}
+
