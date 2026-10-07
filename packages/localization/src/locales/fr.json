@@ -549,7 +549,10 @@
         "branches": "Établissements",
         "subscriptions": "Abonnement",
         "audit": "Journal d’audit",
-        "settings": "Paramètres"
+        "settings": "Paramètres",
+        "inventory": "Stock",
+        "commissions": "Commissions",
+        "forms": "Formulaires de consentement"
       }
     },
     "admin": {
@@ -663,6 +666,18 @@
       "settings": {
         "title": "Paramètres entreprise",
         "subtitle": "Profil et configuration des réservations."
+      },
+      "inventory": {
+        "title": "Produits et stock",
+        "subtitle": "Produits, stock par établissement, seuils, expiration et mouvements de stock."
+      },
+      "commissions": {
+        "title": "Règles de commission",
+        "subtitle": "Règles, taux et logique de paiement des commissions professionnelles."
+      },
+      "forms": {
+        "title": "Formulaires de consentement",
+        "subtitle": "Modèles de consentement service, médical, média et général avec versions."
       }
     },
     "actions": {
