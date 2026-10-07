@@ -321,6 +321,107 @@ export class FinanceV2Service {
     return result.payment;
   }
 
+  async getAppointmentPaymentOptions(user: AuthenticatedUser, appointmentId: string) {
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: { select: { id: true, online_payments_enabled: true } },
+        financial_snapshot: true,
+        customer: { select: { id: true, user_id: true } },
+        payments: {
+          where: { status: { in: ['succeeded', 'partially_refunded', 'refunded'] } },
+          include: { refunds: { where: { status: 'succeeded' } } },
+        },
+      },
+    });
+    if (!appointment || !appointment.financial_snapshot) {
+      throw new NotFoundException('Booking payment details not found');
+    }
+
+    const businessScoped = this.hasBusinessScope(
+      user,
+      appointment.company_id,
+      appointment.branch_id,
+    );
+    if (appointment.customer_user_id !== user.id && !businessScoped) {
+      throw new ForbiddenException('You cannot view payment options for this appointment');
+    }
+
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce((refundSum, refund) => refundSum + Number(refund.amount), 0),
+        ),
+      0,
+    );
+    const depositRequired = Number(appointment.financial_snapshot.deposit_amount ?? 0);
+    const remainingDeposit = money(Math.max(0, depositRequired - collected));
+    const remainingTotal = money(
+      Math.max(0, Number(appointment.financial_snapshot.grand_total) - collected),
+    );
+
+    const wallet = appointment.customer_id
+      ? await this.prisma.wallets.findUnique({ where: { customer_id: appointment.customer_id } })
+      : null;
+    const methods: Array<{
+      key: string;
+      label: string;
+      available: boolean;
+      reason?: string;
+    }> = [];
+
+    if (wallet?.is_active && wallet.currency_code === appointment.financial_snapshot.currency_code) {
+      const walletBalance = money(wallet.balance_cents / 100);
+      methods.push({
+        key: 'wallet',
+        label: `Wallet (${walletBalance} ${wallet.currency_code})`,
+        available: walletBalance + 0.009 >= remainingDeposit,
+        reason:
+          walletBalance + 0.009 >= remainingDeposit
+            ? undefined
+            : 'Insufficient wallet balance',
+      });
+    }
+
+    methods.push({
+      key: 'gift_card',
+      label: 'Gift card',
+      available: true,
+    });
+
+    const onlineEnabled =
+      appointment.company.online_payments_enabled && this.paymentProvider.isOnlineEnabled();
+    methods.push({
+      key: 'online_card',
+      label: 'Online card',
+      available: onlineEnabled,
+      reason: onlineEnabled ? undefined : 'Online payments are not configured for this business',
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      methods.push({
+        key: 'test_card',
+        label: 'Test card (development)',
+        available: true,
+      });
+    }
+
+    return {
+      appointmentId,
+      status: appointment.status,
+      currencyCode: appointment.financial_snapshot.currency_code,
+      depositRequired: money(depositRequired),
+      collected: money(collected),
+      remainingDeposit,
+      remainingTotal,
+      requiresDeposit: remainingDeposit > 0,
+      methods,
+    };
+  }
+
   async refundPayment(
     user: AuthenticatedUser,
     paymentId: string,
