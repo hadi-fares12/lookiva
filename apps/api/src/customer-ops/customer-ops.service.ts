@@ -73,6 +73,120 @@ export class CustomerOpsService {
     return item;
   }
 
+  async bookingConsents(userId: string, appointmentId: string) {
+    const customer = await this.customerForUser(userId);
+    const appointment = await this.prisma.appointments.findFirst({
+      where: { id: appointmentId, customer_id: customer.id },
+      select: { id: true, company_id: true, status: true },
+    });
+    if (!appointment) throw new NotFoundException('Booking not found');
+
+    const [forms, responses] = await Promise.all([
+      this.prisma.consent_forms.findMany({
+        where: { company_id: appointment.company_id, is_active: true },
+        orderBy: [{ form_type: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.consent_form_responses.findMany({
+        where: { appointment_id: appointmentId, customer_id: customer.id, revoked_at: null },
+        orderBy: { signed_at: 'desc' },
+      }),
+    ]);
+
+    const now = new Date();
+    return forms.map((form) => {
+      const response = responses.find((item) => {
+        if (item.consent_form_id !== form.id) return false;
+        const payload = item.response_json as Record<string, unknown> | null;
+        const signedVersion = Number(payload?.formVersion ?? 0);
+        return signedVersion === form.version && (!item.expires_at || item.expires_at > now);
+      });
+      return {
+        ...form,
+        signed: Boolean(response),
+        response: response ?? null,
+      };
+    });
+  }
+
+  async signBookingConsent(
+    userId: string,
+    appointmentId: string,
+    formId: string,
+    body: { accepted?: boolean; typedSignature?: string; responses?: Record<string, unknown> },
+  ) {
+    const customer = await this.customerForUser(userId);
+    const appointment = await this.prisma.appointments.findFirst({
+      where: { id: appointmentId, customer_id: customer.id },
+      select: { id: true, company_id: true, status: true },
+    });
+    if (!appointment) throw new NotFoundException('Booking not found');
+    if (['cancelled', 'no_show'].includes(appointment.status)) {
+      throw new BadRequestException('Consent cannot be signed for a cancelled or no-show appointment');
+    }
+    const form = await this.prisma.consent_forms.findFirst({
+      where: { id: formId, company_id: appointment.company_id, is_active: true },
+    });
+    if (!form) throw new NotFoundException('Consent form not found');
+    if (body.accepted !== true) throw new BadRequestException('Consent acceptance is required');
+    const typedSignature = String(body.typedSignature ?? '').trim();
+    if (form.require_signature && !typedSignature) {
+      throw new BadRequestException('Typed signature is required for this consent');
+    }
+
+    const existing = await this.prisma.consent_form_responses.findFirst({
+      where: {
+        consent_form_id: form.id,
+        customer_id: customer.id,
+        appointment_id: appointmentId,
+        revoked_at: null,
+      },
+      orderBy: { signed_at: 'desc' },
+    });
+    if (existing) {
+      const payload = existing.response_json as Record<string, unknown> | null;
+      if (
+        Number(payload?.formVersion ?? 0) === form.version &&
+        (!existing.expires_at || existing.expires_at > new Date())
+      ) {
+        return existing;
+      }
+    }
+
+    const signedAt = new Date();
+    const expiresAt = form.expires_days
+      ? new Date(signedAt.getTime() + form.expires_days * 86_400_000)
+      : null;
+    const response = await this.prisma.consent_form_responses.create({
+      data: {
+        consent_form_id: form.id,
+        customer_id: customer.id,
+        appointment_id: appointmentId,
+        response_json: {
+          accepted: true,
+          typedSignature: typedSignature || null,
+          formVersion: form.version,
+          ...(body.responses ?? {}),
+        },
+        signed_at: signedAt,
+        expires_at: expiresAt,
+      },
+    });
+
+    this.realtime?.emitAppointment(appointmentId, 'booking:consent-changed', {
+      appointmentId,
+      consentFormId: form.id,
+      signed: true,
+      formVersion: form.version,
+    });
+    this.realtime?.emitUser(userId, 'booking:consent-changed', {
+      appointmentId,
+      consentFormId: form.id,
+      signed: true,
+      formVersion: form.version,
+    });
+    return response;
+  }
+
   async conversations(userId: string) {
     return this.prisma.conversations.findMany({
       where: { members: { some: { user_id: userId, left_at: null } } },
