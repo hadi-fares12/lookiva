@@ -423,7 +423,7 @@ model languages {
 }
 
 model currencies {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   iso_code       String   @unique
   numeric_code   String?
   name           String
@@ -434,8 +434,8 @@ model currencies {
   is_active      Boolean  @default(true)
   is_default     Boolean  @default(false)
   sort_order     Int      @default(0)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
 }
 
 // ============================================================
@@ -3391,7 +3391,7 @@ model moderation_auto_flags {
   reason_type    String
   confidence     Float
   details        Json?
-  status         String   @default("pending")
+  status         String    @default("pending")
   reviewed_by_id String?
   reviewed_at    DateTime?
   action_taken   String?
