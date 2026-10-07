@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'mobile_services.dart';
 
 class CustomerAccountHub extends StatefulWidget {
   const CustomerAccountHub({super.key});
@@ -71,7 +72,7 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
               ))),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () async { await LookivaApi.instance.logout(); if (context.mounted) context.go('/login'); },
+                onPressed: () async { await CustomerMobileServices.instance.onSignedOut(); await LookivaApi.instance.logout(); if (context.mounted) context.go('/login'); },
                 icon: const Icon(Icons.logout_rounded),
                 label: Text(ct(context,'signOut')),
               ),
