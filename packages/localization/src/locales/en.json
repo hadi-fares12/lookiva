@@ -594,7 +594,8 @@
         "regions": "Regions",
         "currencies": "Currencies",
         "plans": "Plans",
-        "appeals": "Appeals"
+        "appeals": "Appeals",
+        "withdrawals": "Withdrawals"
       }
     }
   },
@@ -1026,13 +1027,19 @@
       "appeals": {
         "title": "Moderation appeals",
         "subtitle": "Review appeals, reverse incorrect actions, restore content and clear linked strikes."
+      },
+      "withdrawals": {
+        "title": "Withdrawal review",
+        "subtitle": "Approve, process, complete or reject business withdrawal requests to verified payout accounts."
       }
     },
     "prompts": {
       "reason": "Reason (optional)",
       "rejectionReason": "Rejection reason (required)",
       "resolution": "Resolution note",
-      "newValue": "New value for {key}"
+      "newValue": "New value for {key}",
+      "withdrawalRejectionReason": "Withdrawal rejection reason",
+      "withdrawalReference": "Bank/provider reference code (optional)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -1052,8 +1059,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "Withdrawal approved.",
+        "rejected": "Withdrawal rejected.",
+        "processing": "Withdrawal moved to processing.",
+        "completed": "Withdrawal completed and posted to the ledger.",
+        "failed": "Withdrawal marked failed."
+      }
+    },
+    "startProcessing": "Start processing",
+    "completeWithdrawal": "Complete",
+    "markFailed": "Mark failed",
+    "retryProcessing": "Retry processing"
   },
   "customerAccount": {
     "eyebrow": "LOOKIVA account",
