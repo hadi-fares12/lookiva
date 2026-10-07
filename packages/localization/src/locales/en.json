@@ -728,7 +728,9 @@
       "merge": "Merge duplicate",
       "addBankAccount": "Add bank account",
       "enablePayouts": "Enable payouts",
-      "disablePayouts": "Disable payouts"
+      "disablePayouts": "Disable payouts",
+      "exportCsv": "Export CSV",
+      "exportXlsx": "Export XLSX"
     },
     "labels": {
       "serviceName": "Service name",
