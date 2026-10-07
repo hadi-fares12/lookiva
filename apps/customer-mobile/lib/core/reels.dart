@@ -38,23 +38,34 @@ class _CustomerReelsState extends State<CustomerReels> {
     );
   }
 
-  Future<void> _save(Map<String, dynamic> post) async {
+  Future<void> _toggleSave(Map<String, dynamic> post) async {
     final id = post['id']?.toString();
-    if (id == null ||
-        id.isEmpty ||
-        post['savedByMe'] == true ||
-        _saving.contains(id)) {
-      return;
-    }
-    setState(() => _saving.add(id));
+    if (id == null || id.isEmpty || _saving.contains(id)) return;
+
+    final wasSaved = post['savedByMe'] == true;
+    final oldCount =
+        int.tryParse(post['bookmark_count']?.toString() ?? '') ?? 0;
+
+    setState(() {
+      _saving.add(id);
+      post['savedByMe'] = !wasSaved;
+      post['bookmark_count'] = wasSaved
+          ? (oldCount - 1).clamp(0, 1 << 31)
+          : oldCount + 1;
+    });
+
     try {
-      await LookivaApi.instance.post('/social-v2/posts/' + id + '/save');
-      post['savedByMe'] = true;
-      post['bookmark_count'] =
-          (int.tryParse(post['bookmark_count']?.toString() ?? '') ?? 0) + 1;
-      if (mounted) setState(() {});
+      if (wasSaved) {
+        await LookivaApi.instance.delete('/social-v2/posts/' + id + '/save');
+      } else {
+        await LookivaApi.instance.post('/social-v2/posts/' + id + '/save');
+      }
     } catch (error) {
       if (mounted) {
+        setState(() {
+          post['savedByMe'] = wasSaved;
+          post['bookmark_count'] = oldCount;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
         );
@@ -155,7 +166,7 @@ class _CustomerReelsState extends State<CustomerReels> {
             itemBuilder: (context, index) => _ReelCard(
               post: items[index],
               saving: _saving.contains(items[index]['id']?.toString()),
-              onSave: () => _save(items[index]),
+              onSave: () => _toggleSave(items[index]),
             ),
           ),
         );
@@ -290,8 +301,7 @@ class _ReelCard extends StatelessWidget {
                           ),
                         if (service['id'] != null) const SizedBox(width: 8),
                         OutlinedButton.icon(
-                          onPressed:
-                              post['savedByMe'] == true || saving ? null : onSave,
+                          onPressed: saving ? null : onSave,
                           icon: Icon(
                             post['savedByMe'] == true
                                 ? Icons.bookmark_rounded
