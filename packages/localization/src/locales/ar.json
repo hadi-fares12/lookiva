@@ -982,6 +982,10 @@
       "nearby-settings": {
         "title": "التوصيات القريبة",
         "subtitle": "التحكم في توصيات الموقع والمسافة وساعات الهدوء."
+      },
+      "privacy": {
+        "title": "الخصوصية والبيانات",
+        "subtitle": "نزّل بيانات حسابك أو احذف حساب لوكيفا نهائياً."
       }
     },
     "actions": {
@@ -994,7 +998,9 @@
       "revoking": "جارٍ الإلغاء…",
       "savePreferences": "حفظ التفضيلات",
       "saveNearby": "حفظ إعدادات القرب",
-      "saveProfile": "حفظ الملف"
+      "saveProfile": "حفظ الملف",
+      "downloadData": "تنزيل بياناتي",
+      "deleteAccount": "حذف الحساب نهائياً"
     },
     "empty": {
       "bookings": "لا توجد حجوزات بعد. اكتشف محترفاً واحجز موعدك الأول.",
@@ -1053,7 +1059,10 @@
       "noConversations": "لا توجد محادثات بعد.",
       "noMessages": "لا توجد رسائل بعد.",
       "loyaltyPoints": "نقاط الولاء",
-      "standard": "عادي"
+      "standard": "عادي",
+      "privacyIntro": "يتضمن التصدير الحساب والتفضيلات والحجوزات والمدفوعات والرسائل والبيانات الأخرى المرتبطة بحسابك.",
+      "deleteWarning": "الحذف نهائي. يجب إكمال أو إلغاء الحجوزات الحالية أو المستقبلية أولاً.",
+      "deletePhrase": "اكتب DELETE MY ACCOUNT للتأكيد."
     },
     "messages": {
       "favoriteRemoved": "تمت الإزالة من المفضلة.",
@@ -1063,7 +1072,9 @@
       "sessionRevoked": "تم إلغاء الجلسة.",
       "preferencesSaved": "تم حفظ التفضيلات.",
       "nearbySaved": "تم حفظ إعدادات القرب.",
-      "profileSaved": "تم حفظ الملف الشخصي."
+      "profileSaved": "تم حفظ الملف الشخصي.",
+      "exportReady": "تم تجهيز تصدير بيانات حسابك.",
+      "accountDeleted": "تم حذف حسابك نهائياً."
     }
   },
   "customerBooking": {
