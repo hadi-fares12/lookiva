@@ -458,7 +458,6 @@ export class CustomersService {
         conversations: {
           select: {
             conversation_id: true,
-            member_type: true,
             joined_at: true,
             left_at: true,
           },
