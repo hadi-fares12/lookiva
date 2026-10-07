@@ -80,6 +80,38 @@ export class FinanceV2Controller {
     return this.finance.getReconciliation(user, companyId);
   }
 
+  @Get('bank-accounts')
+  @RequirePermissions(PermissionKey.FinancePayoutView)
+  @ApiOperation({ summary: 'List masked payout bank accounts for a business or professional' })
+  bankAccounts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('ownerType') ownerType: string,
+    @Query('ownerId') ownerId: string,
+  ) {
+    return this.finance.listBankAccounts(user, ownerType, ownerId);
+  }
+
+  @Post('bank-accounts')
+  @RequirePermissions(PermissionKey.FinancePayoutManage)
+  @ApiOperation({ summary: 'Create a payout bank account' })
+  createBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.finance.createBankAccount(user, body);
+  }
+
+  @Patch('bank-accounts/:id')
+  @RequirePermissions(PermissionKey.FinancePayoutManage)
+  @ApiOperation({ summary: 'Update a payout bank account; sensitive changes reset verification' })
+  updateBankAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.finance.updateBankAccount(user, id, body);
+  }
+
   @Get('companies/:companyId/payouts')
   @RequirePermissions(PermissionKey.FinancePayoutView)
   @ApiOperation({ summary: 'List professional payout history for a company' })
