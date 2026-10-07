@@ -2268,6 +2268,7 @@ model posts {
   @@index([is_verified_work])
   @@index([slug])
 }
+
 model post_media {
   id         String   @id @default(cuid())
   post_id    String
