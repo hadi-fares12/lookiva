@@ -56,6 +56,33 @@ export class BusinessOpsController {
     return this.ops.customerDetails(user, companyId, customerId);
   }
 
+  @Patch('customers/:customerId/crm')
+  @RequirePermissions(PermissionKey.CustomerProfileEdit)
+  updateCustomerCrm(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.updateCustomerCrm(user, companyId, customerId, body);
+  }
+
+  @Post('customers/:customerId/merge-duplicate')
+  @RequirePermissions(PermissionKey.CustomerProfileEdit)
+  mergeCustomerDuplicate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+    @Body() body: { duplicateCustomerId?: string },
+  ) {
+    return this.ops.mergeCustomerDuplicate(
+      user,
+      companyId,
+      customerId,
+      String(body.duplicateCustomerId || ''),
+    );
+  }
+
   @Get('inventory')
   @RequirePermissions(PermissionKey.SettingsView)
   inventory(
