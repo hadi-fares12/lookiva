@@ -8,6 +8,9 @@ const CONFIG: Record<string, Config> = {
   'users': { key: 'users', endpoint: '/admin/users?limit=100' },
   'businesses': { key: 'businesses', endpoint: '/admin/businesses?limit=100' },
   'verification': { key: 'verification', endpoint: '/admin/businesses?limit=100' },
+  'branches': { key: 'branches', endpoint: '/admin/branches?limit=100' },
+  'professionals': { key: 'professionals', endpoint: '/admin/professionals?limit=100' },
+  'services': { key: 'services', endpoint: '/admin/services?limit=100' },
   'bookings': { key: 'bookings', endpoint: '/admin/bookings?limit=100' },
   'payments': { key: 'payments', endpoint: '/admin/payments?limit=100' },
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
@@ -15,8 +18,11 @@ const CONFIG: Record<string, Config> = {
   'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
   'categories': { key: 'categories', endpoint: '/admin/categories' },
   'countries': { key: 'countries', endpoint: '/admin/countries' },
-  'languages': { key: 'languages', endpoint: '/platform/settings' },
+  'regions': { key: 'regions', endpoint: '/admin/regions' },
+  'languages': { key: 'languages', endpoint: '/admin/languages' },
+  'currencies': { key: 'currencies', endpoint: '/admin/currencies' },
   'themes': { key: 'themes', endpoint: '/admin/themes' },
+  'plans': { key: 'plans', endpoint: '/admin/plans' },
   'subscriptions': { key: 'subscriptions', endpoint: '/admin/subscriptions?limit=100' },
   'commissions': { key: 'commissions', endpoint: '/admin/payments?limit=100' },
   'promotions': { key: 'promotions', endpoint: '/admin/promotions?limit=100' },
@@ -104,6 +110,9 @@ export function AdminOperationsPage({section}:{section:string}){
       return <div className="flex flex-wrap gap-2">
         <button disabled={busy===id} onClick={()=>{const reason=window.prompt(`${active?t('suspend'):t('reactivate')} — ${t('prompts.reason')}`,'')??undefined;void mutate(id,`/admin/users/${id}/status`,{isActive:!active,reason},active?t('messages.userSuspended'):t('messages.userReactivated'));}} className="action-btn">{busy===id?t('saving'):active?t('suspend'):t('reactivate')}</button>
         <button disabled={!!busy} onClick={()=>{const reason=window.prompt('Reason for revoking all sessions','Security review')||undefined;void post(id+'sessions',`/admin/users/${id}/revoke-sessions`,{reason},'All user sessions revoked.');}} className="action-btn">Revoke sessions</button>
+        <button disabled={!!busy||!r.email} onClick={()=>void post(id+'reset',`/admin/users/${id}/password-reset`,{},'Password reset sent to the user.')} className="action-btn">Send reset</button>
+        <button disabled={!!busy||!r.phone} onClick={()=>void post(id+'otp',`/admin/users/${id}/send-otp`,{},'OTP sent to the user.')} className="action-btn">Send OTP</button>
+        <button disabled={!!busy||!active} onClick={()=>void startImpersonation(id)} className="action-btn">Impersonate</button>
         <button disabled={!!busy} onClick={()=>{const reasonType=window.prompt('Strike reason type','policy_violation');if(!reasonType?.trim())return;const reasonText=window.prompt('Strike details','')||undefined;void post(id+'strike',`/admin/users/${id}/strikes`,{severity:'warning',reasonType:reasonType.trim(),reasonText},'Strike issued.');}} className="action-btn danger">Issue strike</button>
       </div>;
     }
@@ -147,6 +156,34 @@ export function AdminOperationsPage({section}:{section:string}){
     if(section==='strikes'&&id){
       return <button disabled={!!busy||r.is_active===false} onClick={()=>void remove(id,`/admin/strikes/${id}`,{reason:'Cleared by platform admin'},'Strike deactivated.')} className="action-btn">{r.is_active===false?'Inactive':'Deactivate'}</button>;
     }
+    if(section==='branches'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/branches/${id}`,{isActive:!active},active?'Branch disabled.':'Branch activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
+    if(section==='professionals'&&id){
+      const active=r.is_active!==false;
+      return <div className="flex flex-wrap gap-2"><button disabled={!!busy} onClick={()=>void mutate(id,`/admin/professionals/${id}`,{isActive:!active},active?'Professional disabled.':'Professional activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button><button disabled={!!busy} onClick={()=>void mutate(id+'verified',`/admin/professionals/${id}`,{isVerified:!r.is_verified},r.is_verified?'Verification removed.':'Professional verified.')} className="action-btn">{r.is_verified?'Unverify':'Verify'}</button></div>;
+    }
+    if(section==='services'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/services/${id}`,{isActive:!active},active?'Service disabled.':'Service activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
+    if(section==='regions'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/regions/${id}`,{isActive:!active},active?'Region disabled.':'Region activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
+    if(section==='languages'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/languages/${id}`,{isActive:!active},active?'Language disabled.':'Language activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
+    if(section==='currencies'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/currencies/${id}`,{isActive:!active},active?'Currency disabled.':'Currency activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
+    if(section==='plans'&&id){
+      const active=r.is_active!==false;
+      return <button disabled={!!busy} onClick={()=>void mutate(id,`/admin/plans/${id}`,{isActive:!active},active?'Plan disabled.':'Plan activated.')} className="action-btn">{active?t('suspend'):t('reactivate')}</button>;
+    }
     if(section==='feature-flags'&&r.key){
       const key=String(r.key);const enabled=Boolean(r.is_enabled);
       return <button disabled={busy===key} onClick={()=>void mutate(key,`/admin/feature-flags/${encodeURIComponent(key)}`,{isEnabled:!enabled},enabled?t('messages.featureDisabled'):t('messages.featureEnabled'))} className="action-btn">{enabled?t('disable'):t('enable')}</button>;
@@ -157,7 +194,42 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','moderation','strikes','categories','countries','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','branches','professionals','services','moderation','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+
+  const startImpersonation=async(userId:string)=>{
+    setBusy(userId+'impersonate');setError('');setNotice('');
+    try{
+      const result=await adminFetch(`/admin/users/${userId}/impersonate`,{method:'POST',body:'{}'});
+      const access=encodeURIComponent(String(result?.accessToken||''));
+      const refresh=encodeURIComponent(String(result?.refreshToken||''));
+      if(!access||!refresh)throw new Error('Impersonation tokens were not returned');
+      const customerBase=(process.env.NEXT_PUBLIC_CUSTOMER_WEB_URL||'http://localhost:3001').replace(/\/$/,'');
+      window.open(`${customerBase}/en/impersonate#access=${access}&refresh=${refresh}`,'_blank','noopener,noreferrer');
+      setNotice('Audited impersonation session opened in a new tab.');
+    }catch(e){setError(e instanceof Error?e.message:t('operationError'));}
+    finally{setBusy('');}
+  };
+
+  const createRegion=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-region','/admin/regions',{countryId:String(fd.get('countryId')||''),code:String(fd.get('code')||'')||undefined,name:String(fd.get('name')||'')},'Region created.');
+    event.currentTarget.reset();
+  };
+  const createLanguage=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-language','/admin/languages',{isoCode:String(fd.get('isoCode')||''),name:String(fd.get('name')||''),nativeName:String(fd.get('nativeName')||''),direction:String(fd.get('direction')||'ltr')},'Language created.');
+    event.currentTarget.reset();
+  };
+  const createCurrency=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-currency','/admin/currencies',{isoCode:String(fd.get('isoCode')||''),name:String(fd.get('name')||''),symbol:String(fd.get('symbol')||''),decimalDigits:Number(fd.get('decimalDigits')||2)},'Currency created.');
+    event.currentTarget.reset();
+  };
+  const createPlan=async(event:FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-plan','/admin/plans',{name:String(fd.get('name')||''),code:String(fd.get('code')||''),currencyCode:String(fd.get('currencyCode')||'USD'),priceMonthly:Number(fd.get('priceMonthly')||0),priceYearly:Number(fd.get('priceYearly')||0),trialDays:Number(fd.get('trialDays')||0)},'Subscription plan created.');
+    event.currentTarget.reset();
+  };
 
   const createCategory=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();const fd=new FormData(event.currentTarget);
@@ -173,6 +245,10 @@ export function AdminOperationsPage({section}:{section:string}){
   return <div className="space-y-6">
     <style>{`.action-btn{border:1px solid var(--border-subtle);background:var(--surface-2);padding:.45rem .7rem;border-radius:.65rem;font-size:.75rem;font-weight:700;color:var(--text-primary);white-space:nowrap}.action-btn:hover:not(:disabled){filter:brightness(1.08)}.action-btn:disabled{opacity:.5;cursor:not-allowed}.action-btn.danger{border-color:color-mix(in srgb,var(--accent-red) 45%,transparent);color:var(--accent-red)}`}</style>
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-gold-2">{t('eyebrow')}</p><h1 className="mt-2 text-3xl font-bold text-primary">{t(`sections.${cfg.key}.title`)}</h1><p className="mt-2 text-secondary">{t(`sections.${cfg.key}.subtitle`)}</p></div><button onClick={()=>void load()} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('refresh')}</button></div>
+    {section==='regions'&&<form onSubmit={createRegion} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4"><input name="countryId" required placeholder="Country ID" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="code" placeholder="Region code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Region name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create region</button></form>}
+    {section==='languages'&&<form onSubmit={createLanguage} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required placeholder="ISO code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Language name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="nativeName" required placeholder="Native name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><select name="direction" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"><option value="ltr">LTR</option><option value="rtl">RTL</option></select><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create language</button></form>}
+    {section==='currencies'&&<form onSubmit={createCurrency} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required maxLength={3} placeholder="USD" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Currency name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="symbol" required placeholder="$" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="decimalDigits" type="number" min="0" max="6" defaultValue="2" aria-label="Decimal digits" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create currency</button></form>}
+    {section==='plans'&&<form onSubmit={createPlan} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-7"><input name="name" required placeholder="Plan name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="code" required placeholder="plan-code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="currencyCode" required defaultValue="USD" maxLength={3} className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="priceMonthly" type="number" min="0" step="0.01" defaultValue="0" aria-label="Monthly price" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="priceYearly" type="number" min="0" step="0.01" defaultValue="0" aria-label="Yearly price" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="trialDays" type="number" min="0" defaultValue="0" aria-label="Trial days" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create plan</button></form>}
     {section==='categories'&&<form onSubmit={createCategory} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4"><input name="name" required placeholder="Category name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="slug" placeholder="Slug (optional)" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="iconKey" placeholder="Icon key" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create category</button></form>}
     {section==='countries'&&<form onSubmit={createCountry} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required maxLength={3} placeholder="ISO code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Country name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="dialCode" required placeholder="+961" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="currencyCode" required maxLength={3} placeholder="USD" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create country</button></form>}
     {notice&&<div className="rounded-radius-lg border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm font-semibold text-accent-green">{notice}</div>}
