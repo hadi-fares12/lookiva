@@ -355,6 +355,35 @@ export class BusinessOpsController {
     return this.ops.staff(user, companyId);
   }
 
+  @Get('accountants')
+  @RequirePermissions(PermissionKey.SettingsView)
+  accountants(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+  ) {
+    return this.ops.accountants(user, companyId);
+  }
+
+  @Post('accountants')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  grantAccountant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() body: { identifier?: string; expiresAt?: string | null },
+  ) {
+    return this.ops.grantAccountant(user, companyId, body);
+  }
+
+  @Delete('accountants/:scopeId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  revokeAccountant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('scopeId') scopeId: string,
+  ) {
+    return this.ops.revokeAccountant(user, companyId, scopeId);
+  }
+
   @Get('audit')
   @RequirePermissions(PermissionKey.SettingsView)
   audit(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string, @Query('limit') limit?: string) {
