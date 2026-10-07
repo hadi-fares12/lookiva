@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'booking_payment.dart';
 
 class CustomerBookingPage extends StatefulWidget {
   final String serviceId;
@@ -131,15 +132,44 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
       final appointment = created is Map ? Map<String, dynamic>.from(created) : <String, dynamic>{};
       final id = appointment['id']?.toString();
       if (!mounted) return;
+      if (id == null || id.isEmpty) {
+        throw StateError(ct(context, 'bookingNotFound'));
+      }
+
+      if (appointment['status']?.toString() == 'awaiting_payment') {
+        setState(() => _message = ct(context, 'paymentRequired'));
+        final paid = await showBookingPaymentFlow(
+          context,
+          appointmentId: id,
+          companyId: companyId,
+        );
+        if (!mounted) return;
+        if (!paid) {
+          setState(() => _message = ct(context, 'paymentPending'));
+          context.go('/bookings/' + id);
+          return;
+        }
+        setState(() => _message = ct(context, 'depositPaid'));
+      }
+
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text(ct(context,'bookingConfirmed')),
-          content: Text(id == null ? ct(context,'appointmentConfirmed') : '${ct(context,'bookingId')}: $id'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(ct(context,'done')))],
+          title: Text(
+            appointment['status']?.toString() == 'awaiting_payment'
+                ? ct(context, 'depositPaid')
+                : ct(context, 'bookingConfirmed'),
+          ),
+          content: Text(ct(context, 'bookingId') + ': ' + id),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(ct(context, 'done')),
+            ),
+          ],
         ),
       );
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/bookings/' + id);
     } catch (error) {
       if (mounted) setState(() => _message = LookivaApi.instance.friendlyError(error));
     } finally {
