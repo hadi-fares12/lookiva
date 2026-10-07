@@ -982,6 +982,10 @@
       "nearby-settings": {
         "title": "Recommandations à proximité",
         "subtitle": "Contrôlez la localisation, la distance et les heures calmes."
+      },
+      "privacy": {
+        "title": "Confidentialité et données",
+        "subtitle": "Téléchargez vos données ou supprimez définitivement votre compte LOOKIVA."
       }
     },
     "actions": {
@@ -994,7 +998,9 @@
       "revoking": "Révocation…",
       "savePreferences": "Enregistrer les préférences",
       "saveNearby": "Enregistrer la proximité",
-      "saveProfile": "Enregistrer le profil"
+      "saveProfile": "Enregistrer le profil",
+      "downloadData": "Télécharger mes données",
+      "deleteAccount": "Supprimer définitivement le compte"
     },
     "empty": {
       "bookings": "Aucune réservation. Découvrez un professionnel et réservez votre premier rendez-vous.",
@@ -1053,7 +1059,10 @@
       "noConversations": "Aucune conversation pour le moment.",
       "noMessages": "Aucun message pour le moment.",
       "loyaltyPoints": "Points de fidélité",
-      "standard": "Standard"
+      "standard": "Standard",
+      "privacyIntro": "L’export contient votre compte, préférences, réservations, paiements, messages et autres données liées au compte.",
+      "deleteWarning": "La suppression est définitive. Les réservations actives ou futures doivent d’abord être terminées ou annulées.",
+      "deletePhrase": "Saisissez DELETE MY ACCOUNT pour confirmer."
     },
     "messages": {
       "favoriteRemoved": "Retiré des favoris.",
@@ -1063,7 +1072,9 @@
       "sessionRevoked": "Session révoquée.",
       "preferencesSaved": "Préférences enregistrées.",
       "nearbySaved": "Paramètres de proximité enregistrés.",
-      "profileSaved": "Profil enregistré."
+      "profileSaved": "Profil enregistré.",
+      "exportReady": "L’export de vos données est prêt.",
+      "accountDeleted": "Votre compte a été supprimé définitivement."
     }
   },
   "customerBooking": {
