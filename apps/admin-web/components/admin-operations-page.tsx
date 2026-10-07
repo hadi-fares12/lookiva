@@ -14,7 +14,7 @@ const CONFIG: Record<string, Config> = {
   'bookings': { key: 'bookings', endpoint: '/admin/bookings?limit=100' },
   'payments': { key: 'payments', endpoint: '/admin/payments?limit=100' },
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
-  'moderation': { key: 'moderation', endpoint: '/admin/moderation/reports?limit=100' },
+  'moderation': { key: 'moderation', endpoint: '/platform-ops-v2/moderation/reports' },
   'appeals': { key: 'appeals', endpoint: '/platform-ops-v2/moderation/appeals' },
   'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
   'categories': { key: 'categories', endpoint: '/admin/categories' },
@@ -162,9 +162,16 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     if(section==='moderation'&&id){
       const closed=['resolved','dismissed'].includes(String(r.status));
+      const act=(actionTaken:string,label:string,danger=false)=>(
+        <button disabled={!!busy||closed} onClick={()=>{const details=window.prompt('Moderation action details',String(r.details||r.reason_type||''))||undefined;void mutate(id+actionTaken,`/platform-ops-v2/moderation/reports/${id}`,{actionTaken,actionDetails:details},label+' completed.');}} className={danger?'action-btn danger':'action-btn'}>{label}</button>
+      );
       return <div className="flex flex-wrap gap-2">
-        <button disabled={!!busy||closed} onClick={()=>void mutate(id+'resolve',`/admin/moderation/reports/${id}`,{status:'resolved',actionTaken:'reviewed'},'Moderation report resolved.')} className="action-btn">Resolve</button>
-        <button disabled={!!busy||closed} onClick={()=>void mutate(id+'dismiss',`/admin/moderation/reports/${id}`,{status:'dismissed',actionTaken:'dismissed'},'Moderation report dismissed.')} className="action-btn">Dismiss</button>
+        {act('hide','Hide')}
+        {act('takedown','Takedown',true)}
+        {act('warn','Warn')}
+        {act('strike','Strike',true)}
+        {act('suspend','Suspend',true)}
+        {act('dismiss','Dismiss')}
       </div>;
     }
     if(section==='appeals'&&id){
