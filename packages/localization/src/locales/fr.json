@@ -556,7 +556,8 @@
         "forms": "Formulaires de consentement",
         "banking": "Banque",
         "packageRedemptions": "Utilisation des forfaits",
-        "withdrawals": "Retraits"
+        "withdrawals": "Retraits",
+        "portfolio": "Portfolio"
       }
     },
     "admin": {
@@ -703,6 +704,10 @@
       "withdrawals": {
         "title": "Retraits",
         "subtitle": "Demandez des virements vers des comptes bancaires vérifiés et suivez leur traitement."
+      },
+      "portfolio": {
+        "title": "Portfolio & Reels",
+        "subtitle": "Publiez vos travaux photo/vidéo, associez services et professionnels, puis vérifiez le travail via une réservation terminée et un avis vérifié."
       }
     },
     "actions": {
@@ -744,7 +749,11 @@
       "exportXlsx": "Exporter XLSX",
       "redeemPackage": "Utiliser le forfait",
       "requestWithdrawal": "Demander un retrait",
-      "cancelWithdrawal": "Annuler la demande"
+      "cancelWithdrawal": "Annuler la demande",
+      "uploading": "Téléversement…",
+      "publishPortfolio": "Publier le portfolio",
+      "verifyWork": "Vérifier le travail",
+      "archive": "Archiver"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -845,7 +854,16 @@
       "bankAccount": "Compte bancaire",
       "withdrawalAmount": "Montant du retrait",
       "referenceCode": "Code de référence",
-      "withdrawalReason": "Motif / note"
+      "withdrawalReason": "Motif / note",
+      "portfolioTitle": "Titre de la publication",
+      "portfolioCaption": "Légende",
+      "portfolioTags": "Tags séparés par des virgules",
+      "portfolioMedia": "Choisir jusqu’à 6 photos/vidéos",
+      "noVerifiedReview": "Publier sans Travail vérifié",
+      "portfolioPost": "Publication portfolio",
+      "verifiedWork": "Travail vérifié",
+      "mediaItems": "médias",
+      "verifiedReviewId": "ID de l’avis vérifié"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -882,7 +900,12 @@
       "withdrawalBankRequired": "Choisissez un compte bancaire vérifié.",
       "withdrawalRequested": "Demande de retrait envoyée.",
       "noVerifiedBank": "Ajoutez et faites vérifier un compte bancaire avant de demander un retrait.",
-      "withdrawalCancelled": "Demande de retrait annulée."
+      "withdrawalCancelled": "Demande de retrait annulée.",
+      "portfolioMediaLimit": "Une publication portfolio peut contenir jusqu’à 6 médias.",
+      "portfolioPublished": "Publication portfolio créée.",
+      "portfolioPublishedVerified": "Publication créée comme Travail vérifié.",
+      "portfolioVerified": "Travail vérifié.",
+      "portfolioArchived": "Publication archivée."
     }
   },
   "adminOps": {
