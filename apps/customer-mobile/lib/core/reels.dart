@@ -280,7 +280,9 @@ class _ReelCard extends StatelessWidget {
                           Expanded(
                             child: FilledButton.icon(
                               onPressed: () => context.push(
-                                '/book/' + service['id'].toString(),
+                                '/book/' + service['id'].toString() +
+                                    '?postId=' +
+                                    Uri.encodeQueryComponent(post['id'].toString()),
                               ),
                               icon: const Icon(Icons.calendar_month_rounded),
                               label: Text(ct(context, 'bookThisLook')),
