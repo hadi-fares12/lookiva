@@ -117,3 +117,8 @@ export class BookThisLookDto {
   @IsString({ each: true })
   resourceIds?: string[];
 }
+
+export class VerifyWorkDto {
+  @IsString()
+  reviewId!: string;
+}
