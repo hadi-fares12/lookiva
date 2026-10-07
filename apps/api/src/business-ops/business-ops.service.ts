@@ -900,6 +900,66 @@ export class BusinessOpsService {
     };
   }
 
+  async packagePurchases(
+    user: AuthenticatedUser,
+    companyId: string,
+    limit = 100,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    return this.prisma.package_purchases.findMany({
+      where: {
+        package: { company_id: companyId },
+        status: 'active',
+        sessions_remaining: { gt: 0 },
+        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        ...(access.allBranches
+          ? {}
+          : {
+              customer: {
+                appointments: {
+                  some: {
+                    company_id: companyId,
+                    branch_id: { in: access.branchIds },
+                  },
+                },
+              },
+            }),
+      },
+      include: {
+        package: {
+          select: {
+            id: true,
+            name: true,
+            service_ids: true,
+            total_sessions_count: true,
+            currency_code: true,
+          },
+        },
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+        },
+        usage: {
+          orderBy: { used_at: 'desc' },
+          take: 5,
+          include: {
+            service: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ purchased_at: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
   async packageRedemptions(
     user: AuthenticatedUser,
     companyId: string,
