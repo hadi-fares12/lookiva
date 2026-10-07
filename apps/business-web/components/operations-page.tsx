@@ -18,6 +18,9 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'analytics': { key: 'analytics', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'reports': { key: 'reports', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'promotions': { key: 'promotions', endpoint: (c) => `/business-ops/${c}/promotions` },
+  'inventory': { key: 'inventory', endpoint: (c, b) => `/business-ops/${c}/inventory${b ? `?branchId=${b}` : ''}` },
+  'commissions': { key: 'commissions', endpoint: (c) => `/business-ops/${c}/commission-rules` },
+  'forms': { key: 'forms', endpoint: (c) => `/business-ops/${c}/consent-forms` },
   'reviews': { key: 'reviews', endpoint: (c) => `/business-ops/${c}/reviews` },
   'staff': { key: 'staff', endpoint: (c) => `/business-ops/${c}/staff` },
   'branches': { key: 'branches', endpoint: (c) => `/business-ops/${c}/branches` },
@@ -163,6 +166,77 @@ export function OperationsPage({ section }: { section: string }) {
     event.currentTarget.reset();
   }
 
+  async function submitProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    await mutate(`/business-ops/${session.companyId}/products`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: String(fd.get('name') || ''),
+        sku: String(fd.get('sku') || '') || undefined,
+        barcode: String(fd.get('barcode') || '') || undefined,
+        price: Number(fd.get('price') || 0),
+        cost: fd.get('cost') ? Number(fd.get('cost')) : undefined,
+        currencyCode: String(fd.get('currencyCode') || 'USD'),
+        branchId: String(fd.get('branchId') || session.branchId || '') || undefined,
+        initialQuantity: Number(fd.get('initialQuantity') || 0),
+        reorderLevel: Number(fd.get('reorderLevel') || 0),
+      }),
+    }, 'Product created.');
+    event.currentTarget.reset();
+  }
+
+  async function submitStockMovement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const productId = String(fd.get('productId') || '');
+    if (!productId) { setError('Choose a product.'); return; }
+    await mutate(`/business-ops/${session.companyId}/products/${productId}/stock-movements`, {
+      method: 'POST',
+      body: JSON.stringify({
+        branchId: String(fd.get('branchId') || session.branchId || '') || undefined,
+        quantityChange: Number(fd.get('quantityChange') || 0),
+        movementType: String(fd.get('movementType') || 'adjustment'),
+        reason: String(fd.get('reason') || '') || undefined,
+      }),
+    }, 'Stock updated.');
+    event.currentTarget.reset();
+  }
+
+  async function submitCommission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const type = String(fd.get('calculationType') || 'percentage');
+    await mutate(`/business-ops/${session.companyId}/commission-rules`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: String(fd.get('name') || ''),
+        professionalId: String(fd.get('professionalId') || '') || undefined,
+        calculationType: type,
+        percentRate: type === 'percentage' ? Number(fd.get('value') || 0) : undefined,
+        fixedAmount: type === 'fixed' ? Number(fd.get('value') || 0) : undefined,
+      }),
+    }, 'Commission rule created.');
+    event.currentTarget.reset();
+  }
+
+  async function submitConsentForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    await mutate(`/business-ops/${session.companyId}/consent-forms`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: String(fd.get('name') || ''),
+        formType: String(fd.get('formType') || 'general'),
+        contentPlain: String(fd.get('contentPlain') || ''),
+        requireSignature: fd.get('requireSignature') === 'on',
+        requirePhotoId: fd.get('requirePhotoId') === 'on',
+        expiresDays: fd.get('expiresDays') ? Number(fd.get('expiresDays')) : undefined,
+      }),
+    }, 'Consent form created.');
+    event.currentTarget.reset();
+  }
+
   async function submitSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -243,6 +317,47 @@ export function OperationsPage({ section }: { section: string }) {
       <input name="endsAt" type="datetime-local" className={inputClass} />
       <select name="branchId" defaultValue={session?.branchId || ''} className={inputClass}><option value="">All branches</option>{branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
       <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-5 md:justify-self-start">{t('actions.createPromotion')}</button>
+    </form>}
+
+    {section === 'inventory' && <div className="space-y-4">
+      <form onSubmit={submitProduct} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-8">
+        <input name="name" required placeholder="Product name" className={`${inputClass} md:col-span-2`} />
+        <input name="sku" placeholder="SKU" className={inputClass} />
+        <input name="barcode" placeholder="Barcode" className={inputClass} />
+        <input name="price" type="number" min="0" step="0.01" required placeholder="Price" className={inputClass} />
+        <input name="cost" type="number" min="0" step="0.01" placeholder="Cost" className={inputClass} />
+        <input name="currencyCode" defaultValue="USD" maxLength={3} className={inputClass} />
+        <select name="branchId" defaultValue={session?.branchId || ''} className={inputClass}><option value="">Company stock</option>{branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+        <input name="initialQuantity" type="number" defaultValue="0" aria-label="Initial quantity" className={inputClass} />
+        <input name="reorderLevel" type="number" min="0" defaultValue="0" aria-label="Reorder level" className={inputClass} />
+        <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-2">Add product</button>
+      </form>
+      <form onSubmit={submitStockMovement} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
+        <select name="productId" required className={`${inputClass} md:col-span-2`}><option value="">Choose product</option>{rows.filter((row)=>row?.id).map((row)=><option key={row.id} value={row.id}>{row.name || row.sku || row.id}</option>)}</select>
+        <select name="branchId" defaultValue={session?.branchId || ''} className={inputClass}><option value="">Company stock</option>{branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+        <input name="quantityChange" type="number" required placeholder="+10 or -2" className={inputClass} />
+        <select name="movementType" className={inputClass}><option value="stock_in">Stock in</option><option value="stock_out">Stock out</option><option value="adjustment">Adjustment</option><option value="waste">Waste</option><option value="usage">Service usage</option></select>
+        <input name="reason" placeholder="Reason / reference" className={inputClass} />
+        <button disabled={!!busy} className="h-11 rounded-radius-md border border-accent-gold-2 px-5 font-semibold text-accent-gold-2 md:col-span-6 md:justify-self-start">Post stock movement</button>
+      </form>
+    </div>}
+
+    {section === 'commissions' && <form onSubmit={submitCommission} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5">
+      <input name="name" required placeholder="Rule name" className={inputClass} />
+      <select name="professionalId" className={inputClass}><option value="">All professionals</option>{professionals.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <select name="calculationType" className={inputClass}><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></select>
+      <input name="value" type="number" min="0" step="0.01" required placeholder="Rate / amount" className={inputClass} />
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Add rule</button>
+    </form>}
+
+    {section === 'forms' && <form onSubmit={submitConsentForm} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
+      <input name="name" required placeholder="Form name" className={`${inputClass} md:col-span-2`} />
+      <select name="formType" className={inputClass}><option value="general">General</option><option value="service">Service consent</option><option value="medical">Medical / allergy</option><option value="media">Media release</option></select>
+      <input name="expiresDays" type="number" min="1" placeholder="Expiry days" className={inputClass} />
+      <label className="flex items-center gap-2 text-sm text-primary"><input name="requireSignature" type="checkbox" defaultChecked /> Signature</label>
+      <label className="flex items-center gap-2 text-sm text-primary"><input name="requirePhotoId" type="checkbox" /> Photo ID</label>
+      <textarea name="contentPlain" required placeholder="Consent terms shown to the customer" rows={5} className={`rounded-radius-md border border-border-subtle bg-surface-0 p-3 text-sm text-primary outline-none focus:border-accent-gold-2 md:col-span-6`} />
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-6 md:justify-self-start">Create consent form</button>
     </form>}
 
     {(section === 'analytics' || section === 'reports') && <div className="space-y-4">
