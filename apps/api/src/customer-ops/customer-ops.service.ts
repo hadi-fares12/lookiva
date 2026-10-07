@@ -200,46 +200,164 @@ export class CustomerOpsService {
 
   async messages(userId: string, conversationId: string, limit = 100) {
     await this.assertConversationMember(userId, conversationId);
-    return this.prisma.messages.findMany({
-      where: { conversation_id: conversationId, deleted_at: null },
-      include: { sender: { select: { id: true, full_name: true } }, attachments: true },
-      orderBy: { created_at: 'asc' },
-      take: Math.min(limit, 250),
-    });
+    const [messages, members] = await Promise.all([
+      this.prisma.messages.findMany({
+        where: { conversation_id: conversationId, deleted_at: null },
+        include: {
+          sender: { select: { id: true, full_name: true } },
+          attachments: true,
+        },
+        orderBy: { created_at: 'asc' },
+        take: Math.min(limit, 250),
+      }),
+      this.prisma.conversation_members.findMany({
+        where: { conversation_id: conversationId, left_at: null },
+        select: {
+          user_id: true,
+          last_read_at: true,
+          user: { select: { id: true, full_name: true } },
+        },
+      }),
+    ]);
+
+    return messages.map((message) => ({
+      ...message,
+      readBy: members
+        .filter(
+          (member) =>
+            member.user_id !== message.sender_user_id &&
+            member.last_read_at != null &&
+            member.last_read_at >= message.created_at,
+        )
+        .map((member) => member.user),
+    }));
   }
 
-  async sendMessage(userId: string, conversationId: string, body: string, messageType: string) {
+  async sendMessage(
+    userId: string,
+    conversationId: string,
+    body: string | undefined,
+    messageType: string,
+    attachments: Array<{
+      mediaId: string;
+      mediaType?: string;
+      fileName?: string;
+      sizeBytes?: number;
+    }> = [],
+  ) {
     await this.assertConversationMember(userId, conversationId);
-    const clean = body?.trim();
-    if (!clean) throw new BadRequestException('Message body is required');
+    const clean = body?.trim() ?? '';
+    const normalizedAttachments = attachments
+      .map((item) => ({
+        mediaId: String(item.mediaId || '').trim(),
+        mediaType: item.mediaType ? String(item.mediaType).trim() : null,
+        fileName: item.fileName ? String(item.fileName).trim() : null,
+        sizeBytes:
+          item.sizeBytes == null ? null : Math.max(0, Math.trunc(Number(item.sizeBytes))),
+      }))
+      .filter((item) => item.mediaId);
+
+    if (!clean && normalizedAttachments.length === 0) {
+      throw new BadRequestException('Message body or attachment is required');
+    }
+    if (normalizedAttachments.length > 8) {
+      throw new BadRequestException('A message can contain at most 8 attachments');
+    }
+
+    const allowedTypes = new Set(['text', 'image', 'video', 'media', 'file']);
+    const normalizedType = allowedTypes.has(messageType) ? messageType : 'text';
+
+    if (normalizedAttachments.length) {
+      const mediaIds = Array.from(
+        new Set(normalizedAttachments.map((item) => item.mediaId)),
+      );
+      const ownedMedia = await this.prisma.media.findMany({
+        where: {
+          id: { in: mediaIds },
+          uploader_user_id: userId,
+          status: { in: ['uploaded', 'processing', 'ready'] },
+        },
+        select: {
+          id: true,
+          mime_category: true,
+          original_file_name: true,
+          size_bytes: true,
+        },
+      });
+      if (ownedMedia.length !== mediaIds.length) {
+        throw new ForbiddenException(
+          'One or more message attachments are not owned by the current user',
+        );
+      }
+
+      const mediaById = new Map(ownedMedia.map((item) => [item.id, item]));
+      for (const attachment of normalizedAttachments) {
+        const media = mediaById.get(attachment.mediaId)!;
+        attachment.mediaType = attachment.mediaType || media.mime_category;
+        attachment.fileName = attachment.fileName || media.original_file_name;
+        attachment.sizeBytes = attachment.sizeBytes ?? media.size_bytes;
+      }
+    }
 
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.messages.create({
         data: {
           conversation_id: conversationId,
           sender_user_id: userId,
-          message_type: messageType,
-          body_plain: clean,
+          message_type:
+            normalizedAttachments.length && normalizedType === 'text'
+              ? 'media'
+              : normalizedType,
+          body_plain: clean || null,
+          attachments: normalizedAttachments.length
+            ? {
+                create: normalizedAttachments.map((item, index) => ({
+                  media_id: item.mediaId,
+                  media_type: item.mediaType || 'other',
+                  file_name: item.fileName,
+                  size_bytes: item.sizeBytes,
+                  sort_order: index,
+                })),
+              }
+            : undefined,
         },
-        include: { sender: { select: { id: true, full_name: true } } },
+        include: {
+          sender: { select: { id: true, full_name: true } },
+          attachments: true,
+        },
       });
       await tx.conversations.update({
         where: { id: conversationId },
-        data: { last_message_id: created.id, last_message_at: created.created_at },
+        data: {
+          last_message_id: created.id,
+          last_message_at: created.created_at,
+        },
+      });
+      await tx.conversation_members.updateMany({
+        where: { conversation_id: conversationId, user_id: userId },
+        data: {
+          last_read_message_id: created.id,
+          last_read_at: created.created_at,
+        },
       });
       return created;
     });
 
-    const payload = {
-      conversationId,
-      message,
-    };
+    const payload = { conversationId, message };
     this.realtime?.emitConversation(conversationId, 'message:created', payload);
 
     const members = await this.prisma.conversation_members.findMany({
       where: { conversation_id: conversationId, left_at: null },
       select: { user_id: true },
     });
+    const notificationBody = clean
+      ? clean.length > 140
+        ? `${clean.slice(0, 137)}...`
+        : clean
+      : normalizedAttachments.length === 1
+        ? 'Sent an attachment'
+        : `Sent ${normalizedAttachments.length} attachments`;
+
     for (const member of members) {
       this.realtime?.emitUser(member.user_id, 'message:created', payload);
       if (member.user_id !== userId) {
@@ -247,7 +365,7 @@ export class CustomerOpsService {
           recipientUserId: member.user_id,
           notificationType: 'chat_message',
           title: message.sender?.full_name || 'New message',
-          body: clean.length > 140 ? `${clean.slice(0, 137)}...` : clean,
+          body: notificationBody,
           deepLink: `/messages/${conversationId}`,
           payload: { conversationId, messageId: message.id },
           channels: ['in_app', 'push'],
@@ -256,6 +374,60 @@ export class CustomerOpsService {
     }
 
     return message;
+  }
+
+  async markConversationRead(
+    userId: string,
+    conversationId: string,
+    messageId?: string,
+  ) {
+    await this.assertConversationMember(userId, conversationId);
+    const message = messageId
+      ? await this.prisma.messages.findFirst({
+          where: {
+            id: messageId,
+            conversation_id: conversationId,
+            deleted_at: null,
+          },
+          select: { id: true, created_at: true },
+        })
+      : await this.prisma.messages.findFirst({
+          where: { conversation_id: conversationId, deleted_at: null },
+          orderBy: { created_at: 'desc' },
+          select: { id: true, created_at: true },
+        });
+
+    if (!message) {
+      return { conversationId, lastReadMessageId: null, lastReadAt: null };
+    }
+
+    await this.prisma.conversation_members.updateMany({
+      where: { conversation_id: conversationId, user_id: userId, left_at: null },
+      data: {
+        last_read_message_id: message.id,
+        last_read_at: message.created_at,
+      },
+    });
+
+    const reader = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: { id: true, full_name: true },
+    });
+    const payload = {
+      conversationId,
+      messageId: message.id,
+      readAt: message.created_at,
+      reader,
+    };
+    this.realtime?.emitConversation(conversationId, 'message:read', payload);
+    const members = await this.prisma.conversation_members.findMany({
+      where: { conversation_id: conversationId, left_at: null },
+      select: { user_id: true },
+    });
+    for (const member of members) {
+      this.realtime?.emitUser(member.user_id, 'message:read', payload);
+    }
+    return payload;
   }
 
   async retention(userId: string) {
