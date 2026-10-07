@@ -553,7 +553,8 @@
         "settings": "Paramètres",
         "inventory": "Stock",
         "commissions": "Commissions",
-        "forms": "Formulaires de consentement"
+        "forms": "Formulaires de consentement",
+        "banking": "Banque"
       }
     },
     "admin": {
@@ -687,6 +688,10 @@
       "forms": {
         "title": "Formulaires de consentement",
         "subtitle": "Modèles de consentement service, médical, média et général avec versions."
+      },
+      "banking": {
+        "title": "Comptes de paiement",
+        "subtitle": "Gérez les destinations bancaires masquées et les documents de vérification."
       }
     },
     "actions": {
@@ -720,7 +725,10 @@
       "saveCrm": "Enregistrer CRM",
       "mergeDuplicate": "Fusionner un doublon",
       "viewCrm": "Ouvrir le CRM",
-      "merge": "Fusionner le doublon"
+      "merge": "Fusionner le doublon",
+      "addBankAccount": "Ajouter un compte bancaire",
+      "enablePayouts": "Activer les paiements",
+      "disablePayouts": "Désactiver les paiements"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -804,7 +812,15 @@
       "mergeDuplicate": "Fusionner un client en doublon",
       "mergeDuplicateHint": "Choisissez un autre dossier représentant la même personne. L’historique est conservé sous ce client canonique.",
       "chooseDuplicate": "Choisir le doublon",
-      "mergeConfirm": "Fusionner {name} dans ce client ? L’historique est conservé et ce client devient le dossier canonique."
+      "mergeConfirm": "Fusionner {name} dans ce client ? L’historique est conservé et ce client devient le dossier canonique.",
+      "bankName": "Banque",
+      "accountHolder": "Titulaire du compte",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "Numéro de compte",
+      "routingNumber": "Numéro de routage",
+      "verificationDocumentId": "ID du document de vérification",
+      "bankVerificationHint": "La modification du compte ou de l’IBAN réinitialise la vérification. La plateforme effectue la vérification."
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -832,7 +848,11 @@
       "templateCreated": "Formulaire créé à partir du modèle.",
       "crmSaved": "CRM client enregistré.",
       "mergeSameCustomer": "Choisissez un autre client en doublon.",
-      "customerMerged": "Client en doublon fusionné."
+      "customerMerged": "Client en doublon fusionné.",
+      "bankDestinationRequired": "Saisissez un numéro de compte ou un IBAN.",
+      "bankAccountCreated": "Compte bancaire ajouté.",
+      "bankAccountEnabled": "Paiements activés pour ce compte.",
+      "bankAccountDisabled": "Paiements désactivés pour ce compte."
     }
   },
   "adminOps": {
