@@ -76,9 +76,10 @@ const configuredApiBase =
 if (!configuredApiBase && typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production') {
   throw new Error('NEXT_PUBLIC_API_URL is required for production builds');
 }
+export const API_BASE = (configuredApiBase || 'http://localhost:4000/api/v1').replace(/\/$/, '');
 
 const api = axios.create({
-  baseURL: configuredApiBase || 'http://localhost:4000/api/v1',
+  baseURL: API_BASE,
   timeout: 15000,
   withCredentials: false,
 });
