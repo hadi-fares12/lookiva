@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { businessFetch, getBusinessSession } from '@/lib/api';
+import { useBusinessRealtimeReload } from '@/lib/realtime';
 
 const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?: string) => string }> = {
   'calendar': { key: 'calendar', endpoint: (c, b) => `/business-ops/${c}/appointments${b ? `?branchId=${b}` : ''}` },
@@ -95,6 +96,7 @@ export function OperationsPage({ section }: { section: string }) {
 
   useEffect(() => { void loadLookups(); }, [section]);
   useEffect(() => { void load(); }, [section, analyticsBranchId, analyticsProfessionalId, analyticsFrom, analyticsTo]);
+  useBusinessRealtimeReload(['booking:changed','queue:changed','floor:changed','business:changed'],()=>void load(),session?.branchId);
 
   async function mutate(path: string, init: RequestInit, success: string) {
     setBusy(path); setMessage(''); setError('');
