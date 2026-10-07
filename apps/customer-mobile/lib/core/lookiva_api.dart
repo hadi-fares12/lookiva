@@ -335,6 +335,21 @@ class LookivaApi {
 
   Future<String?> accessToken() => _storage.read(key: _accessKey);
 
+  Future<String> publicMediaUrl(
+    String mediaId, {
+    String? variant,
+  }) async {
+    final apiBase = _dio.options.baseUrl.isNotEmpty
+        ? _dio.options.baseUrl
+        : await _resolveBaseUrl();
+    final base = apiBase.replaceAll(RegExp(r'/$'), '');
+    final encodedId = Uri.encodeComponent(mediaId);
+    final suffix = variant == null || variant.isEmpty
+        ? ''
+        : '?variant=${Uri.encodeQueryComponent(variant)}';
+    return '$base/media/public/$encodedId$suffix';
+  }
+
   Future<String> realtimeBaseUrl() async {
     final apiBase = _dio.options.baseUrl.isNotEmpty
         ? _dio.options.baseUrl
