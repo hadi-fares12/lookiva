@@ -555,7 +555,8 @@
         "commissions": "Commissions",
         "forms": "Consent forms",
         "banking": "Banking",
-        "packageRedemptions": "Package redemptions"
+        "packageRedemptions": "Package redemptions",
+        "withdrawals": "Withdrawals"
       }
     },
     "admin": {
@@ -697,6 +698,10 @@
       "packageRedemptions": {
         "title": "Package redemptions",
         "subtitle": "Redeem package sessions safely and review package usage history."
+      },
+      "withdrawals": {
+        "title": "Withdrawals",
+        "subtitle": "Request transfers to verified payout bank accounts and track processing status."
       }
     },
     "actions": {
@@ -736,7 +741,9 @@
       "disablePayouts": "Disable payouts",
       "exportCsv": "Export CSV",
       "exportXlsx": "Export XLSX",
-      "redeemPackage": "Redeem package"
+      "redeemPackage": "Redeem package",
+      "requestWithdrawal": "Request withdrawal",
+      "cancelWithdrawal": "Cancel request"
     },
     "labels": {
       "serviceName": "Service name",
@@ -832,7 +839,12 @@
       "packagePurchaseId": "Package purchase ID",
       "serviceId": "Service ID",
       "appointmentId": "Appointment ID",
-      "sessionsUsed": "Sessions to redeem"
+      "sessionsUsed": "Sessions to redeem",
+      "chooseBankAccount": "Choose verified bank account",
+      "bankAccount": "Bank account",
+      "withdrawalAmount": "Withdrawal amount",
+      "referenceCode": "Reference code",
+      "withdrawalReason": "Reason / note"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -865,7 +877,11 @@
       "bankAccountCreated": "Bank account added.",
       "bankAccountEnabled": "Payouts enabled for this account.",
       "bankAccountDisabled": "Payouts disabled for this account.",
-      "packageRedeemed": "Package session redeemed."
+      "packageRedeemed": "Package session redeemed.",
+      "withdrawalBankRequired": "Choose a verified bank account.",
+      "withdrawalRequested": "Withdrawal request submitted.",
+      "noVerifiedBank": "Add and verify a payout bank account before requesting a withdrawal.",
+      "withdrawalCancelled": "Withdrawal request cancelled."
     }
   },
   "adminOps": {
