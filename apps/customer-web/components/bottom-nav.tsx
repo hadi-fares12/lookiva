@@ -4,7 +4,7 @@ import * as React from 'react';
 import {
   Home,
   Compass,
-  Search,
+  Clapperboard,
   Map,
   Calendar,
   User,
@@ -17,7 +17,7 @@ import clsx from 'clsx';
 const NAV_ITEMS = [
   { key: 'home', href: '/home', icon: Home, label: 'home' },
   { key: 'discover', href: '/discover', icon: Compass, label: 'discover' },
-  { key: 'search', href: '/search', icon: Search, label: 'search' },
+  { key: 'reels', href: '/reels', icon: Clapperboard, label: 'reels' },
   { key: 'map', href: '/map', icon: Map, label: 'map' },
   { key: 'bookings', href: '/bookings', icon: Calendar, label: 'bookings' },
   { key: 'profile', href: '/profile', icon: User, label: 'profile' },
