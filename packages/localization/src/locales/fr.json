@@ -584,7 +584,13 @@
         "remoteConfig": "Configuration distante",
         "audit": "Journal d’audit",
         "system": "Système",
-        "strikes": "Sanctions utilisateurs"
+        "strikes": "Sanctions utilisateurs",
+        "branches": "Succursales",
+        "professionals": "Professionnels",
+        "services": "Services",
+        "regions": "Régions",
+        "currencies": "Devises",
+        "plans": "Forfaits"
       }
     }
   },
@@ -894,6 +900,30 @@
       "strikes": {
         "title": "Sanctions utilisateurs",
         "subtitle": "Avertissements, sanctions, expiration et état d’application."
+      },
+      "branches": {
+        "title": "Succursales",
+        "subtitle": "Répertoire global des établissements, réservation et état opérationnel."
+      },
+      "professionals": {
+        "title": "Professionnels",
+        "subtitle": "Profils professionnels, vérification et état plateforme."
+      },
+      "services": {
+        "title": "Services",
+        "subtitle": "Catalogue de services des entreprises, tarifs et disponibilité."
+      },
+      "regions": {
+        "title": "Régions",
+        "subtitle": "Régions de marché et rattachement aux pays."
+      },
+      "currencies": {
+        "title": "Devises",
+        "subtitle": "Devises prises en charge, symboles, décimales et état."
+      },
+      "plans": {
+        "title": "Forfaits d’abonnement",
+        "subtitle": "Niveaux, tarifs et périodes d’essai de la plateforme."
       }
     },
     "prompts": {
