@@ -553,7 +553,8 @@
         "settings": "الإعدادات",
         "inventory": "المخزون",
         "commissions": "العمولات",
-        "forms": "نماذج الموافقة"
+        "forms": "نماذج الموافقة",
+        "banking": "الحسابات البنكية"
       }
     },
     "admin": {
@@ -687,6 +688,10 @@
       "forms": {
         "title": "نماذج الموافقة",
         "subtitle": "نماذج موافقة الخدمة والطبية والإعلامية والعامة مع الإصدارات."
+      },
+      "banking": {
+        "title": "حسابات الدفعات",
+        "subtitle": "إدارة وجهات الدفعات البنكية المخفية ومستندات التحقق."
       }
     },
     "actions": {
@@ -720,7 +725,10 @@
       "saveCrm": "حفظ CRM",
       "mergeDuplicate": "دمج عميل مكرر",
       "viewCrm": "فتح إدارة العميل",
-      "merge": "دمج التكرار"
+      "merge": "دمج التكرار",
+      "addBankAccount": "إضافة حساب بنكي",
+      "enablePayouts": "تفعيل الدفعات",
+      "disablePayouts": "تعطيل الدفعات"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -804,7 +812,15 @@
       "mergeDuplicate": "دمج عميل مكرر",
       "mergeDuplicateHint": "اختر سجلاً آخر يمثل الشخص نفسه. يبقى السجل التاريخي محفوظاً تحت العميل الأساسي.",
       "chooseDuplicate": "اختر السجل المكرر",
-      "mergeConfirm": "هل تريد دمج {name} في هذا العميل؟ سيبقى السجل محفوظاً ويصبح هذا العميل هو السجل الأساسي."
+      "mergeConfirm": "هل تريد دمج {name} في هذا العميل؟ سيبقى السجل محفوظاً ويصبح هذا العميل هو السجل الأساسي.",
+      "bankName": "اسم البنك",
+      "accountHolder": "اسم صاحب الحساب",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "رقم الحساب",
+      "routingNumber": "رقم التوجيه",
+      "verificationDocumentId": "معرّف مستند التحقق",
+      "bankVerificationHint": "تعديل رقم الحساب أو IBAN يلغي حالة التحقق. يتم التحقق بواسطة فريق المنصة."
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -832,7 +848,11 @@
       "templateCreated": "تم إنشاء نموذج الموافقة من القالب.",
       "crmSaved": "تم حفظ بيانات إدارة العميل.",
       "mergeSameCustomer": "اختر عميلاً مكرراً مختلفاً.",
-      "customerMerged": "تم دمج العميل المكرر."
+      "customerMerged": "تم دمج العميل المكرر.",
+      "bankDestinationRequired": "أدخل رقم حساب أو IBAN.",
+      "bankAccountCreated": "تمت إضافة الحساب البنكي.",
+      "bankAccountEnabled": "تم تفعيل الدفعات لهذا الحساب.",
+      "bankAccountDisabled": "تم تعطيل الدفعات لهذا الحساب."
     }
   },
   "adminOps": {
