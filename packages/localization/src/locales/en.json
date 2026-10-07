@@ -553,7 +553,8 @@
         "settings": "Settings",
         "inventory": "Inventory",
         "commissions": "Commissions",
-        "forms": "Consent forms"
+        "forms": "Consent forms",
+        "banking": "Banking"
       }
     },
     "admin": {
@@ -687,6 +688,10 @@
       "forms": {
         "title": "Consent forms",
         "subtitle": "Service, medical, media and general consent templates with versioning."
+      },
+      "banking": {
+        "title": "Payout banking",
+        "subtitle": "Manage masked business payout destinations and verification documents."
       }
     },
     "actions": {
@@ -720,7 +725,10 @@
       "saveCrm": "Save CRM",
       "mergeDuplicate": "Merge duplicate",
       "viewCrm": "Open CRM",
-      "merge": "Merge duplicate"
+      "merge": "Merge duplicate",
+      "addBankAccount": "Add bank account",
+      "enablePayouts": "Enable payouts",
+      "disablePayouts": "Disable payouts"
     },
     "labels": {
       "serviceName": "Service name",
@@ -804,7 +812,15 @@
       "mergeDuplicate": "Merge duplicate customer",
       "mergeDuplicateHint": "Choose another customer record that represents the same person. History is preserved under this canonical customer.",
       "chooseDuplicate": "Choose duplicate record",
-      "mergeConfirm": "Merge {name} into this customer? This keeps history but makes the selected customer the canonical record."
+      "mergeConfirm": "Merge {name} into this customer? This keeps history but makes the selected customer the canonical record.",
+      "bankName": "Bank name",
+      "accountHolder": "Account holder",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "Account number",
+      "routingNumber": "Routing number",
+      "verificationDocumentId": "Verification document ID",
+      "bankVerificationHint": "Changing account/IBAN details resets verification. Verification is completed by platform staff."
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -832,7 +848,11 @@
       "templateCreated": "Consent form created from template.",
       "crmSaved": "Customer CRM saved.",
       "mergeSameCustomer": "Choose a different duplicate customer.",
-      "customerMerged": "Duplicate customer merged."
+      "customerMerged": "Duplicate customer merged.",
+      "bankDestinationRequired": "Enter an account number or IBAN.",
+      "bankAccountCreated": "Bank account added.",
+      "bankAccountEnabled": "Payouts enabled for this account.",
+      "bankAccountDisabled": "Payouts disabled for this account."
     }
   },
   "adminOps": {
