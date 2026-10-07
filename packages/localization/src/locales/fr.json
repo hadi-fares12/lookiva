@@ -554,7 +554,8 @@
         "inventory": "Stock",
         "commissions": "Commissions",
         "forms": "Formulaires de consentement",
-        "banking": "Banque"
+        "banking": "Banque",
+        "packageRedemptions": "Utilisation des forfaits"
       }
     },
     "admin": {
@@ -692,6 +693,10 @@
       "banking": {
         "title": "Comptes de paiement",
         "subtitle": "Gérez les destinations bancaires masquées et les documents de vérification."
+      },
+      "packageRedemptions": {
+        "title": "Utilisation des forfaits",
+        "subtitle": "Utilisez des séances de forfait en toute sécurité et consultez l’historique."
       }
     },
     "actions": {
@@ -730,7 +735,8 @@
       "enablePayouts": "Activer les paiements",
       "disablePayouts": "Désactiver les paiements",
       "exportCsv": "Exporter CSV",
-      "exportXlsx": "Exporter XLSX"
+      "exportXlsx": "Exporter XLSX",
+      "redeemPackage": "Utiliser le forfait"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -822,7 +828,11 @@
       "accountNumber": "Numéro de compte",
       "routingNumber": "Numéro de routage",
       "verificationDocumentId": "ID du document de vérification",
-      "bankVerificationHint": "La modification du compte ou de l’IBAN réinitialise la vérification. La plateforme effectue la vérification."
+      "bankVerificationHint": "La modification du compte ou de l’IBAN réinitialise la vérification. La plateforme effectue la vérification.",
+      "packagePurchaseId": "ID d’achat du forfait",
+      "serviceId": "ID du service",
+      "appointmentId": "ID du rendez-vous",
+      "sessionsUsed": "Séances à utiliser"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -854,7 +864,8 @@
       "bankDestinationRequired": "Saisissez un numéro de compte ou un IBAN.",
       "bankAccountCreated": "Compte bancaire ajouté.",
       "bankAccountEnabled": "Paiements activés pour ce compte.",
-      "bankAccountDisabled": "Paiements désactivés pour ce compte."
+      "bankAccountDisabled": "Paiements désactivés pour ce compte.",
+      "packageRedeemed": "Séance du forfait utilisée."
     }
   },
   "adminOps": {
