@@ -1354,8 +1354,8 @@ model customers {
   queue_entries            queue_entries[]
   membership_subscriptions membership_subscriptions[]
   consent_form_responses   consent_form_responses[]
-  company_profiles         customer_company_profiles[] @relation("CustomerCompanyProfileCustomer")
-  merged_company_profiles  customer_company_profiles[] @relation("CustomerCompanyProfileMergedInto")
+  company_profiles         customer_company_profiles[]    @relation("CustomerCompanyProfileCustomer")
+  merged_company_profiles  customer_company_profiles[]    @relation("CustomerCompanyProfileMergedInto")
 
   @@index([user_id])
   @@index([referral_code])
