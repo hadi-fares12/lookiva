@@ -11,7 +11,8 @@ const CONFIG: Record<string, Config> = {
   'bookings': { key: 'bookings', endpoint: '/admin/bookings?limit=100' },
   'payments': { key: 'payments', endpoint: '/admin/payments?limit=100' },
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
-  'moderation': { key: 'moderation', endpoint: '/platform-ops-v2/moderation/reports' },
+  'moderation': { key: 'moderation', endpoint: '/admin/moderation/reports?limit=100' },
+  'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
   'categories': { key: 'categories', endpoint: '/admin/categories' },
   'countries': { key: 'countries', endpoint: '/admin/countries' },
   'languages': { key: 'languages', endpoint: '/platform/settings' },
@@ -89,12 +90,22 @@ export function AdminOperationsPage({section}:{section:string}){
     catch(e){setError(e instanceof Error?e.message:t('operationError'));}
     finally{setBusy('');}
   };
+  const remove=async(key:string,path:string,body:any,success:string)=>{
+    setBusy(key);setError('');setNotice('');
+    try{await adminFetch(path,{method:'DELETE',body:JSON.stringify(body||{})});setNotice(success);await load();}
+    catch(e){setError(e instanceof Error?e.message:t('operationError'));}
+    finally{setBusy('');}
+  };
 
   const actionsFor=(r:any)=>{
     const id=String(r.id||'');
     if(section==='users'&&id){
       const active=r.is_active!==false && r.status!=='suspended';
-      return <button disabled={busy===id} onClick={()=>{const reason=window.prompt(`${active?t('suspend'):t('reactivate')} — ${t('prompts.reason')}`,'')??undefined;void mutate(id,`/admin/users/${id}/status`,{isActive:!active,reason},active?t('messages.userSuspended'):t('messages.userReactivated'));}} className="action-btn">{busy===id?t('saving'):active?t('suspend'):t('reactivate')}</button>;
+      return <div className="flex flex-wrap gap-2">
+        <button disabled={busy===id} onClick={()=>{const reason=window.prompt(`${active?t('suspend'):t('reactivate')} — ${t('prompts.reason')}`,'')??undefined;void mutate(id,`/admin/users/${id}/status`,{isActive:!active,reason},active?t('messages.userSuspended'):t('messages.userReactivated'));}} className="action-btn">{busy===id?t('saving'):active?t('suspend'):t('reactivate')}</button>
+        <button disabled={!!busy} onClick={()=>{const reason=window.prompt('Reason for revoking all sessions','Security review')||undefined;void post(id+'sessions',`/admin/users/${id}/revoke-sessions`,{reason},'All user sessions revoked.');}} className="action-btn">Revoke sessions</button>
+        <button disabled={!!busy} onClick={()=>{const reasonType=window.prompt('Strike reason type','policy_violation');if(!reasonType?.trim())return;const reasonText=window.prompt('Strike details','')||undefined;void post(id+'strike',`/admin/users/${id}/strikes`,{severity:'warning',reasonType:reasonType.trim(),reasonText},'Strike issued.');}} className="action-btn danger">Issue strike</button>
+      </div>;
     }
     if(section==='businesses'&&id){
       const active=r.is_active!==false;
@@ -117,11 +128,24 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     if(section==='support'&&id){
       const closed=['resolved','closed'].includes(String(r.status));
-      return <button disabled={busy===id||closed} onClick={()=>void mutate(id,`/admin/support/${id}`,{status:'resolved'},t('messages.supportResolved'))} className="action-btn">{closed?t('resolved'):t('resolve')}</button>;
+      return <div className="flex flex-wrap gap-2">
+        <button disabled={!!busy} onClick={()=>{const body=window.prompt('Reply to support ticket','');if(!body?.trim())return;void post(id+'reply',`/admin/support/${id}/replies`,{body:body.trim()},'Support reply sent.');}} className="action-btn">Reply</button>
+        <button disabled={busy===id||closed} onClick={()=>void mutate(id,`/admin/support/${id}`,{status:'resolved'},t('messages.supportResolved'))} className="action-btn">{closed?t('resolved'):t('resolve')}</button>
+      </div>;
     }
     if(section==='disputes'&&id){
       const closed=['resolved','closed'].includes(String(r.status));
       return <button disabled={busy===id||closed} onClick={()=>{const resolution=window.prompt(t('prompts.resolution'),'Resolved by platform review.')||'Resolved by platform review.';void mutate(id,`/admin/disputes/${id}`,{status:'resolved',resolution},t('messages.disputeResolved'));}} className="action-btn">{closed?t('resolved'):t('resolve')}</button>;
+    }
+    if(section==='moderation'&&id){
+      const closed=['resolved','dismissed'].includes(String(r.status));
+      return <div className="flex flex-wrap gap-2">
+        <button disabled={!!busy||closed} onClick={()=>void mutate(id+'resolve',`/admin/moderation/reports/${id}`,{status:'resolved',actionTaken:'reviewed'},'Moderation report resolved.')} className="action-btn">Resolve</button>
+        <button disabled={!!busy||closed} onClick={()=>void mutate(id+'dismiss',`/admin/moderation/reports/${id}`,{status:'dismissed',actionTaken:'dismissed'},'Moderation report dismissed.')} className="action-btn">Dismiss</button>
+      </div>;
+    }
+    if(section==='strikes'&&id){
+      return <button disabled={!!busy||r.is_active===false} onClick={()=>void remove(id,`/admin/strikes/${id}`,{reason:'Cleared by platform admin'},'Strike deactivated.')} className="action-btn">{r.is_active===false?'Inactive':'Deactivate'}</button>;
     }
     if(section==='feature-flags'&&r.key){
       const key=String(r.key);const enabled=Boolean(r.is_enabled);
@@ -133,11 +157,24 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','categories','countries','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','moderation','strikes','categories','countries','themes','support','disputes','feature-flags','remote-config'].includes(section);
+
+  const createCategory=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-category','/admin/categories',{name:String(fd.get('name')||''),slug:String(fd.get('slug')||'')||undefined,iconKey:String(fd.get('iconKey')||'')||undefined},'Category created.');
+    event.currentTarget.reset();
+  };
+  const createCountry=async(event:React.FormEvent<HTMLFormElement>)=>{
+    event.preventDefault();const fd=new FormData(event.currentTarget);
+    await post('create-country','/admin/countries',{isoCode:String(fd.get('isoCode')||''),name:String(fd.get('name')||''),dialCode:String(fd.get('dialCode')||''),currencyCode:String(fd.get('currencyCode')||'')},'Country created.');
+    event.currentTarget.reset();
+  };
 
   return <div className="space-y-6">
     <style>{`.action-btn{border:1px solid var(--border-subtle);background:var(--surface-2);padding:.45rem .7rem;border-radius:.65rem;font-size:.75rem;font-weight:700;color:var(--text-primary);white-space:nowrap}.action-btn:hover:not(:disabled){filter:brightness(1.08)}.action-btn:disabled{opacity:.5;cursor:not-allowed}.action-btn.danger{border-color:color-mix(in srgb,var(--accent-red) 45%,transparent);color:var(--accent-red)}`}</style>
     <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-gold-2">{t('eyebrow')}</p><h1 className="mt-2 text-3xl font-bold text-primary">{t(`sections.${cfg.key}.title`)}</h1><p className="mt-2 text-secondary">{t(`sections.${cfg.key}.subtitle`)}</p></div><button onClick={()=>void load()} className="h-10 rounded-radius-md border border-border-subtle bg-surface-1 px-4 text-sm font-semibold text-primary hover:bg-surface-2">{t('refresh')}</button></div>
+    {section==='categories'&&<form onSubmit={createCategory} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4"><input name="name" required placeholder="Category name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="slug" placeholder="Slug (optional)" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="iconKey" placeholder="Icon key" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create category</button></form>}
+    {section==='countries'&&<form onSubmit={createCountry} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5"><input name="isoCode" required maxLength={3} placeholder="ISO code" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="name" required placeholder="Country name" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="dialCode" required placeholder="+961" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><input name="currencyCode" required maxLength={3} placeholder="USD" className="h-11 rounded-radius-md border border-border-subtle bg-surface-0 px-3 text-primary"/><button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Create country</button></form>}
     {notice&&<div className="rounded-radius-lg border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm font-semibold text-accent-green">{notice}</div>}
     {loading&&<div className="grid gap-3 md:grid-cols-3">{[1,2,3].map(i=><div key={i} className="h-28 animate-pulse rounded-radius-xl bg-surface-2"/>)}</div>}
     {error&&<div className="rounded-radius-xl border border-accent-red/40 bg-accent-red/10 p-5"><p className="font-semibold text-accent-red">{t('operationPanelError')}</p><p className="mt-1 text-sm text-secondary">{error}</p><button onClick={()=>void load()} className="mt-4 rounded-radius-md bg-accent-gold-2 px-4 py-2 text-sm font-semibold text-surface-0">{t('retry')}</button></div>}
