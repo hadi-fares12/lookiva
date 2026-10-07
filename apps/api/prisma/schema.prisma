@@ -584,7 +584,7 @@ model companies {
   customer_company_profiles customer_company_profiles[] @relation("CompanyCustomerProfiles")
   commission_rules          commission_rules[]
   disputes                  disputes[]
-  withdrawal_requests      withdrawal_requests[]
+  withdrawal_requests       withdrawal_requests[]
 
   @@index([owner_user_id])
   @@index([country_id])
@@ -3709,7 +3709,7 @@ model bank_accounts {
   @@index([owner_type, owner_id])
   @@index([currency_code])
   @@index([is_verified])
-  withdrawals withdrawal_requests[]
+  withdrawals         withdrawal_requests[]
 
   @@index([payout_enabled])
 }
@@ -3741,4 +3741,3 @@ model withdrawal_requests {
   @@index([currency_code])
   @@index([created_at])
 }
-
