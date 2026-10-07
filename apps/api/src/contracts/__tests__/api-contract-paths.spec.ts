@@ -20,6 +20,22 @@ describe('shared API paths match live controllers', () => {
     expect(APIPaths.ANALYTICS_V2_SNAPSHOTS_DAILY).toBe('/api/v1/analytics-v2/snapshots');
   });
 
+  it('matches admin platform routes', () => {
+    expect(APIPaths.ADMIN_STATS).toBe('/api/v1/admin/stats');
+    expect(APIPaths.ADMIN_USERS_ID_IMPERSONATE('u1')).toBe('/api/v1/admin/users/u1/impersonate');
+    expect(APIPaths.ADMIN_BUSINESSES_ID_VERIFY('c1')).toBe('/api/v1/admin/businesses/c1/verification');
+    expect(APIPaths.ADMIN_BRANCHES).toBe('/api/v1/admin/branches');
+    expect(APIPaths.ADMIN_PROFESSIONALS).toBe('/api/v1/admin/professionals');
+    expect(APIPaths.ADMIN_SERVICES).toBe('/api/v1/admin/services');
+    expect(APIPaths.ADMIN_REGIONS).toBe('/api/v1/admin/regions');
+    expect(APIPaths.ADMIN_LANGUAGES).toBe('/api/v1/admin/languages');
+    expect(APIPaths.ADMIN_CURRENCIES).toBe('/api/v1/admin/currencies');
+    expect(APIPaths.ADMIN_PLANS).toBe('/api/v1/admin/plans');
+    expect(APIPaths.ADMIN_BOOKINGS_ID_CANCEL('a1')).toBe('/api/v1/admin/bookings/a1/cancel');
+    expect(APIPaths.ADMIN_PAYMENTS_ID_REFUND('p1')).toBe('/api/v1/admin/payments/p1/refund');
+    expect(APIPaths.ADMIN_AUDIT).toBe('/api/v1/admin/audit');
+  });
+
   it('matches retention, notifications and platform-ops routes', () => {
     expect(APIPaths.RETENTION_V2_WALLET('cust1')).toBe('/api/v1/retention-v2/wallets/cust1');
     expect(APIPaths.RETENTION_V2_WALLET_ADJUST).toBe('/api/v1/retention-v2/wallets/adjust');
