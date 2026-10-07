@@ -708,7 +708,14 @@
       "complete": "إكمال",
       "call": "استدعاء",
       "served": "تمت الخدمة",
-      "viewOnly": "عرض فقط"
+      "viewOnly": "عرض فقط",
+      "structure": "الهيكل",
+      "close": "إغلاق",
+      "saveDependencies": "حفظ المتطلبات",
+      "addStage": "إضافة مرحلة",
+      "saveStages": "حفظ المراحل",
+      "remove": "إزالة",
+      "useTemplate": "استخدام القالب"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -761,7 +768,20 @@
       "anyProfessional": "أي محترف",
       "until": "حتى",
       "allAuthorizedBranches": "كل الفروع المصرح بها",
-      "resetFilters": "إعادة تعيين الفلاتر"
+      "resetFilters": "إعادة تعيين الفلاتر",
+      "formTemplates": "قوالب النماذج",
+      "formTemplatesHint": "ابدأ بقالب موافقة أو إدخال قابل لإعادة الاستخدام ثم خصصه لمؤسستك.",
+      "serviceStructure": "هيكل الخدمة",
+      "serviceStructureHint": "اضبط الخدمات المطلوبة مسبقاً والمراحل المرتبة اللازمة لتنفيذ هذه الخدمة.",
+      "dependencies": "المتطلبات السابقة",
+      "dependenciesHint": "اختر الخدمات التي يجب تنفيذها قبل هذه الخدمة.",
+      "minutes": "دقائق",
+      "noDependencyOptions": "لا توجد خدمات نشطة أخرى متاحة كمتطلبات سابقة.",
+      "serviceStages": "مراحل الخدمة",
+      "serviceStagesHint": "قسّم الخدمة إلى مراحل تشغيلية مرتبة. يجب ألا يتجاوز مجموع المدد مدة الخدمة.",
+      "stageName": "اسم المرحلة",
+      "stageDuration": "مدة المرحلة (دقائق)",
+      "noStages": "لا توجد مراحل مضبوطة. أضف مرحلة إذا كانت الخدمة متعددة الخطوات."
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -783,7 +803,10 @@
       "serviceDisabled": "تم تعطيل الخدمة.",
       "serviceEnabled": "تم تفعيل الخدمة.",
       "promotionPaused": "تم إيقاف العرض.",
-      "promotionActivated": "تم تفعيل العرض."
+      "promotionActivated": "تم تفعيل العرض.",
+      "dependenciesSaved": "تم حفظ متطلبات الخدمة.",
+      "stagesSaved": "تم حفظ مراحل الخدمة.",
+      "templateCreated": "تم إنشاء نموذج الموافقة من القالب."
     }
   },
   "adminOps": {
