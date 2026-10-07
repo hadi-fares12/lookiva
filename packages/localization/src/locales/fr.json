@@ -728,7 +728,9 @@
       "merge": "Fusionner le doublon",
       "addBankAccount": "Ajouter un compte bancaire",
       "enablePayouts": "Activer les paiements",
-      "disablePayouts": "Désactiver les paiements"
+      "disablePayouts": "Désactiver les paiements",
+      "exportCsv": "Exporter CSV",
+      "exportXlsx": "Exporter XLSX"
     },
     "labels": {
       "serviceName": "Nom du service",
