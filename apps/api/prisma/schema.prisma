@@ -3690,7 +3690,7 @@ model country_taxes {
 }
 
 model bank_accounts {
-  id                  String   @id @default(cuid())
+  id                  String                @id @default(cuid())
   owner_type          String
   owner_id            String
   bank_name           String?
@@ -3700,11 +3700,11 @@ model bank_accounts {
   iban                String?
   swift_bic           String?
   currency_code       String
-  is_verified         Boolean  @default(false)
+  is_verified         Boolean               @default(false)
   verification_doc_id String?
-  payout_enabled      Boolean  @default(true)
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  payout_enabled      Boolean               @default(true)
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @updatedAt
   withdrawals         withdrawal_requests[]
 
   @@index([owner_type, owner_id])
