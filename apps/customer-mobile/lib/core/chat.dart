@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'realtime.dart';
 
 class CustomerConversationsPage extends StatefulWidget {
   const CustomerConversationsPage({super.key});
@@ -9,8 +11,11 @@ class CustomerConversationsPage extends StatefulWidget {
 }
 class _CustomerConversationsPageState extends State<CustomerConversationsPage>{
   int _generation=0;
+  StreamSubscription<LookivaRealtimeEvent>? _realtimeSub;
   Future<dynamic> get _future=>LookivaApi.instance.get('/customer-ops/conversations?generation=$_generation');
   void _reload()=>setState(()=>_generation++);
+  @override void initState(){super.initState();LookivaRealtime.instance.connect();_realtimeSub=LookivaRealtime.instance.events.listen((event){if(mounted&&event.name=='message:created')_reload();});}
+  @override void dispose(){_realtimeSub?.cancel();super.dispose();}
   @override Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:Text(ct(context,'messages'))),
     body:FutureBuilder<dynamic>(future:_future,builder:(context,snapshot){
@@ -40,11 +45,12 @@ class CustomerConversationPage extends StatefulWidget{
   @override State<CustomerConversationPage> createState()=>_CustomerConversationPageState();
 }
 class _CustomerConversationPageState extends State<CustomerConversationPage>{
-  final _input=TextEditingController();int _generation=0;bool _sending=false;
+  final _input=TextEditingController();int _generation=0;bool _sending=false;StreamSubscription<LookivaRealtimeEvent>? _realtimeSub;
   Future<dynamic> get _future=>LookivaApi.instance.get('/customer-ops/conversations/${widget.id}/messages?limit=200&generation=$_generation');
   void _reload()=>setState(()=>_generation++);
+  @override void initState(){super.initState();LookivaRealtime.instance.connect().then((_){LookivaRealtime.instance.joinConversation(widget.id);});_realtimeSub=LookivaRealtime.instance.events.listen((event){if(!mounted||event.name!='message:created')return;final data=event.data;if(data is Map&&data['conversationId']?.toString()==widget.id)_reload();});}
   Future<void> _send()async{final body=_input.text.trim();if(body.isEmpty)return;setState(()=>_sending=true);try{await LookivaApi.instance.post('/customer-ops/conversations/${widget.id}/messages',data:{'body':body,'messageType':'text'});_input.clear();_reload();}finally{if(mounted)setState(()=>_sending=false);}}
-  @override void dispose(){_input.dispose();super.dispose();}
+  @override void dispose(){LookivaRealtime.instance.leaveConversation(widget.id);_realtimeSub?.cancel();_input.dispose();super.dispose();}
   @override Widget build(BuildContext context)=>Scaffold(
     appBar:AppBar(title:Text(ct(context,'conversation'))),
     body:Column(children:[Expanded(child:FutureBuilder<dynamic>(future:_future,builder:(context,snapshot){
