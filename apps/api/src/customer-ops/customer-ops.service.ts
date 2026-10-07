@@ -8,9 +8,9 @@ import { MediaService } from '../media/media.service';
 export class CustomerOpsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly media: MediaService,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly realtime?: RealtimeService,
-    private readonly media: MediaService,
   ) {}
 
   private async customerForUser(userId: string) {
