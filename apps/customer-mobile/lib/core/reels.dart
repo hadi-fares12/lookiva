@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'lookiva_api.dart';
 import 'l10n.dart';
@@ -214,22 +215,7 @@ class _ReelCard extends StatelessWidget {
           child: Column(
             children: [
               Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                        Theme.of(context).colorScheme.surface,
-                      ],
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.auto_awesome_rounded, size: 72),
-                  ),
-                ),
+                child: _ReelMedia(post: post),
               ),
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -368,6 +354,111 @@ class _ReelCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+class _ReelMedia extends StatelessWidget {
+  final Map<String, dynamic> post;
+
+  const _ReelMedia({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaRows = (post['media_list'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+    if (mediaRows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).colorScheme.surfaceContainerHighest,
+              Theme.of(context).colorScheme.surface,
+            ],
+          ),
+        ),
+        child: const Center(
+          child: Icon(Icons.auto_awesome_rounded, size: 72),
+        ),
+      );
+    }
+
+    final media = mediaRows.first;
+    final mediaId = media['media_id']?.toString() ?? '';
+    final mediaType = media['media_type']?.toString() ?? 'image';
+    if (mediaId.isEmpty) {
+      return const Center(child: Icon(Icons.broken_image_outlined, size: 56));
+    }
+
+    return FutureBuilder<List<String>>(
+      future: Future.wait([
+        LookivaApi.instance.publicMediaUrl(
+          mediaId,
+          variant: mediaType == 'video' ? 'thumb' : 'medium',
+        ),
+        if (mediaType == 'video')
+          LookivaApi.instance.publicMediaUrl(mediaId, variant: 'medium')
+        else
+          LookivaApi.instance.publicMediaUrl(mediaId, variant: 'medium'),
+      ]),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final previewUrl = snapshot.data![0];
+        final assetUrl = snapshot.data![1];
+
+        final preview = Image.network(
+          previewUrl,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Center(
+            child: Icon(
+              mediaType == 'video'
+                  ? Icons.video_file_outlined
+                  : Icons.broken_image_outlined,
+              size: 64,
+            ),
+          ),
+        );
+
+        if (mediaType != 'video') return preview;
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            preview,
+            Container(color: Colors.black.withValues(alpha: .18)),
+            Center(
+              child: FilledButton.icon(
+                onPressed: () async {
+                  final uri = Uri.tryParse(assetUrl);
+                  if (uri == null ||
+                      !await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      )) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(ct(context, 'videoOpenError'))),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(ct(context, 'watchVideo')),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
