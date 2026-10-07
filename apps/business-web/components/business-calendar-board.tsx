@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { businessFetch, getBusinessSession } from '@/lib/api';
+import { useBusinessRealtimeReload } from '@/lib/realtime';
 
 type CalendarView = 'day' | 'fourDay' | 'week' | 'twoWeek' | 'month' | 'list';
 type Row = Record<string, any>;
@@ -165,6 +166,12 @@ export function BusinessCalendarBoard() {
   React.useEffect(() => {
     void loadAppointments();
   }, [loadAppointments]);
+
+  useBusinessRealtimeReload(
+    ['booking:changed'],
+    () => void loadAppointments(),
+    branchId || session?.branchId,
+  );
 
   const filtered = React.useMemo(
     () =>
@@ -527,7 +534,7 @@ export function BusinessCalendarBoard() {
           view === 'month'
             ? 'grid-cols-7'
             : view === 'twoWeek'
-              ? 'min-w-[1400px] grid-cols-14'
+              ? 'min-w-[1400px] [grid-template-columns:repeat(14,minmax(0,1fr))]'
               : view === 'week'
                 ? 'min-w-[900px] grid-cols-7'
                 : view === 'fourDay'
