@@ -59,6 +59,8 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   StreamSubscription<LookivaBusinessRealtimeEvent>? _realtimeSub;
   bool _busy = false;
   String? _notice;
+  String _calendarView = 'day';
+  DateTime _calendarAnchor = DateTime.now();
 
   ({String titleKey, String path, IconData icon}) get config =>
       BusinessRemoteBody.configFor(widget.section);
@@ -92,7 +94,101 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   }
 
   void _reload() {
-    _future = LookivaBusinessApi.instance.getScoped(config.path);
+    _future = LookivaBusinessApi.instance.getScoped(
+      config.path,
+      query: widget.section == 'calendar' ? _calendarQuery() : null,
+    );
+  }
+
+  Map<String, dynamic> _calendarQuery() {
+    DateTime start;
+    DateTime end;
+    final anchor = DateTime(
+      _calendarAnchor.year,
+      _calendarAnchor.month,
+      _calendarAnchor.day,
+    );
+
+    switch (_calendarView) {
+      case 'three_days':
+        start = anchor;
+        end = anchor.add(const Duration(days: 3));
+        break;
+      case 'week':
+        start = anchor.subtract(Duration(days: anchor.weekday - DateTime.monday));
+        end = start.add(const Duration(days: 7));
+        break;
+      case 'month':
+        start = DateTime(anchor.year, anchor.month, 1);
+        end = DateTime(anchor.year, anchor.month + 1, 1);
+        break;
+      case 'agenda':
+        start = anchor;
+        end = anchor.add(const Duration(days: 30));
+        break;
+      case 'timeline':
+        start = anchor.subtract(const Duration(days: 7));
+        end = anchor.add(const Duration(days: 30));
+        break;
+      case 'day':
+      default:
+        start = anchor;
+        end = anchor.add(const Duration(days: 1));
+        break;
+    }
+
+    return {
+      'from': start.toUtc().toIso8601String(),
+      'to': end.subtract(const Duration(milliseconds: 1)).toUtc().toIso8601String(),
+      'limit': 250,
+    };
+  }
+
+  void _changeCalendarView(String view) {
+    if (_calendarView == view) return;
+    setState(() {
+      _calendarView = view;
+      _reload();
+    });
+  }
+
+  void _moveCalendar(int direction) {
+    setState(() {
+      switch (_calendarView) {
+        case 'three_days':
+          _calendarAnchor = _calendarAnchor.add(Duration(days: 3 * direction));
+          break;
+        case 'week':
+          _calendarAnchor = _calendarAnchor.add(Duration(days: 7 * direction));
+          break;
+        case 'month':
+          _calendarAnchor = DateTime(
+            _calendarAnchor.year,
+            _calendarAnchor.month + direction,
+            1,
+          );
+          break;
+        case 'agenda':
+        case 'timeline':
+          _calendarAnchor = _calendarAnchor.add(Duration(days: 7 * direction));
+          break;
+        case 'day':
+        default:
+          _calendarAnchor = _calendarAnchor.add(Duration(days: direction));
+          break;
+      }
+      _reload();
+    });
+  }
+
+  String _calendarRangeLabel(BuildContext context) {
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    final query = _calendarQuery();
+    final start = DateTime.parse(query['from'] as String).toLocal();
+    final end = DateTime.parse(query['to'] as String).toLocal();
+    final day = DateFormat.yMMMd(locale);
+    if (_calendarView == 'day') return day.format(start);
+    return '${day.format(start)} — ${day.format(end)}';
   }
 
   Future<void> _refresh() async {
@@ -1131,10 +1227,84 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     }).toList();
   }
 
+  Widget _calendarControls() {
+    final views = <(String, String)>[
+      ('day', bt(context, 'calendarDay')),
+      ('three_days', bt(context, 'calendarThreeDays')),
+      ('week', bt(context, 'calendarWeek')),
+      ('month', bt(context, 'calendarMonth')),
+      ('agenda', bt(context, 'calendarAgenda')),
+      ('timeline', bt(context, 'calendarTimeline')),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Wrap(
+                spacing: 8,
+                children: views
+                    .map(
+                      (view) => ChoiceChip(
+                        label: Text(view.$2),
+                        selected: _calendarView == view.$1,
+                        onSelected: _busy
+                            ? null
+                            : (_) => _changeCalendarView(view.$1),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: bt(context, 'previous'),
+                  onPressed: _busy ? null : () => _moveCalendar(-1),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    _calendarRangeLabel(context),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                IconButton(
+                  tooltip: bt(context, 'next'),
+                  onPressed: _busy ? null : () => _moveCalendar(1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          setState(() {
+                            _calendarAnchor = DateTime.now();
+                            _reload();
+                          });
+                        },
+                  child: Text(bt(context, 'today')),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _calendar(dynamic data) {
     final rows = _maps(data);
-    if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
-    return rows.map((a) {
+    if (rows.isEmpty) return [_calendarControls(), _EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    return [
+      _calendarControls(),
+      ...rows.map((a) {
       final id = a['id']?.toString() ?? '';
       final status = a['status']?.toString() ?? '';
       return Card(
@@ -1163,7 +1333,8 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
           ]),
         ),
       );
-    }).toList();
+      }).toList(),
+    ];
   }
 
   String _appointmentCustomer(Map<String, dynamic> a) {
