@@ -1017,6 +1017,7 @@ class BusinessMoreTab extends StatelessWidget {
     (Icons.analytics_outlined, 'analytics', 'analytics'),
     (Icons.groups_rounded, 'queue', 'queue'),
     (Icons.local_offer_rounded, 'promotions', 'promotions'),
+    (Icons.redeem_rounded, 'packageRedemptions', 'package-redemptions'),
     (Icons.reviews_outlined, 'reviews', 'reviews'),
     (Icons.storefront_rounded, 'branches', 'branches'),
     (Icons.workspace_premium_outlined, 'subscription', 'subscription'),
