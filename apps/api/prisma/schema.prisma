@@ -1526,7 +1526,7 @@ model appointments {
   queues                 queue_entries[]
   package_usage          package_usage[]
   consent_form_responses consent_form_responses[]
-  verified_work_posts    posts[] @relation("PostVerifiedAppointment")
+  verified_work_posts    posts[]                      @relation("PostVerifiedAppointment")
 
   @@index([company_id])
   @@index([branch_id])
@@ -2127,18 +2127,18 @@ model reviews {
   updated_at          DateTime  @updatedAt
   deleted_at          DateTime?
 
-  author_user  users            @relation("ReviewAuthor", fields: [author_user_id], references: [id])
-  company      companies        @relation(fields: [company_id], references: [id])
-  professional professionals?   @relation(fields: [professional_id], references: [id], onDelete: SetNull)
-  service      services?        @relation(fields: [service_id], references: [id], onDelete: SetNull)
-  branch       branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  appointment  appointments?    @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
-  ratings      review_ratings[]
-  media_list   review_media[]
-  reports      review_reports[]
-  customers    customers?       @relation(fields: [customersId], references: [id])
-  customersId        String?
-  verified_work_posts posts[] @relation("PostVerifiedReview")
+  author_user         users            @relation("ReviewAuthor", fields: [author_user_id], references: [id])
+  company             companies        @relation(fields: [company_id], references: [id])
+  professional        professionals?   @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  service             services?        @relation(fields: [service_id], references: [id], onDelete: SetNull)
+  branch              branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  appointment         appointments?    @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  ratings             review_ratings[]
+  media_list          review_media[]
+  reports             review_reports[]
+  customers           customers?       @relation(fields: [customersId], references: [id])
+  customersId         String?
+  verified_work_posts posts[]          @relation("PostVerifiedReview")
 
   @@index([author_user_id])
   @@index([company_id])
@@ -2206,52 +2206,52 @@ model review_reports {
 // ============================================================
 
 model posts {
-  id                 String    @id @default(cuid())
-  author_user_id     String
-  author_role        String
-  company_id         String?
-  branch_id          String?
-  professional_id    String?
-  title              String?
-  slug               String?
-  body_plain         String?
-  body_html          String?
-  cover_media_id     String?
-  media_ids          String[]  @default([])
-  tags               String[]  @default([])
-  service_ids        String[]  @default([])
-  category_ids       String[]  @default([])
-  is_promotion       Boolean   @default(false)
-  promotion_start_at DateTime?
-  promotion_end_at   DateTime?
-  view_count         Int       @default(0)
-  like_count         Int       @default(0)
-  comment_count      Int       @default(0)
-  share_count        Int       @default(0)
-  bookmark_count           Int       @default(0)
-  verified_review_id       String?
-  verified_appointment_id  String?
-  is_verified_work         Boolean   @default(false)
-  verified_work_at         DateTime?
-  status                   String    @default("published")
-  scheduled_at       DateTime?
-  published_at       DateTime?
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-  deleted_at         DateTime?
+  id                      String    @id @default(cuid())
+  author_user_id          String
+  author_role             String
+  company_id              String?
+  branch_id               String?
+  professional_id         String?
+  title                   String?
+  slug                    String?
+  body_plain              String?
+  body_html               String?
+  cover_media_id          String?
+  media_ids               String[]  @default([])
+  tags                    String[]  @default([])
+  service_ids             String[]  @default([])
+  category_ids            String[]  @default([])
+  is_promotion            Boolean   @default(false)
+  promotion_start_at      DateTime?
+  promotion_end_at        DateTime?
+  view_count              Int       @default(0)
+  like_count              Int       @default(0)
+  comment_count           Int       @default(0)
+  share_count             Int       @default(0)
+  bookmark_count          Int       @default(0)
+  verified_review_id      String?
+  verified_appointment_id String?
+  is_verified_work        Boolean   @default(false)
+  verified_work_at        DateTime?
+  status                  String    @default("published")
+  scheduled_at            DateTime?
+  published_at            DateTime?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+  deleted_at              DateTime?
 
-  author       users              @relation("PostAuthor", fields: [author_user_id], references: [id])
-  company      companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
-  branch       branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  professional         professionals? @relation(fields: [professional_id], references: [id], onDelete: SetNull)
-  verified_review       reviews?       @relation("PostVerifiedReview", fields: [verified_review_id], references: [id], onDelete: SetNull)
-  verified_appointment  appointments?  @relation("PostVerifiedAppointment", fields: [verified_appointment_id], references: [id], onDelete: SetNull)
-  media_list   post_media[]
-  services     post_services[]
-  likes        likes[]
-  comments     comments[]
-  favorites    favorites[]
-  collections  collection_items[]
+  author               users              @relation("PostAuthor", fields: [author_user_id], references: [id])
+  company              companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  branch               branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  professional         professionals?     @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  verified_review      reviews?           @relation("PostVerifiedReview", fields: [verified_review_id], references: [id], onDelete: SetNull)
+  verified_appointment appointments?      @relation("PostVerifiedAppointment", fields: [verified_appointment_id], references: [id], onDelete: SetNull)
+  media_list           post_media[]
+  services             post_services[]
+  likes                likes[]
+  comments             comments[]
+  favorites            favorites[]
+  collections          collection_items[]
 
   @@index([author_user_id])
   @@index([author_role])
@@ -2268,7 +2268,6 @@ model posts {
   @@index([is_verified_work])
   @@index([slug])
 }
-
 model post_media {
   id         String   @id @default(cuid())
   post_id    String
