@@ -753,7 +753,12 @@
       "uploading": "Téléversement…",
       "publishPortfolio": "Publier le portfolio",
       "verifyWork": "Vérifier le travail",
-      "archive": "Archiver"
+      "archive": "Archiver",
+      "previous": "Précédent",
+      "today": "Aujourd’hui",
+      "next": "Suivant",
+      "quickAdd": "Ajout rapide",
+      "createBooking": "Créer la réservation"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -784,7 +789,7 @@
       "card": "Carte",
       "online": "En ligne",
       "refunds": "Remboursements",
-      "allBranches": "Tous les établissements",
+      "allBranches": "Toutes les succursales",
       "allProfessionals": "Tous les professionnels",
       "from": "Du",
       "to": "Au",
@@ -864,7 +869,14 @@
       "verifiedWork": "Travail vérifié",
       "mediaItems": "médias",
       "verifiedReviewId": "ID de l’avis vérifié",
-      "selectVerifiedReview": "Choisir un avis vérifié"
+      "selectVerifiedReview": "Choisir un avis vérifié",
+      "calendarDate": "Date du calendrier",
+      "allResources": "Tous les fauteuils / ressources",
+      "anyResource": "Tout fauteuil / ressource",
+      "calendarDragHint": "Glissez une réservation en attente ou confirmée vers un autre jour pour la replanifier en toute sécurité.",
+      "startTime": "Heure de début",
+      "staffNote": "Note du personnel",
+      "emptyDay": "Aucune réservation"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -906,7 +918,18 @@
       "portfolioPublished": "Publication portfolio créée.",
       "portfolioPublishedVerified": "Publication créée comme Travail vérifié.",
       "portfolioVerified": "Travail vérifié.",
-      "portfolioArchived": "Publication archivée."
+      "portfolioArchived": "Publication archivée.",
+      "calendarQuickAddRequired": "La succursale, le client, le service et l’heure de début sont obligatoires.",
+      "calendarBookingCreated": "Réservation créée.",
+      "calendarBookingMoved": "Réservation replanifiée."
+    },
+    "calendarViews": {
+      "day": "Jour",
+      "fourDay": "4 jours",
+      "week": "Semaine",
+      "twoWeek": "2 semaines",
+      "month": "Mois",
+      "list": "Liste"
     }
   },
   "adminOps": {
