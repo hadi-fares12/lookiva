@@ -14,6 +14,7 @@ import {
   CreatePostV2Dto,
   FollowTargetDto,
   ReportContentDto,
+  VerifyWorkDto,
 } from './dto/social-v2.dto';
 
 @Injectable()
@@ -22,6 +23,22 @@ export class SocialV2Service {
     private readonly prisma: PrismaService,
     private readonly booking: BookingV2Service,
   ) {}
+
+  private canManageCompany(user: AuthenticatedUser, companyId: string) {
+    const platformRoles = new Set([
+      UserRole.SuperAdmin,
+      UserRole.PlatformAdmin,
+      UserRole.CountryManager,
+    ]);
+    if (user.roleScopes.some((scope) => platformRoles.has(scope.roleKey as UserRole))) {
+      return true;
+    }
+    return user.roleScopes.some(
+      (scope) =>
+        scope.companyId === companyId ||
+        (String(scope.scopeType) === 'company' && scope.scopeId === companyId),
+    );
+  }
 
   async feed(user: AuthenticatedUser, limit = 20, cursor?: string) {
     const take = Math.min(Math.max(limit, 1), 50);
@@ -60,6 +77,24 @@ export class SocialV2Service {
         author: { select: { id: true, full_name: true, avatar_media_id: true } },
         company: { select: { id: true, display_name: true, slug: true, avg_rating: true } },
         professional: { select: { id: true, display_name: true, avatar_media_id: true, avg_rating: true, is_verified: true } },
+        verified_review: {
+          select: {
+            id: true,
+            overall_rating: true,
+            is_verified: true,
+            status: true,
+            deleted_at: true,
+            professional_id: true,
+            service_id: true,
+          },
+        },
+        verified_appointment: {
+          select: {
+            id: true,
+            status: true,
+            completed_at: true,
+          },
+        },
         media_list: { orderBy: { sort_order: 'asc' } },
         services: {
           orderBy: { is_primary: 'desc' },
@@ -108,19 +143,89 @@ export class SocialV2Service {
     const savedIds = new Set(saved.map((item) => item.post_id));
 
     return {
-      items: ranked.map((post) => ({
-        ...post,
-        likedByMe: likedIds.has(post.id),
-        savedByMe: savedIds.has(post.id),
-        bookableService: post.services.find((link) => link.is_primary && link.service.is_active)?.service
-          ?? post.services.find((link) => link.service.is_active)?.service
-          ?? null,
-      })),
+      items: ranked.map((post) => {
+        const verifiedWork =
+          post.is_verified_work &&
+          post.verified_review?.is_verified === true &&
+          post.verified_review.status === 'published' &&
+          !post.verified_review.deleted_at &&
+          post.verified_appointment?.status === 'completed'
+            ? {
+                reviewId: post.verified_review.id,
+                appointmentId: post.verified_appointment.id,
+                rating: post.verified_review.overall_rating,
+                completedAt: post.verified_appointment.completed_at,
+              }
+            : null;
+        return {
+          ...post,
+          is_verified_work: Boolean(verifiedWork),
+          verifiedWork,
+          likedByMe: likedIds.has(post.id),
+          savedByMe: savedIds.has(post.id),
+          bookableService:
+            post.services.find((link) => link.is_primary && link.service.is_active)?.service ??
+            post.services.find((link) => link.service.is_active)?.service ??
+            null,
+        };
+      }),
       nextCursor: ranked.length === take ? ranked[ranked.length - 1]?.id ?? null : null,
     };
   }
 
   async createPost(user: AuthenticatedUser, dto: CreatePostV2Dto) {
+    if (dto.companyId && !this.canManageCompany(user, dto.companyId)) {
+      const professional = dto.professionalId
+        ? await this.prisma.professionals.findFirst({
+            where: {
+              id: dto.professionalId,
+              company_id: dto.companyId,
+              user_id: user.id,
+              is_active: true,
+              deleted_at: null,
+            },
+            select: { id: true },
+          })
+        : null;
+      if (!professional) {
+        throw new ForbiddenException('You are not authorized to publish for this business');
+      }
+    }
+    if (dto.branchId) {
+      if (!dto.companyId) {
+        throw new BadRequestException('companyId is required when branchId is provided');
+      }
+      const branch = await this.prisma.branches.findFirst({
+        where: {
+          id: dto.branchId,
+          company_id: dto.companyId,
+          is_active: true,
+          deleted_at: null,
+        },
+        select: { id: true },
+      });
+      if (!branch) throw new BadRequestException('Invalid business branch');
+    }
+    if (dto.professionalId) {
+      const professional = await this.prisma.professionals.findFirst({
+        where: {
+          id: dto.professionalId,
+          ...(dto.companyId ? { company_id: dto.companyId } : {}),
+          is_active: true,
+          deleted_at: null,
+        },
+        select: { id: true, company_id: true, user_id: true },
+      });
+      if (!professional) throw new BadRequestException('Invalid professional');
+      if (
+        professional.user_id !== user.id &&
+        !this.canManageCompany(user, professional.company_id)
+      ) {
+        throw new ForbiddenException('You are not authorized to publish for this professional');
+      }
+      if (!dto.companyId) dto.companyId = professional.company_id;
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const authorRole = user.roleScopes[0]?.roleKey ?? UserRole.Customer;
       const post = await tx.posts.create({
@@ -177,6 +282,136 @@ export class SocialV2Service {
         include: { media_list: true, services: { include: { service: true } } },
       });
     });
+  }
+
+  async verifyWork(
+    user: AuthenticatedUser,
+    postId: string,
+    dto: VerifyWorkDto,
+  ) {
+    const post = await this.prisma.posts.findFirst({
+      where: {
+        id: postId,
+        author_user_id: user.id,
+        status: 'published',
+        deleted_at: null,
+      },
+      include: {
+        services: { select: { service_id: true } },
+      },
+    });
+    if (!post) {
+      throw new NotFoundException('Published post not found or you are not its author');
+    }
+
+    const review = await this.prisma.reviews.findFirst({
+      where: {
+        id: dto.reviewId,
+        is_verified: true,
+        status: 'published',
+        deleted_at: null,
+        appointment_id: { not: null },
+      },
+      include: {
+        appointment: {
+          include: {
+            participants: { select: { professional_id: true } },
+            services: { select: { service_id: true } },
+          },
+        },
+      },
+    });
+    if (!review?.appointment) {
+      throw new BadRequestException(
+        'Verified Work requires a verified review linked to a completed appointment',
+      );
+    }
+    const appointment = review.appointment;
+    if (appointment.status !== 'completed') {
+      throw new ConflictException('Verified Work appointment is not completed');
+    }
+    if (post.company_id !== review.company_id || post.company_id !== appointment.company_id) {
+      throw new BadRequestException('Review and appointment must belong to the post business');
+    }
+    if (post.branch_id && post.branch_id !== appointment.branch_id) {
+      throw new BadRequestException('Review appointment does not belong to the post branch');
+    }
+
+    const appointmentProfessionalIds = new Set(
+      appointment.participants.map((item) => item.professional_id),
+    );
+    if (post.professional_id && !appointmentProfessionalIds.has(post.professional_id)) {
+      throw new BadRequestException(
+        'Post professional did not participate in the reviewed appointment',
+      );
+    }
+    if (
+      post.professional_id &&
+      review.professional_id &&
+      post.professional_id !== review.professional_id
+    ) {
+      throw new BadRequestException('Verified review professional does not match the post');
+    }
+
+    const postServiceIds = new Set(post.services.map((item) => item.service_id));
+    const appointmentServiceIds = new Set(
+      appointment.services.map((item) => item.service_id),
+    );
+    if (
+      postServiceIds.size > 0 &&
+      !Array.from(postServiceIds).some((serviceId) =>
+        appointmentServiceIds.has(serviceId),
+      )
+    ) {
+      throw new BadRequestException(
+        'The reviewed appointment does not contain a service shown in this post',
+      );
+    }
+    if (
+      review.service_id &&
+      postServiceIds.size > 0 &&
+      !postServiceIds.has(review.service_id)
+    ) {
+      throw new BadRequestException('Verified review service does not match the post');
+    }
+
+    const updated = await this.prisma.posts.update({
+      where: { id: post.id },
+      data: {
+        verified_review_id: review.id,
+        verified_appointment_id: appointment.id,
+        is_verified_work: true,
+        verified_work_at: new Date(),
+      },
+      include: {
+        verified_review: {
+          select: { id: true, overall_rating: true, is_verified: true },
+        },
+        verified_appointment: {
+          select: { id: true, status: true, completed_at: true },
+        },
+      },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'social.post.verify_work',
+        entity_type: 'post',
+        entity_id: post.id,
+        company_id: post.company_id,
+        branch_id: post.branch_id,
+        new_value: {
+          reviewId: review.id,
+          appointmentId: appointment.id,
+          professionalId: post.professional_id,
+          serviceIds: Array.from(postServiceIds),
+        },
+      },
+    });
+
+    return updated;
   }
 
   async savePost(user: AuthenticatedUser, postId: string) {
