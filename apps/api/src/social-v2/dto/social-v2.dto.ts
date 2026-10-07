@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  IsDateString,
 } from 'class-validator';
 
 export class CreatePostV2Dto {
@@ -97,4 +98,22 @@ export class FollowTargetDto {
   @IsOptional()
   @IsString()
   professionalId?: string;
+}
+
+export class BookThisLookDto {
+  @IsDateString()
+  startsAt!: string;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
+  professionalId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  resourceIds?: string[];
 }
