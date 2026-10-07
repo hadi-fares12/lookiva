@@ -53,8 +53,37 @@ export class CustomerOpsController {
   }
 
   @Post('conversations/:id/messages')
-  sendMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: { body: string; messageType?: string }) {
-    return this.ops.sendMessage(user.id, id, body.body, body.messageType || 'text');
+  sendMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      body?: string;
+      messageType?: string;
+      attachments?: Array<{
+        mediaId: string;
+        mediaType?: string;
+        fileName?: string;
+        sizeBytes?: number;
+      }>;
+    },
+  ) {
+    return this.ops.sendMessage(
+      user.id,
+      id,
+      body.body,
+      body.messageType || 'text',
+      body.attachments ?? [],
+    );
+  }
+
+  @Patch('conversations/:id/read')
+  markConversationRead(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { messageId?: string },
+  ) {
+    return this.ops.markConversationRead(user.id, id, body.messageId);
   }
 
   @Get('retention')
