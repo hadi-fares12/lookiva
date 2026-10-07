@@ -217,7 +217,8 @@
     "wallet": "Wallet",
     "settings": "Settings",
     "help": "Help & Support",
-    "menu": "Menu"
+    "menu": "Menu",
+    "reels": "Reels"
   },
   "homeSections": {
     "forYou": "For You",
@@ -991,6 +992,10 @@
       "privacy": {
         "title": "Privacy & data",
         "subtitle": "Download your account data or permanently delete your LOOKIVA account."
+      },
+      "collections": {
+        "title": "Collections",
+        "subtitle": "Discover recent work from salons and professionals you follow."
       }
     },
     "actions": {
@@ -1260,5 +1265,18 @@
       "title": "Nearby recommendations",
       "subtitle": "Personalized picks tailored to your taste, budget and location. Explore now."
     }
+  },
+  "customerReels": {
+    "title": "Reels & real work",
+    "subtitle": "Discover recent work from salons and professionals you follow.",
+    "signIn": "Sign in to personalize your Reels feed.",
+    "loadError": "Unable to load Reels.",
+    "bookThisLook": "Book this look",
+    "save": "Save",
+    "saved": "Saved",
+    "by": "By",
+    "empty": "No Reels are available yet.",
+    "collections": "Collections",
+    "createCollection": "Create collection"
   }
 }
