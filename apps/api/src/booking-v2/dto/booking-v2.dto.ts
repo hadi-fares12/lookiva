@@ -138,6 +138,11 @@ export class QrCheckInDto extends CheckInDto {
   token!: string;
 }
 
+export class FloorStatusDto {
+  @IsString()
+  state!: string;
+}
+
 export class AppointmentTransitionDto {
   @IsOptional()
   @IsString()
