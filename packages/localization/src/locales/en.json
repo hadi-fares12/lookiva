@@ -556,7 +556,8 @@
         "forms": "Consent forms",
         "banking": "Banking",
         "packageRedemptions": "Package redemptions",
-        "withdrawals": "Withdrawals"
+        "withdrawals": "Withdrawals",
+        "portfolio": "Portfolio"
       }
     },
     "admin": {
@@ -703,6 +704,10 @@
       "withdrawals": {
         "title": "Withdrawals",
         "subtitle": "Request transfers to verified payout bank accounts and track processing status."
+      },
+      "portfolio": {
+        "title": "Portfolio & Reels",
+        "subtitle": "Publish photo/video work, link services and professionals, and verify work against completed reviewed bookings."
       }
     },
     "actions": {
@@ -744,7 +749,11 @@
       "exportXlsx": "Export XLSX",
       "redeemPackage": "Redeem package",
       "requestWithdrawal": "Request withdrawal",
-      "cancelWithdrawal": "Cancel request"
+      "cancelWithdrawal": "Cancel request",
+      "uploading": "Uploading…",
+      "publishPortfolio": "Publish portfolio post",
+      "verifyWork": "Verify work",
+      "archive": "Archive"
     },
     "labels": {
       "serviceName": "Service name",
@@ -845,7 +854,16 @@
       "bankAccount": "Bank account",
       "withdrawalAmount": "Withdrawal amount",
       "referenceCode": "Reference code",
-      "withdrawalReason": "Reason / note"
+      "withdrawalReason": "Reason / note",
+      "portfolioTitle": "Post title",
+      "portfolioCaption": "Caption",
+      "portfolioTags": "Tags, comma separated",
+      "portfolioMedia": "Choose up to 6 photos/videos",
+      "noVerifiedReview": "Publish without Verified Work",
+      "portfolioPost": "Portfolio post",
+      "verifiedWork": "Verified Work",
+      "mediaItems": "media",
+      "verifiedReviewId": "Verified review ID"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -882,7 +900,12 @@
       "withdrawalBankRequired": "Choose a verified bank account.",
       "withdrawalRequested": "Withdrawal request submitted.",
       "noVerifiedBank": "Add and verify a payout bank account before requesting a withdrawal.",
-      "withdrawalCancelled": "Withdrawal request cancelled."
+      "withdrawalCancelled": "Withdrawal request cancelled.",
+      "portfolioMediaLimit": "A portfolio post can contain up to 6 media files.",
+      "portfolioPublished": "Portfolio post published.",
+      "portfolioPublishedVerified": "Portfolio post published as Verified Work.",
+      "portfolioVerified": "Portfolio post verified.",
+      "portfolioArchived": "Portfolio post archived."
     }
   },
   "adminOps": {
