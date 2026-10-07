@@ -708,7 +708,14 @@
       "complete": "Terminer",
       "call": "Appeler",
       "served": "Servi",
-      "viewOnly": "Voir seulement"
+      "viewOnly": "Voir seulement",
+      "structure": "Structure",
+      "close": "Fermer",
+      "saveDependencies": "Enregistrer les dépendances",
+      "addStage": "Ajouter une étape",
+      "saveStages": "Enregistrer les étapes",
+      "remove": "Supprimer",
+      "useTemplate": "Utiliser le modèle"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -761,7 +768,20 @@
       "anyProfessional": "Tout professionnel",
       "until": "jusqu’à",
       "allAuthorizedBranches": "Tous les établissements autorisés",
-      "resetFilters": "Réinitialiser les filtres"
+      "resetFilters": "Réinitialiser les filtres",
+      "formTemplates": "Modèles de formulaires",
+      "formTemplatesHint": "Partez d’un modèle de consentement ou d’admission réutilisable, puis adaptez-le à votre entreprise.",
+      "serviceStructure": "Structure du service",
+      "serviceStructureHint": "Configurez les services prérequis et les étapes ordonnées nécessaires à ce service.",
+      "dependencies": "Dépendances",
+      "dependenciesHint": "Sélectionnez les services à effectuer avant ce service.",
+      "minutes": "minutes",
+      "noDependencyOptions": "Aucun autre service actif n’est disponible comme prérequis.",
+      "serviceStages": "Étapes du service",
+      "serviceStagesHint": "Décomposez le service en étapes opérationnelles ordonnées. La durée totale ne peut pas dépasser celle du service.",
+      "stageName": "Nom de l’étape",
+      "stageDuration": "Durée de l’étape (minutes)",
+      "noStages": "Aucune étape configurée. Ajoutez-en une pour un service en plusieurs phases."
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -783,7 +803,10 @@
       "serviceDisabled": "Service désactivé.",
       "serviceEnabled": "Service activé.",
       "promotionPaused": "Promotion en pause.",
-      "promotionActivated": "Promotion activée."
+      "promotionActivated": "Promotion activée.",
+      "dependenciesSaved": "Dépendances du service enregistrées.",
+      "stagesSaved": "Étapes du service enregistrées.",
+      "templateCreated": "Formulaire créé à partir du modèle."
     }
   },
   "adminOps": {
