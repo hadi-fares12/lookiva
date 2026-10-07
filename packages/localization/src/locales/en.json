@@ -554,7 +554,8 @@
         "inventory": "Inventory",
         "commissions": "Commissions",
         "forms": "Consent forms",
-        "banking": "Banking"
+        "banking": "Banking",
+        "packageRedemptions": "Package redemptions"
       }
     },
     "admin": {
@@ -692,6 +693,10 @@
       "banking": {
         "title": "Payout banking",
         "subtitle": "Manage masked business payout destinations and verification documents."
+      },
+      "packageRedemptions": {
+        "title": "Package redemptions",
+        "subtitle": "Redeem package sessions safely and review package usage history."
       }
     },
     "actions": {
@@ -730,7 +735,8 @@
       "enablePayouts": "Enable payouts",
       "disablePayouts": "Disable payouts",
       "exportCsv": "Export CSV",
-      "exportXlsx": "Export XLSX"
+      "exportXlsx": "Export XLSX",
+      "redeemPackage": "Redeem package"
     },
     "labels": {
       "serviceName": "Service name",
@@ -822,7 +828,11 @@
       "accountNumber": "Account number",
       "routingNumber": "Routing number",
       "verificationDocumentId": "Verification document ID",
-      "bankVerificationHint": "Changing account/IBAN details resets verification. Verification is completed by platform staff."
+      "bankVerificationHint": "Changing account/IBAN details resets verification. Verification is completed by platform staff.",
+      "packagePurchaseId": "Package purchase ID",
+      "serviceId": "Service ID",
+      "appointmentId": "Appointment ID",
+      "sessionsUsed": "Sessions to redeem"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -854,7 +864,8 @@
       "bankDestinationRequired": "Enter an account number or IBAN.",
       "bankAccountCreated": "Bank account added.",
       "bankAccountEnabled": "Payouts enabled for this account.",
-      "bankAccountDisabled": "Payouts disabled for this account."
+      "bankAccountDisabled": "Payouts disabled for this account.",
+      "packageRedeemed": "Package session redeemed."
     }
   },
   "adminOps": {
