@@ -16,6 +16,7 @@ import { BookingV2Service } from './booking-v2.service';
 import {
   CancelAppointmentDto,
   CheckInDto,
+  QrCheckInDto,
   CreateAppointmentDto,
   CreateGroupBookingDto,
   CreateHoldDto,
@@ -100,6 +101,26 @@ export class BookingV2Controller {
     @Body() dto: RescheduleAppointmentDto,
   ) {
     return this.booking.rescheduleAppointment(user, id, dto);
+  }
+
+  @Get('appointments/:id/check-in-token')
+  @RequirePermissions(PermissionKey.BookingView)
+  @ApiOperation({ summary: 'Create a short-lived signed QR token for appointment check-in' })
+  checkInToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.booking.createCheckInToken(user, id);
+  }
+
+  @Patch('appointments/check-in-by-token')
+  @RequirePermissions(PermissionKey.BookingCheckIn)
+  @ApiOperation({ summary: 'Check in a customer by scanning a signed appointment token' })
+  checkInByToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: QrCheckInDto,
+  ) {
+    return this.booking.checkInByToken(user, dto);
   }
 
   @Patch('appointments/:id/check-in')
