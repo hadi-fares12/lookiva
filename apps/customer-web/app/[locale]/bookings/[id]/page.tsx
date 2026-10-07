@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import axios from '@/lib/axios';
+import { QRCodeSVG } from 'qrcode.react';
 import { useCustomerRealtimeReload } from '@/lib/realtime';
 
 function value(v: any, fallback: string) {
@@ -18,6 +19,9 @@ export default function BookingDetailsPage() {
   const [consents, setConsents] = React.useState<any[]>([]);
   const [error, setError] = React.useState('');
   const [busyConsent, setBusyConsent] = React.useState('');
+  const [qr, setQr] = React.useState<any>(null);
+  const [qrError, setQrError] = React.useState('');
+  const [qrBusy, setQrBusy] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -42,6 +46,26 @@ export default function BookingDetailsPage() {
     () => void load(),
     { appointmentId: id },
   );
+
+  async function loadQr() {
+    setQrBusy(true);
+    setQrError('');
+    try {
+      const response = await axios.get(
+        `/booking-v2/appointments/${id}/check-in-token`,
+      );
+      setQr(response.data);
+    } catch (error: any) {
+      setQr(null);
+      setQrError(
+        error?.response?.data?.message ||
+          error?.message ||
+          t('qrUnavailable'),
+      );
+    } finally {
+      setQrBusy(false);
+    }
+  }
 
   async function signConsent(form: any) {
     const typedSignature = window.prompt(
@@ -114,6 +138,37 @@ export default function BookingDetailsPage() {
         <div className="rounded-radius-lg border border-accent-red/30 bg-accent-red/5 p-4 text-sm text-accent-red">
           {error}
         </div>
+      )}
+
+      {['pending', 'confirmed'].includes(String(data.status)) && (
+        <section className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="font-semibold text-primary">{t('checkInQr')}</h2>
+              <p className="mt-1 text-sm text-secondary">{t('qrHint')}</p>
+              {qr?.expiresAt && (
+                <p className="mt-1 text-xs text-muted">
+                  {t('qrExpires')}: {new Date(qr.expiresAt).toLocaleTimeString(locale)}
+                </p>
+              )}
+              {qrError && <p className="mt-2 text-sm text-accent-red">{qrError}</p>}
+            </div>
+            {!qr && (
+              <button
+                onClick={() => void loadQr()}
+                disabled={qrBusy}
+                className="rounded-radius-md bg-accent-gold-2 px-4 py-2.5 text-sm font-semibold text-surface-0 disabled:opacity-50"
+              >
+                {qrBusy ? t('loading') : t('showQr')}
+              </button>
+            )}
+          </div>
+          {qr?.token && (
+            <div className="mt-5 flex justify-center rounded-radius-xl bg-white p-5">
+              <QRCodeSVG value={qr.token} size={220} level="M" />
+            </div>
+          )}
+        </section>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
