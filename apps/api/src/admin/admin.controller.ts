@@ -249,6 +249,21 @@ export class AdminController {
     return this.adminService.bookings(Number(page) || 1, Number(limit) || 50, status);
   }
 
+  @RequirePermissions(PermissionKey.BookingManage)
+  @Post('bookings/:id/cancel')
+  cancelBooking(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { reason?: string; notes?: string },
+  ) {
+    return this.adminService.cancelBooking(
+      actor,
+      id,
+      body.reason || 'Cancelled by platform administrator',
+      body.notes,
+    );
+  }
+
   @RequirePermissions(PermissionKey.PaymentsView)
   @Get('payments')
   payments(@Query('page') page?: number, @Query('limit') limit?: number) {
@@ -259,6 +274,16 @@ export class AdminController {
   @Get('refunds')
   refunds(@Query('page') page?: number, @Query('limit') limit?: number) {
     return this.adminService.refunds(Number(page) || 1, Number(limit) || 50);
+  }
+
+  @RequirePermissions(PermissionKey.PaymentsManage)
+  @Post('payments/:id/refund')
+  manualRefund(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { amount: number; reason: string; refundMethod?: string; notes?: string },
+  ) {
+    return this.adminService.manualRefund(actor, id, body);
   }
 
   @RequirePermissions(PermissionKey.AdminCategoriesView)
