@@ -715,7 +715,9 @@
       "addStage": "Add stage",
       "saveStages": "Save stages",
       "remove": "Remove",
-      "useTemplate": "Use template"
+      "useTemplate": "Use template",
+      "saveCrm": "Save CRM",
+      "mergeDuplicate": "Merge duplicate"
     },
     "labels": {
       "serviceName": "Service name",
@@ -781,7 +783,16 @@
       "serviceStagesHint": "Break the service into ordered operational stages. Combined duration cannot exceed the service duration.",
       "stageName": "Stage name",
       "stageDuration": "Stage duration (minutes)",
-      "noStages": "No stages configured. Add a stage if this service has a multi-step workflow."
+      "noStages": "No stages configured. Add a stage if this service has a multi-step workflow.",
+      "crmProfile": "CRM profile",
+      "crmNotes": "Business notes",
+      "crmNotesHint": "Private notes for this business only.",
+      "crmTags": "Customer tags",
+      "crmTagsHint": "VIP, color client, prefers Hadi…",
+      "duplicateCustomerId": "Duplicate customer ID to merge",
+      "mergedAliases": "Merged duplicate profiles",
+      "recentAppointments": "Recent appointments",
+      "recentPayments": "Recent payments"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -806,7 +817,10 @@
       "promotionActivated": "Promotion activated.",
       "dependenciesSaved": "Service dependencies saved.",
       "stagesSaved": "Service stages saved.",
-      "templateCreated": "Consent form created from template."
+      "templateCreated": "Consent form created from template.",
+      "crmSaved": "Customer CRM profile saved.",
+      "mergeSameCustomer": "Choose a different duplicate customer.",
+      "customerMerged": "Duplicate customer merged for this business."
     }
   },
   "adminOps": {
