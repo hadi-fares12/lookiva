@@ -39,6 +39,7 @@ async function bootstrap() {
       incoming && /^[A-Za-z0-9._:-]{8,128}$/.test(incoming)
         ? incoming
         : randomUUID();
+    req.headers['x-correlation-id'] = correlationId;
     res.setHeader('X-Correlation-Id', correlationId);
     const started = process.hrtime.bigint();
 
@@ -58,6 +59,28 @@ async function bootstrap() {
       );
     });
     next();
+  });
+
+  process.on('uncaughtExceptionMonitor', (error) => {
+    logger.error(
+      {
+        errorName: error.name,
+        errorMessage: error.message,
+        stack: error.stack,
+      },
+      'ProcessCrash',
+    );
+  });
+  process.on('unhandledRejection', (reason) => {
+    const error =
+      reason instanceof Error
+        ? {
+            errorName: reason.name,
+            errorMessage: reason.message,
+            stack: reason.stack,
+          }
+        : { reason: String(reason) };
+    logger.error(error, 'UnhandledPromiseRejection');
   });
 
   const configService = app.get(ConfigService);
