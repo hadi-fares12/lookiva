@@ -15,6 +15,7 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'services': { key: 'services', endpoint: (c) => `/business-ops/${c}/services` },
   'payments': { key: 'payments', endpoint: (c) => `/business-ops/${c}/payments` },
   'finance': { key: 'finance', endpoint: (c) => `/finance-v2/companies/${c}/ledger` },
+  'banking': { key: 'banking', endpoint: (c) => `/finance-v2/bank-accounts?ownerType=company&ownerId=${c}` },
   'analytics': { key: 'analytics', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'reports': { key: 'reports', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'promotions': { key: 'promotions', endpoint: (c) => `/business-ops/${c}/promotions` },
@@ -401,6 +402,34 @@ export function OperationsPage({ section }: { section: string }) {
     event.currentTarget.reset();
   }
 
+  async function submitBankAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const accountNumber = String(fd.get('accountNumber') || '').trim();
+    const iban = String(fd.get('iban') || '').trim();
+    if (!accountNumber && !iban) {
+      setError(t('messages.bankDestinationRequired'));
+      return;
+    }
+    await mutate('/finance-v2/bank-accounts', {
+      method: 'POST',
+      body: JSON.stringify({
+        ownerType: 'company',
+        ownerId: session.companyId,
+        bankName: String(fd.get('bankName') || '').trim() || undefined,
+        accountHolder: String(fd.get('accountHolder') || '').trim() || undefined,
+        accountNumber: accountNumber || undefined,
+        iban: iban || undefined,
+        routingNumber: String(fd.get('routingNumber') || '').trim() || undefined,
+        swiftBic: String(fd.get('swiftBic') || '').trim() || undefined,
+        currencyCode: String(fd.get('currencyCode') || 'USD').trim().toUpperCase(),
+        verificationDocId: String(fd.get('verificationDocId') || '').trim() || undefined,
+        payoutEnabled: true,
+      }),
+    }, t('messages.bankAccountCreated'));
+    event.currentTarget.reset();
+  }
+
   async function submitCommission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -539,6 +568,19 @@ export function OperationsPage({ section }: { section: string }) {
         <button disabled={!!busy} className="h-11 rounded-radius-md border border-accent-gold-2 px-5 font-semibold text-accent-gold-2 md:col-span-6 md:justify-self-start">Post stock movement</button>
       </form>
     </div>}
+
+    {section === 'banking' && <form onSubmit={submitBankAccount} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4">
+      <input name="bankName" placeholder={t('labels.bankName')} className={inputClass} />
+      <input name="accountHolder" placeholder={t('labels.accountHolder')} className={inputClass} />
+      <input name="currencyCode" required defaultValue="USD" maxLength={3} placeholder="USD" className={inputClass} />
+      <input name="swiftBic" placeholder={t('labels.swiftBic')} className={inputClass} />
+      <input name="iban" placeholder={t('labels.iban')} className={`${inputClass} md:col-span-2`} />
+      <input name="accountNumber" placeholder={t('labels.accountNumber')} className={inputClass} />
+      <input name="routingNumber" placeholder={t('labels.routingNumber')} className={inputClass} />
+      <input name="verificationDocId" placeholder={t('labels.verificationDocumentId')} className={`${inputClass} md:col-span-2`} />
+      <div className="flex items-center rounded-radius-md border border-border-subtle bg-surface-2 px-3 text-xs text-muted md:col-span-2">{t('labels.bankVerificationHint')}</div>
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-4 md:justify-self-start">{t('actions.addBankAccount')}</button>
+    </form>}
 
     {section === 'commissions' && <form onSubmit={submitCommission} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5">
       <input name="name" required placeholder="Rule name" className={inputClass} />
@@ -711,6 +753,6 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','banking'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='banking'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/finance-v2/bank-accounts/${row.id}`,{method:'PATCH',body:JSON.stringify({payoutEnabled:!row.payout_enabled})},row.payout_enabled?t('messages.bankAccountDisabled'):t('messages.bankAccountEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.payout_enabled?t('actions.disablePayouts'):t('actions.enablePayouts')}</button></td>}</tr>)}</tbody></table></div>}
   </div>;
 }
