@@ -863,7 +863,8 @@
       "portfolioPost": "Publication portfolio",
       "verifiedWork": "Travail vérifié",
       "mediaItems": "médias",
-      "verifiedReviewId": "ID de l’avis vérifié"
+      "verifiedReviewId": "ID de l’avis vérifié",
+      "selectVerifiedReview": "Choisir un avis vérifié"
     },
     "messages": {
       "serviceCreated": "Service créé.",
