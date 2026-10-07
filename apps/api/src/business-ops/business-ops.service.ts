@@ -1027,11 +1027,11 @@ export class BusinessOpsService {
     if (!service) throw new NotFoundException('Service not found');
 
     const rows = Array.isArray(dto.dependencies) ? dto.dependencies : [];
-    const prerequisiteIds = Array.from(
-      new Set(
+    const prerequisiteIds: string[] = Array.from(
+      new Set<string>(
         rows
-          .map((row: any) => String(row.prerequisiteId || '').trim())
-          .filter(Boolean),
+          .map((row: any): string => String(row.prerequisiteId || '').trim())
+          .filter((value: string): value is string => value.length > 0),
       ),
     );
     if (prerequisiteIds.includes(serviceId)) {
@@ -1171,11 +1171,13 @@ export class BusinessOpsService {
       }
     }
 
-    const resourceTypeIds = Array.from(
-      new Set(
+    const resourceTypeIds: string[] = Array.from(
+      new Set<string>(
         rows
-          .map((row: any) => row.resourceTypeId ? String(row.resourceTypeId) : '')
-          .filter(Boolean),
+          .map((row: any): string =>
+            row.resourceTypeId ? String(row.resourceTypeId) : '',
+          )
+          .filter((value: string): value is string => value.length > 0),
       ),
     );
     if (resourceTypeIds.length) {
