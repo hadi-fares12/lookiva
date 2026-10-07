@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PermissionKey } from '@lookiva/shared-types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -24,6 +24,23 @@ export class PlatformOpsV2Controller {
   @ApiOperation({ summary: 'Read local worker/queue capability status' })
   workersStatus() {
     return this.ops.workersStatus();
+  }
+
+  @Get('workers/dead-letter')
+  @RequirePermissions(PermissionKey.WorkersView)
+  @ApiOperation({ summary: 'List terminal worker failures retained in the dead-letter queue' })
+  deadLetters(@Query('limit') limit?: string) {
+    return this.ops.deadLetters(Number(limit) || 100);
+  }
+
+  @Delete('workers/dead-letter/:id')
+  @RequirePermissions(PermissionKey.WorkersManage)
+  @ApiOperation({ summary: 'Remove a reviewed dead-letter job with an audit record' })
+  removeDeadLetter(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.ops.removeDeadLetter(user, id);
   }
 
   @Get('realtime/status')
