@@ -596,7 +596,8 @@
         "currencies": "Currencies",
         "plans": "Plans",
         "appeals": "Appeals",
-        "withdrawals": "Withdrawals"
+        "withdrawals": "Withdrawals",
+        "autoFlags": "Auto flags"
       }
     }
   },
@@ -1078,6 +1079,10 @@
       "withdrawals": {
         "title": "Withdrawal review",
         "subtitle": "Approve, process, complete or reject business withdrawal requests to verified payout accounts."
+      },
+      "auto-flags": {
+        "title": "Automatic moderation flags",
+        "subtitle": "High-confidence system flags awaiting human review, dismissal or escalation."
       }
     },
     "prompts": {
