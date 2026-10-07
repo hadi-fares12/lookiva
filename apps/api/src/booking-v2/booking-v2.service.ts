@@ -6,10 +6,11 @@ import {
   Optional,
   NotFoundException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ScopeType, UserRole } from '@lookiva/shared-types';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -21,6 +22,7 @@ import {
   CreateGroupBookingDto,
   CreateHoldDto,
   JoinQueueDto,
+  QrCheckInDto,
   RescheduleAppointmentDto,
 } from './dto/booking-v2.dto';
 
@@ -571,6 +573,135 @@ export class BookingV2Service {
     );
     await this.notifyCustomer(updated, 'booking_rescheduled', 'Booking rescheduled', `Your appointment is now scheduled for ${updated.starts_at.toLocaleString()}.`);
     return updated;
+  }
+
+  async createCheckInToken(user: AuthenticatedUser, appointmentId: string) {
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        company_id: true,
+        branch_id: true,
+        customer_user_id: true,
+        status: true,
+        starts_at: true,
+        ends_at: true,
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    await this.assertAppointmentAccess(this.prisma, user, appointment, {
+      professionalAllowed: true,
+    });
+    if (!['pending', 'confirmed'].includes(appointment.status)) {
+      throw new ConflictException(
+        `Check-in QR is not available while appointment is ${appointment.status}`,
+      );
+    }
+    if (!appointment.customer_user_id) {
+      throw new BadRequestException('Appointment does not have a linked customer account');
+    }
+
+    const now = Date.now();
+    const earliest = appointment.starts_at.getTime() - 120 * 60_000;
+    const latest = appointment.ends_at.getTime() + 60 * 60_000;
+    if (now < earliest) {
+      throw new ConflictException('Check-in QR becomes available 2 hours before the appointment');
+    }
+    if (now > latest) {
+      throw new ConflictException('Check-in window has expired');
+    }
+
+    const expiresAt = Math.min(now + 10 * 60_000, latest);
+    const payload = {
+      v: 1,
+      appointmentId: appointment.id,
+      customerUserId: appointment.customer_user_id,
+      exp: expiresAt,
+    };
+    const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    const signature = this.signCheckInToken(encoded);
+    return {
+      token: encoded + '.' + signature,
+      appointmentId: appointment.id,
+      expiresAt: new Date(expiresAt).toISOString(),
+    };
+  }
+
+  async checkInByToken(user: AuthenticatedUser, dto: QrCheckInDto) {
+    const payload = this.verifyCheckInToken(dto.token);
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: payload.appointmentId },
+      select: {
+        id: true,
+        company_id: true,
+        branch_id: true,
+        customer_user_id: true,
+        status: true,
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (
+      !appointment.customer_user_id ||
+      appointment.customer_user_id !== payload.customerUserId
+    ) {
+      throw new ForbiddenException('Check-in token does not match the appointment customer');
+    }
+    this.assertBusinessScope(user, appointment.company_id, appointment.branch_id);
+    return this.checkIn(user, appointment.id, {
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+    });
+  }
+
+  private checkInSecret() {
+    const configured =
+      process.env.QR_CHECKIN_SECRET?.trim() || process.env.SESSION_SECRET?.trim();
+    if (configured) return configured;
+    if (process.env.NODE_ENV !== 'production') {
+      return 'lookiva-local-qr-checkin-development-secret';
+    }
+    throw new ServiceUnavailableException('QR check-in secret is not configured');
+  }
+
+  private signCheckInToken(encodedPayload: string) {
+    return createHmac('sha256', this.checkInSecret())
+      .update(encodedPayload)
+      .digest('base64url');
+  }
+
+  private verifyCheckInToken(token: string) {
+    const [encoded, supplied] = String(token || '').split('.');
+    if (!encoded || !supplied) throw new BadRequestException('Invalid check-in token');
+    const expected = this.signCheckInToken(encoded);
+    const suppliedBuffer = Buffer.from(supplied);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+      suppliedBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(suppliedBuffer, expectedBuffer)
+    ) {
+      throw new ForbiddenException('Invalid check-in token');
+    }
+    let payload: {
+      v: number;
+      appointmentId: string;
+      customerUserId: string;
+      exp: number;
+    };
+    try {
+      payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    } catch {
+      throw new BadRequestException('Invalid check-in token payload');
+    }
+    if (
+      payload.v !== 1 ||
+      !payload.appointmentId ||
+      !payload.customerUserId ||
+      !Number.isFinite(payload.exp)
+    ) {
+      throw new BadRequestException('Invalid check-in token payload');
+    }
+    if (Date.now() > payload.exp) throw new ConflictException('Check-in token has expired');
+    return payload;
   }
 
   async checkIn(user: AuthenticatedUser, appointmentId: string, dto: CheckInDto) {
