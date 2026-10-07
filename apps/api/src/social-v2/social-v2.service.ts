@@ -307,6 +307,27 @@ export class SocialV2Service {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const requestedMediaIds = Array.from(
+        new Set((dto.mediaIds ?? []).map((id) => String(id).trim()).filter(Boolean)),
+      );
+      const postMedia = requestedMediaIds.length
+        ? await tx.media.findMany({
+            where: {
+              id: { in: requestedMediaIds },
+              uploader_user_id: user.id,
+              is_public: true,
+              status: { in: ['uploaded', 'processing', 'processed'] },
+            },
+            select: { id: true, mime_type: true },
+          })
+        : [];
+      if (postMedia.length !== requestedMediaIds.length) {
+        throw new BadRequestException(
+          'One or more post media items are invalid, private, or owned by another account',
+        );
+      }
+      const mediaById = new Map(postMedia.map((item) => [item.id, item]));
+
       const authorRole = user.roleScopes[0]?.roleKey ?? UserRole.Customer;
       const post = await tx.posts.create({
         data: {
@@ -317,7 +338,7 @@ export class SocialV2Service {
           professional_id: dto.professionalId ?? null,
           title: dto.title ?? null,
           body_plain: dto.bodyPlain ?? null,
-          media_ids: dto.mediaIds ?? [],
+          media_ids: requestedMediaIds,
           service_ids: dto.serviceIds ?? [],
           category_ids: dto.categoryIds ?? [],
           tags: dto.tags ?? [],
@@ -327,12 +348,13 @@ export class SocialV2Service {
         },
       });
 
-      for (const [index, mediaId] of (dto.mediaIds ?? []).entries()) {
+      for (const [index, mediaId] of requestedMediaIds.entries()) {
+        const media = mediaById.get(mediaId)!;
         await tx.post_media.create({
           data: {
             post_id: post.id,
             media_id: mediaId,
-            media_type: 'image',
+            media_type: media.mime_type.startsWith('video/') ? 'video' : 'image',
             sort_order: index,
           },
         });
