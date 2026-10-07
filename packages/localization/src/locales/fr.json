@@ -596,7 +596,8 @@
         "currencies": "Devises",
         "plans": "Forfaits",
         "appeals": "Recours",
-        "withdrawals": "Retraits"
+        "withdrawals": "Retraits",
+        "autoFlags": "Alertes auto"
       }
     }
   },
@@ -1078,6 +1079,10 @@
       "withdrawals": {
         "title": "Examen des retraits",
         "subtitle": "Approuvez, traitez, terminez ou refusez les demandes de retrait vers des comptes vérifiés."
+      },
+      "auto-flags": {
+        "title": "Alertes de modération automatiques",
+        "subtitle": "Alertes système à forte confiance en attente d’examen, de rejet ou d’escalade."
       }
     },
     "prompts": {
