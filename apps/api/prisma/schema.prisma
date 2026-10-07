@@ -1365,15 +1365,15 @@ model customers {
 }
 
 model customer_company_profiles {
-  id                      String    @id @default(cuid())
+  id                      String   @id @default(cuid())
   company_id              String
   customer_id             String
   merged_into_customer_id String?
   notes                   String?
-  tags                    String[]  @default([])
+  tags                    String[] @default([])
   created_by_id           String?
-  created_at              DateTime  @default(now())
-  updated_at              DateTime  @updatedAt
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
 
   company     companies  @relation("CompanyCustomerProfiles", fields: [company_id], references: [id], onDelete: Cascade)
   customer    customers  @relation("CustomerCompanyProfileCustomer", fields: [customer_id], references: [id], onDelete: Cascade)
