@@ -16,6 +16,7 @@ const CONFIG: Record<string, Config> = {
   'refunds': { key: 'refunds', endpoint: '/admin/refunds?limit=100' },
   'withdrawals': { key: 'withdrawals', endpoint: '/finance-v2/withdrawals?limit=100' },
   'moderation': { key: 'moderation', endpoint: '/platform-ops-v2/moderation/reports' },
+  'auto-flags': { key: 'auto-flags', endpoint: '/platform-ops-v2/moderation/auto-flags?status=pending' },
   'appeals': { key: 'appeals', endpoint: '/platform-ops-v2/moderation/appeals' },
   'strikes': { key: 'strikes', endpoint: '/admin/strikes?limit=100' },
   'categories': { key: 'categories', endpoint: '/admin/categories' },
@@ -202,6 +203,12 @@ export function AdminOperationsPage({section}:{section:string}){
         {act('dismiss','Dismiss')}
       </div>;
     }
+    if(section==='auto-flags'&&id){
+      return <div className="flex flex-wrap gap-2">
+        <button disabled={!!busy} onClick={()=>{const notes=window.prompt('Dismissal notes','False positive after review.')||undefined;void mutate(id+'dismiss',`/platform-ops-v2/moderation/auto-flags/${id}`,{action:'dismiss',notes},'Automatic flag dismissed.');}} className="action-btn">Dismiss</button>
+        <button disabled={!!busy} onClick={()=>{const notes=window.prompt('Escalation notes','Escalated for human moderation review.')||undefined;void mutate(id+'escalate',`/platform-ops-v2/moderation/auto-flags/${id}`,{action:'escalate',notes},'Automatic flag escalated to moderation.');}} className="action-btn danger">Escalate</button>
+      </div>;
+    }
     if(section==='appeals'&&id){
       const closed=['upheld','reversed','partially_reversed','dismissed'].includes(String(r.status));
       return <div className="flex flex-wrap gap-2">
@@ -250,7 +257,7 @@ export function AdminOperationsPage({section}:{section:string}){
     }
     return null;
   };
-  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','withdrawals','moderation','appeals','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
+  const hasActions=['users','businesses','verification','branches','professionals','services','bookings','payments','withdrawals','moderation','auto-flags','appeals','strikes','categories','countries','regions','languages','currencies','plans','themes','support','disputes','feature-flags','remote-config'].includes(section);
 
   const applyAuditFilters=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
