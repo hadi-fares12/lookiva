@@ -1213,7 +1213,16 @@
     "total": "Total",
     "currency": "Currency",
     "timeline": "Timeline",
-    "notAvailable": "Not available"
+    "notAvailable": "Not available",
+    "consents": "Consent forms",
+    "consentRequired": "Action required",
+    "signed": "Signed",
+    "sign": "Review & sign",
+    "signatureName": "Type your full name as signature",
+    "accept": "I have read and accept these terms",
+    "signing": "Signing…",
+    "consentSigned": "Consent signed.",
+    "noConsents": "No consent forms are required for this booking."
   },
   "availableNowPage": {
     "realOpenings": "real openings",
