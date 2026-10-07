@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { businessFetch, getBusinessSession } from '@/lib/api';
+import { businessFetch, businessUpload, getBusinessSession } from '@/lib/api';
 import { useBusinessRealtimeReload } from '@/lib/realtime';
 import { downloadCsv, downloadXlsx } from '@/lib/export-data';
 
@@ -21,6 +21,7 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'analytics': { key: 'analytics', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'reports': { key: 'reports', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'promotions': { key: 'promotions', endpoint: (c) => `/business-ops/${c}/promotions` },
+  'portfolio': { key: 'portfolio', endpoint: (c) => `/social-v2/portfolio?companyId=${c}` },
   'package-redemptions': { key: 'packageRedemptions', endpoint: (c) => `/business-ops/${c}/package-redemptions` },
   'inventory': { key: 'inventory', endpoint: (c, b) => `/business-ops/${c}/inventory${b ? `?branchId=${b}` : ''}` },
   'commissions': { key: 'commissions', endpoint: (c) => `/business-ops/${c}/commission-rules` },
@@ -63,6 +64,8 @@ export function OperationsPage({ section }: { section: string }) {
   const [categories, setCategories] = useState<Option[]>([]);
   const session = useMemo(() => getBusinessSession(), []);
   const [professionals, setProfessionals] = useState<Option[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<Option[]>([]);
+  const [verifiedReviews, setVerifiedReviews] = useState<Option[]>([]);
   const [analyticsBranchId, setAnalyticsBranchId] = useState(session?.branchId ?? '');
   const [analyticsProfessionalId, setAnalyticsProfessionalId] = useState('');
   const [analyticsFrom, setAnalyticsFrom] = useState('');
@@ -300,14 +303,21 @@ export function OperationsPage({ section }: { section: string }) {
   async function loadLookups() {
     if (!session) return;
     try {
-      const [branchRows, categoryRows, professionalRows] = await Promise.all([
+      const [branchRows, categoryRows, professionalRows, serviceRows, reviewRows] = await Promise.all([
         businessFetch<any[]>(`/business-ops/${session.companyId}/branches`),
         businessFetch<any[]>(`/business-ops/${session.companyId}/categories`),
         businessFetch<any[]>(`/business-ops/${session.companyId}/professionals`),
+        businessFetch<any[]>(`/business-ops/${session.companyId}/services`),
+        businessFetch<any[]>(`/business-ops/${session.companyId}/reviews?limit=100`),
       ]);
       setBranches((branchRows || []).map((row) => ({ id: row.id, name: row.name })));
       setCategories((categoryRows || []).map((row) => ({ id: row.id, name: row.name })));
       setProfessionals((professionalRows || []).map((row) => ({ id: row.id, name: row.display_name || row.name || t('labels.professional'), avatarMediaId: row.avatar_media_id ?? null })));
+      setServiceOptions((serviceRows || []).filter((row) => row?.is_active !== false).map((row) => ({ id: row.id, name: row.name })));
+      setVerifiedReviews((reviewRows || []).filter((row) => row?.is_verified === true && row?.appointment_id).map((row) => ({
+        id: row.id,
+        name: `${Number(row.overall_rating || 0).toFixed(1)}★ · ${row.author_user?.full_name || row.professional?.display_name || row.service?.name || String(row.id).slice(0, 8)}`,
+      })));
     } catch { /* main page will still work without creation lookups */ }
   }
 
@@ -325,6 +335,75 @@ export function OperationsPage({ section }: { section: string }) {
 
   const rows = flattenRows(data).slice(0, 150);
   const columns = rows.length ? Object.keys(rows[0]).filter((k) => !['raw_response', 'gateway_response', 'metadata', 'password_hash'].includes(k)).slice(0, 8) : [];
+
+  async function submitPortfolio(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || busy) return;
+    const form = event.currentTarget;
+    const fd = new FormData(form);
+    const files = fd
+      .getAll('media')
+      .filter((item): item is File => item instanceof File && item.size > 0);
+    if (files.length > 6) {
+      setError(t('messages.portfolioMediaLimit'));
+      return;
+    }
+
+    setBusy('portfolio-create');
+    setMessage('');
+    setError('');
+    try {
+      const uploaded = await Promise.all(
+        files.map((file) => businessUpload<any>(file, true)),
+      );
+      const mediaIds = uploaded
+        .map((item) => String(item?.id || ''))
+        .filter(Boolean);
+      const serviceId = String(fd.get('serviceId') || '').trim();
+      const reviewId = String(fd.get('reviewId') || '').trim();
+      const post = await businessFetch<any>('/social-v2/posts', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyId: session.companyId,
+          branchId: String(fd.get('branchId') || session.branchId || '').trim() || undefined,
+          professionalId: String(fd.get('professionalId') || '').trim() || undefined,
+          title: String(fd.get('title') || '').trim() || undefined,
+          bodyPlain: String(fd.get('bodyPlain') || '').trim() || undefined,
+          mediaIds,
+          serviceIds: serviceId ? [serviceId] : [],
+          tags: String(fd.get('tags') || '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        }),
+      });
+      if (reviewId && post?.id) {
+        await businessFetch(`/social-v2/posts/${post.id}/verify-work`, {
+          method: 'POST',
+          body: JSON.stringify({ reviewId }),
+        });
+      }
+      setMessage(
+        reviewId ? t('messages.portfolioPublishedVerified') : t('messages.portfolioPublished'),
+      );
+      form.reset();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function verifyPortfolioPost(postId: string) {
+    const reviewId = window.prompt(t('labels.verifiedReviewId'), '');
+    if (!reviewId?.trim()) return;
+    await mutate(
+      `/social-v2/posts/${postId}/verify-work`,
+      { method: 'POST', body: JSON.stringify({ reviewId: reviewId.trim() }) },
+      t('messages.portfolioVerified'),
+    );
+  }
 
   async function submitService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
@@ -566,6 +645,21 @@ export function OperationsPage({ section }: { section: string }) {
     {message && <div className="rounded-radius-lg border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green">{message}</div>}
     {error && <div className="rounded-radius-xl border border-accent-red/40 bg-accent-red/10 p-5"><p className="font-semibold text-accent-red">{t('operationPanelError')}</p><p className="mt-1 text-sm text-secondary">{error}</p><button onClick={() => void load()} className="mt-4 rounded-radius-md bg-accent-gold-2 px-4 py-2 text-sm font-semibold text-surface-0">{t('actions.retry')}</button></div>}
 
+    {section === 'portfolio' && <form onSubmit={submitPortfolio} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
+      <input name="title" required placeholder={t('labels.portfolioTitle')} className={`${inputClass} md:col-span-2`} />
+      <select name="serviceId" className={inputClass}><option value="">{t('labels.service')}</option>{serviceOptions.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <select name="professionalId" className={inputClass}><option value="">{t('labels.professional')}</option>{professionals.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <select name="branchId" defaultValue={session?.branchId || ''} className={inputClass}><option value="">{t('labels.companyWide')}</option>{branches.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <select name="reviewId" className={inputClass}><option value="">{t('labels.noVerifiedReview')}</option>{verifiedReviews.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <textarea name="bodyPlain" rows={3} placeholder={t('labels.portfolioCaption')} className="rounded-radius-md border border-border-subtle bg-surface-0 p-3 text-sm text-primary outline-none focus:border-accent-gold-2 md:col-span-3" />
+      <input name="tags" placeholder={t('labels.portfolioTags')} className={`${inputClass} md:col-span-2`} />
+      <label className="flex min-h-11 cursor-pointer items-center rounded-radius-md border border-dashed border-border-subtle bg-surface-0 px-3 text-sm text-secondary hover:border-accent-gold-2">
+        <input name="media" type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4" multiple className="sr-only" />
+        {t('labels.portfolioMedia')}
+      </label>
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-6 md:justify-self-start">{busy==='portfolio-create'?t('actions.uploading'):t('actions.publishPortfolio')}</button>
+    </form>}
+
     {section === 'services' && <form onSubmit={submitService} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
       <input name="name" required placeholder={t('labels.serviceName')} className={`${inputClass} md:col-span-2`} />
       <select name="categoryId" required className={inputClass}><option value="">Category</option>{categories.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
@@ -768,6 +862,29 @@ export function OperationsPage({ section }: { section: string }) {
       </section>
     </div>}
 
+    {!loading && !error && section === 'portfolio' && Array.isArray(data) && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {data.map((post:any)=>{
+        const verified=post.is_verified_work===true && post.verified_review?.is_verified===true && post.verified_appointment?.status==='completed';
+        const service=post.services?.find((link:any)=>link.is_primary)?.service || post.services?.[0]?.service;
+        return <article key={post.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-1">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-semibold text-accent-gold-2">{post.professional?.display_name || t('sections.portfolio.title')}</p><h2 className="mt-1 text-lg font-bold text-primary">{post.title || service?.name || t('labels.portfolioPost')}</h2></div>
+            {verified&&<span className="rounded-radius-full bg-accent-gold-2/10 px-2.5 py-1 text-xs font-bold text-accent-gold-2">✓ {t('labels.verifiedWork')}</span>}
+          </div>
+          {post.body_plain&&<p className="mt-3 line-clamp-3 text-sm text-secondary">{post.body_plain}</p>}
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
+            {service&&<span>{service.name}</span>}
+            <span>{post.media_list?.length || post.media_ids?.length || 0} {t('labels.mediaItems')}</span>
+            {verified&&<span>{Number(post.verified_review?.overall_rating || 0).toFixed(1)}★</span>}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!verified&&<button type="button" disabled={!!busy} onClick={()=>void verifyPortfolioPost(String(post.id))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.verifyWork')}</button>}
+            <button type="button" disabled={!!busy} onClick={()=>void mutate(`/social-v2/posts/${post.id}`,{method:'DELETE'},t('messages.portfolioArchived'))} className="rounded-radius-md border border-accent-red/30 px-3 py-2 text-xs font-semibold text-accent-red">{t('actions.archive')}</button>
+          </div>
+        </article>;
+      })}
+    </div>}
+
     {!loading && !error && section === 'customers' && Array.isArray(data) && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {data.map((customer:any)=>{
         const profile=customer.company_profiles?.[0];
@@ -837,7 +954,7 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && section === 'queue' && Array.isArray(data) && <div className="space-y-5">{data.map((queue:any)=><section key={queue.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-primary">{queue.name}</h2><p className="text-xs text-muted">{queue.branch?.name || t('labels.branch')} · {queue.estimated_wait_per_person_minutes} {t('labels.minutesPerPerson')} · {t('labels.max')} {queue.max_waiting}</p></div><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/queues/${queue.id}`,{method:'PATCH',body:JSON.stringify({isActive:!queue.is_active})},queue.is_active?t('messages.queuePaused'):t('messages.queueActivated'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{queue.is_active?t('actions.pause'):t('actions.activate')}</button></div><div className="mt-4 space-y-2">{(queue.entries||[]).map((entry:any)=><div key={entry.id} className="flex flex-col gap-3 rounded-radius-lg bg-surface-2 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-primary">#{entry.position} · {entry.customer_name || entry.customer?.user?.full_name || t('labels.customer')}</p><p className="text-sm text-muted">{t('labels.estimatedWait')} {entry.estimated_wait_minutes ?? '—'} min · {entry.status}</p></div><div className="flex gap-2">{entry.status==='waiting'&&<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/call`,{method:'PATCH',body:'{}'},t('messages.customerCalled'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.call')}</button>}<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/serve`,{method:'PATCH',body:'{}'},t('messages.queueServed'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.served')}</button></div></div>)}{!(queue.entries||[]).length&&<p className="text-sm text-muted">{t('messages.noCustomersWaiting')}</p>}</div></section>)}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','customers','portfolio','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
     {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','banking','withdrawals'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='banking'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/finance-v2/bank-accounts/${row.id}`,{method:'PATCH',body:JSON.stringify({payoutEnabled:!row.payout_enabled})},row.payout_enabled?t('messages.bankAccountDisabled'):t('messages.bankAccountEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.payout_enabled?t('actions.disablePayouts'):t('actions.enablePayouts')}</button></td>}{section==='withdrawals'&&<td className="px-4 py-3">{row.status==='pending'?<button onClick={()=>void mutate(`/finance-v2/withdrawals/${row.id}/cancel`,{method:'PATCH',body:'{}'},t('messages.withdrawalCancelled'))} className="text-xs font-semibold text-accent-red">{t('actions.cancelWithdrawal')}</button>:<span className="text-xs text-muted">{row.status}</span>}</td>}</tr>)}</tbody></table></div>}
   </div>;
