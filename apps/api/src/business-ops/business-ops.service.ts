@@ -1178,7 +1178,6 @@ export class BusinessOpsService {
         },
         include: {
           service: { select: { id: true, name: true } },
-          professional: { select: { id: true, display_name: true } },
           appointment: {
             select: {
               id: true,
