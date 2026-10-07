@@ -17,6 +17,7 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'payments': { key: 'payments', endpoint: (c) => `/business-ops/${c}/payments` },
   'finance': { key: 'finance', endpoint: (c) => `/finance-v2/companies/${c}/ledger` },
   'banking': { key: 'banking', endpoint: (c) => `/finance-v2/bank-accounts?ownerType=company&ownerId=${c}` },
+  'withdrawals': { key: 'withdrawals', endpoint: (c) => `/finance-v2/companies/${c}/withdrawals` },
   'analytics': { key: 'analytics', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'reports': { key: 'reports', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'promotions': { key: 'promotions', endpoint: (c) => `/business-ops/${c}/promotions` },
@@ -74,6 +75,7 @@ export function OperationsPage({ section }: { section: string }) {
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [crmNotes, setCrmNotes] = useState('');
   const [crmTags, setCrmTags] = useState('');
+  const [withdrawalBanks, setWithdrawalBanks] = useState<any[]>([]);
 
   async function load() {
     if (!session) return;
@@ -89,6 +91,18 @@ export function OperationsPage({ section }: { section: string }) {
         endpoint = `/analytics-v2/companies/${session.companyId}/dashboard${params.size ? `?${params.toString()}` : ''}`;
       }
       const result = await businessFetch(endpoint);
+      if (section === 'withdrawals') {
+        const banks = await businessFetch<any[]>(
+          `/finance-v2/bank-accounts?ownerType=company&ownerId=${session.companyId}`,
+        );
+        setWithdrawalBanks(
+          (Array.isArray(banks) ? banks : []).filter(
+            (bank) => bank?.is_verified === true && bank?.payout_enabled !== false,
+          ),
+        );
+      } else {
+        setWithdrawalBanks([]);
+      }
       setData(result); setUpdated(new Date());
     } catch (e) { setError(e instanceof Error ? e.message : t('loadError')); }
     finally { setLoading(false); }
@@ -420,6 +434,29 @@ export function OperationsPage({ section }: { section: string }) {
     event.currentTarget.reset();
   }
 
+  async function submitWithdrawal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    const bankAccountId = String(fd.get('bankAccountId') || '');
+    const bank = withdrawalBanks.find((item) => String(item.id) === bankAccountId);
+    if (!bank) {
+      setError(t('messages.withdrawalBankRequired'));
+      return;
+    }
+    await mutate('/finance-v2/withdrawals', {
+      method: 'POST',
+      body: JSON.stringify({
+        companyId: session.companyId,
+        bankAccountId,
+        amount: Number(fd.get('amount') || 0),
+        currencyCode: String(bank.currency_code || '').toUpperCase(),
+        reason: String(fd.get('reason') || '').trim() || undefined,
+        referenceCode: String(fd.get('referenceCode') || '').trim() || undefined,
+      }),
+    }, t('messages.withdrawalRequested'));
+    event.currentTarget.reset();
+  }
+
   async function submitBankAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -609,6 +646,15 @@ export function OperationsPage({ section }: { section: string }) {
       <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-6 md:justify-self-start">{t('actions.redeemPackage')}</button>
     </form>}
 
+    {section === 'withdrawals' && <form onSubmit={submitWithdrawal} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-5">
+      <select name="bankAccountId" required className={`${inputClass} md:col-span-2`}><option value="">{t('labels.chooseBankAccount')}</option>{withdrawalBanks.map((bank)=><option key={bank.id} value={bank.id}>{bank.bank_name || t('labels.bankAccount')} • {bank.account_number || bank.iban || '••••'} • {bank.currency_code}</option>)}</select>
+      <input name="amount" required type="number" min="0.01" step="0.01" placeholder={t('labels.withdrawalAmount')} className={inputClass} />
+      <input name="referenceCode" placeholder={t('labels.referenceCode')} className={inputClass} />
+      <input name="reason" placeholder={t('labels.withdrawalReason')} className={inputClass} />
+      {withdrawalBanks.length===0&&<div className="rounded-radius-md border border-accent-gold-2/30 bg-accent-gold-2/10 px-3 py-2 text-sm text-accent-gold-2 md:col-span-5">{t('messages.noVerifiedBank')}</div>}
+      <button disabled={!!busy||withdrawalBanks.length===0} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-5 md:justify-self-start">{t('actions.requestWithdrawal')}</button>
+    </form>}
+
     {section === 'banking' && <form onSubmit={submitBankAccount} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4">
       <input name="bankName" placeholder={t('labels.bankName')} className={inputClass} />
       <input name="accountHolder" placeholder={t('labels.accountHolder')} className={inputClass} />
@@ -793,6 +839,6 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','banking'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='banking'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/finance-v2/bank-accounts/${row.id}`,{method:'PATCH',body:JSON.stringify({payoutEnabled:!row.payout_enabled})},row.payout_enabled?t('messages.bankAccountDisabled'):t('messages.bankAccountEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.payout_enabled?t('actions.disablePayouts'):t('actions.enablePayouts')}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions','banking','withdrawals'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}{section==='banking'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/finance-v2/bank-accounts/${row.id}`,{method:'PATCH',body:JSON.stringify({payoutEnabled:!row.payout_enabled})},row.payout_enabled?t('messages.bankAccountDisabled'):t('messages.bankAccountEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.payout_enabled?t('actions.disablePayouts'):t('actions.enablePayouts')}</button></td>}{section==='withdrawals'&&<td className="px-4 py-3">{row.status==='pending'?<button onClick={()=>void mutate(`/finance-v2/withdrawals/${row.id}/cancel`,{method:'PATCH',body:'{}'},t('messages.withdrawalCancelled'))} className="text-xs font-semibold text-accent-red">{t('actions.cancelWithdrawal')}</button>:<span className="text-xs text-muted">{row.status}</span>}</td>}</tr>)}</tbody></table></div>}
   </div>;
 }
