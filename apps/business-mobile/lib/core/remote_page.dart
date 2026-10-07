@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'realtime.dart';
@@ -30,6 +31,8 @@ class BusinessRemoteBody extends StatefulWidget {
     'professionals': (titleKey: 'professionals', path: '/business-ops/{companyId}/professionals', icon: Icons.badge_outlined),
     'services': (titleKey: 'services', path: '/business-ops/{companyId}/services', icon: Icons.design_services_rounded),
     'payments': (titleKey: 'payments', path: '/business-ops/{companyId}/payments', icon: Icons.payments_rounded),
+    'payouts': (titleKey: 'payouts', path: '/finance-v2/companies/{companyId}/payouts', icon: Icons.account_balance_outlined),
+    'notifications': (titleKey: 'notifications', path: '/notifications', icon: Icons.notifications_none_rounded),
     'inventory': (titleKey: 'inventory', path: '/business-ops/{companyId}/inventory', icon: Icons.inventory_2_outlined),
     'commissions': (titleKey: 'commissions', path: '/business-ops/{companyId}/commission-rules', icon: Icons.percent_rounded),
     'forms': (titleKey: 'forms', path: '/business-ops/{companyId}/consent-forms', icon: Icons.assignment_turned_in_outlined),
@@ -158,7 +161,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                 const SizedBox(height: 10),
                 Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_notice!))),
               ],
-              if (const {'services', 'floor', 'promotions', 'queue'}.contains(widget.section)) ...[
+              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts'}.contains(widget.section)) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -183,6 +186,8 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'floor') return 'Add chair / resource';
     if (widget.section == 'promotions') return 'Add promotion';
     if (widget.section == 'queue') return 'Add queue';
+    if (widget.section == 'commissions') return bt(context, 'addCommission');
+    if (widget.section == 'payouts') return bt(context, 'createPayout');
     return 'Add';
   }
 
@@ -191,6 +196,8 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'floor') return _createResource();
     if (widget.section == 'promotions') return _createPromotion();
     if (widget.section == 'queue') return _createQueue();
+    if (widget.section == 'commissions') return _createCommissionRule();
+    if (widget.section == 'payouts') return _createPayout();
   }
 
   Future<void> _createService() async {
@@ -373,6 +380,289 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     );
   }
 
+  Future<void> _createCommissionRule() async {
+    final raw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/professionals',
+    );
+    final professionals = (raw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['is_active'] != false)
+        .toList();
+    if (!mounted) return;
+
+    final name = TextEditingController(text: bt(context, 'standardCommission'));
+    final value = TextEditingController(text: '10');
+    String type = 'percentage';
+    String? professionalId;
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) => AlertDialog(
+              title: Text(bt(context, 'addCommission')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: name,
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'ruleName'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String?>(
+                      initialValue: professionalId,
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'professional'),
+                      ),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(bt(context, 'allProfessionals')),
+                        ),
+                        ...professionals.map(
+                          (row) => DropdownMenuItem<String?>(
+                            value: row['id']?.toString(),
+                            child: Text(
+                              row['display_name']?.toString() ??
+                                  bt(context, 'professional'),
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (next) =>
+                          setLocal(() => professionalId = next),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      initialValue: type,
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'commissionType'),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'percentage',
+                          child: Text(bt(context, 'percentage')),
+                        ),
+                        DropdownMenuItem(
+                          value: 'fixed',
+                          child: Text(bt(context, 'fixedAmount')),
+                        ),
+                      ],
+                      onChanged: (next) =>
+                          setLocal(() => type = next ?? type),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: value,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'commissionValue'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(bt(context, 'cancel')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(bt(context, 'save')),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+
+    if (ok != true || name.text.trim().isEmpty) {
+      name.dispose();
+      value.dispose();
+      return;
+    }
+    final numeric = double.tryParse(value.text) ?? 0;
+    await _mutate(
+      () => LookivaBusinessApi.instance.postScoped(
+        '/business-ops/{companyId}/commission-rules',
+        data: {
+          'name': name.text.trim(),
+          if (professionalId != null) 'professionalId': professionalId,
+          'calculationType': type,
+          if (type == 'percentage') 'percentRate': numeric,
+          if (type == 'fixed') 'fixedAmount': numeric,
+        },
+      ),
+      bt(context, 'commissionCreated'),
+    );
+    name.dispose();
+    value.dispose();
+  }
+
+  Future<void> _createPayout() async {
+    final session = await LookivaBusinessApi.instance.restoreSession();
+    if (!mounted || session == null) return;
+    final raw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/professionals',
+    );
+    final professionals = (raw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['is_active'] != false)
+        .toList();
+    if (!mounted) return;
+    if (professionals.isEmpty) {
+      setState(() => _notice = bt(context, 'noProfessionals'));
+      return;
+    }
+
+    String professionalId = professionals.first['id'].toString();
+    DateTime end = DateTime.now();
+    DateTime start = end.subtract(const Duration(days: 7));
+    bool markPaid = false;
+    final reference = TextEditingController();
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) => AlertDialog(
+              title: Text(bt(context, 'createPayout')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: professionalId,
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'professional'),
+                      ),
+                      items: professionals
+                          .map(
+                            (row) => DropdownMenuItem<String>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                row['display_name']?.toString() ??
+                                    bt(context, 'professional'),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (next) => setLocal(
+                        () => professionalId = next ?? professionalId,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(bt(context, 'periodStart')),
+                      subtitle: Text(
+                        DateFormat.yMMMd(
+                          Localizations.localeOf(context).toLanguageTag(),
+                        ).format(start),
+                      ),
+                      trailing: const Icon(Icons.date_range_outlined),
+                      onTap: () async {
+                        final chosen = await showDatePicker(
+                          context: context,
+                          initialDate: start,
+                          firstDate: DateTime(2020),
+                          lastDate: end,
+                        );
+                        if (chosen != null) setLocal(() => start = chosen);
+                      },
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(bt(context, 'periodEnd')),
+                      subtitle: Text(
+                        DateFormat.yMMMd(
+                          Localizations.localeOf(context).toLanguageTag(),
+                        ).format(end),
+                      ),
+                      trailing: const Icon(Icons.date_range_outlined),
+                      onTap: () async {
+                        final chosen = await showDatePicker(
+                          context: context,
+                          initialDate: end,
+                          firstDate: start,
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 1),
+                          ),
+                        );
+                        if (chosen != null) setLocal(() => end = chosen);
+                      },
+                    ),
+                    TextField(
+                      controller: reference,
+                      decoration: InputDecoration(
+                        labelText: bt(context, 'reference'),
+                      ),
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(bt(context, 'markPaid')),
+                      value: markPaid,
+                      onChanged: (next) =>
+                          setLocal(() => markPaid = next),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(bt(context, 'cancel')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(bt(context, 'createPayout')),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+
+    if (ok != true) {
+      reference.dispose();
+      return;
+    }
+
+    final startUtc = DateTime(
+      start.year,
+      start.month,
+      start.day,
+    ).toUtc();
+    final endExclusive = DateTime(
+      end.year,
+      end.month,
+      end.day,
+    ).add(const Duration(days: 1)).toUtc();
+
+    await _mutate(
+      () => LookivaBusinessApi.instance.postScoped(
+        '/finance-v2/payouts',
+        data: {
+          'companyId': session.companyId,
+          'professionalId': professionalId,
+          'payoutPeriodStart': startUtc.toIso8601String(),
+          'payoutPeriodEnd': endExclusive.toIso8601String(),
+          'markPaid': markPaid,
+          if (reference.text.trim().isNotEmpty)
+            'referenceCode': reference.text.trim(),
+          if (markPaid) 'paymentMethod': 'manual',
+        },
+      ),
+      bt(context, 'payoutCreated'),
+    );
+    reference.dispose();
+  }
+
   Future<bool?> _simpleDialog({required String title, required List<Widget> fields}) {
     return showDialog<bool>(
       context: context,
@@ -396,6 +686,10 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'queue') return _queues(data);
     if (widget.section == 'services') return _services(data);
     if (widget.section == 'promotions') return _promotions(data);
+    if (widget.section == 'customers') return _customers(data);
+    if (widget.section == 'professionals') return _professionals(data);
+    if (widget.section == 'commissions') return _commissionRules(data);
+    if (widget.section == 'payouts') return _payouts(data);
 
     final rows = _rows(data);
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
@@ -406,6 +700,435 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         subtitle: row.$2.isEmpty ? null : Text(row.$2, maxLines: 6, overflow: TextOverflow.ellipsis),
       ),
     )).toList();
+  }
+
+  List<Widget> _customers(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    }
+    return rows.map((row) {
+      final user = row['user'] is Map
+          ? Map<String, dynamic>.from(row['user'] as Map)
+          : <String, dynamic>{};
+      final name = user['full_name']?.toString() ??
+          row['display_name']?.toString() ??
+          bt(context, 'customer');
+      final contact = user['phone']?.toString() ??
+          user['email']?.toString() ??
+          '—';
+      return Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            child: Text(
+              name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
+            ),
+          ),
+          title: Text(
+            name,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(contact),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => _showCustomerDetails(row['id']?.toString() ?? ''),
+        ),
+      );
+    }).toList();
+  }
+
+  Future<void> _showCustomerDetails(String customerId) async {
+    if (customerId.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final raw = await LookivaBusinessApi.instance.getScoped(
+        '/business-ops/{companyId}/customers/' + customerId,
+      );
+      if (!mounted || raw is! Map) return;
+      final customer = Map<String, dynamic>.from(raw);
+      final user = customer['user'] is Map
+          ? Map<String, dynamic>.from(customer['user'] as Map)
+          : <String, dynamic>{};
+      final appointments = (customer['appointments'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      final payments = (customer['payments'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => FractionallySizedBox(
+          heightFactor: .88,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+            children: [
+              Text(
+                user['full_name']?.toString() ?? bt(context, 'customer'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                [
+                  user['phone']?.toString(),
+                  user['email']?.toString(),
+                ].whereType<String>().where((e) => e.isNotEmpty).join(' • '),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                bt(context, 'recentAppointments'),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              if (appointments.isEmpty)
+                Text(bt(context, 'noRecords'))
+              else
+                ...appointments.take(20).map(
+                      (a) => Card(
+                        child: ListTile(
+                          title: Text(
+                            (a['services'] as List? ?? const [])
+                                    .whereType<Map>()
+                                    .map((link) => link['service'])
+                                    .whereType<Map>()
+                                    .map((service) => service['name']?.toString())
+                                    .whereType<String>()
+                                    .join(', ')
+                                    .trim()
+                                    .isEmpty
+                                ? bt(context, 'appointment')
+                                : (a['services'] as List? ?? const [])
+                                    .whereType<Map>()
+                                    .map((link) => link['service'])
+                                    .whereType<Map>()
+                                    .map((service) => service['name']?.toString())
+                                    .whereType<String>()
+                                    .join(', '),
+                          ),
+                          subtitle: Text(
+                            '${a['status'] ?? '—'} • ${a['starts_at'] ?? '—'}',
+                          ),
+                        ),
+                      ),
+                    ),
+              const SizedBox(height: 16),
+              Text(
+                bt(context, 'recentPayments'),
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              if (payments.isEmpty)
+                Text(bt(context, 'noRecords'))
+              else
+                ...payments.take(20).map(
+                      (p) => Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.payments_outlined),
+                          title: Text(
+                            '${p['amount'] ?? '—'} ${p['currency_code'] ?? ''}',
+                          ),
+                          subtitle: Text(
+                            '${p['payment_method'] ?? ''} • ${p['status'] ?? ''}',
+                          ),
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _notice =
+              LookivaBusinessApi.instance.friendlyError(error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  List<Widget> _professionals(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    }
+    return rows.map((row) {
+      final branches = (row['branches'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => e['branch'])
+          .whereType<Map>()
+          .map((e) => e['name']?.toString())
+          .whereType<String>()
+          .join(', ');
+      return Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            child: const Icon(Icons.badge_outlined),
+          ),
+          title: Text(
+            row['display_name']?.toString() ??
+                bt(context, 'professional'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            branches.isEmpty
+                ? (row['specialties'] as List? ?? const []).join(', ')
+                : branches,
+          ),
+          trailing: const Icon(Icons.calendar_month_outlined),
+          onTap: () => _editProfessionalSchedule(row),
+        ),
+      );
+    }).toList();
+  }
+
+  Future<void> _editProfessionalSchedule(
+    Map<String, dynamic> professional,
+  ) async {
+    final professionalId = professional['id']?.toString();
+    if (professionalId == null || professionalId.isEmpty || _busy) return;
+
+    setState(() => _busy = true);
+    try {
+      final session = await LookivaBusinessApi.instance.restoreSession();
+      if (!mounted || session == null) return;
+      final branchesRaw = await LookivaBusinessApi.instance.getScoped(
+        '/business-ops/{companyId}/branches',
+      );
+      final scheduleRaw = await LookivaBusinessApi.instance.getScoped(
+        '/business-ops/{companyId}/professionals/' +
+            professionalId +
+            '/schedules',
+      );
+      if (!mounted) return;
+      final branches = (branchesRaw as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (branches.isEmpty) {
+        setState(() => _notice = bt(context, 'noBranches'));
+        return;
+      }
+      final branchId = session.branchId != null &&
+              branches.any((b) => b['id']?.toString() == session.branchId)
+          ? session.branchId!
+          : branches.first['id'].toString();
+      final branchName = branches
+              .firstWhere(
+                (b) => b['id']?.toString() == branchId,
+                orElse: () => branches.first,
+              )['name']
+              ?.toString() ??
+          bt(context, 'branch');
+
+      final existing = (scheduleRaw as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['branch_id']?.toString() == branchId)
+          .toList();
+      final off = List<bool>.filled(7, false);
+      final starts = List.generate(7, (_) => TextEditingController(text: '09:00'));
+      final ends = List.generate(7, (_) => TextEditingController(text: '18:00'));
+      for (var day = 0; day < 7; day++) {
+        final found = existing.where(
+          (row) => int.tryParse(row['day_of_week']?.toString() ?? '') == day,
+        );
+        if (found.isNotEmpty) {
+          final row = found.first;
+          off[day] = row['is_off'] == true;
+          starts[day].text = row['starts_at']?.toString() ?? '09:00';
+          ends[day].text = row['ends_at']?.toString() ?? '18:00';
+        } else {
+          off[day] = day == 0;
+        }
+      }
+
+      final ok = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => StatefulBuilder(
+              builder: (context, setLocal) => AlertDialog(
+                title: Text(
+                  '${bt(context, 'schedule')} • $branchName',
+                ),
+                content: SizedBox(
+                  width: 520,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: 7,
+                    itemBuilder: (context, day) {
+                      final label = DateFormat.EEEE(
+                        Localizations.localeOf(context).toLanguageTag(),
+                      ).format(DateTime(2023, 1, 1 + day));
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 92,
+                              child: Text(
+                                label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: !off[day],
+                              onChanged: (working) =>
+                                  setLocal(() => off[day] = !working),
+                            ),
+                            if (!off[day]) ...[
+                              Expanded(
+                                child: TextField(
+                                  controller: starts[day],
+                                  decoration: InputDecoration(
+                                    labelText: bt(context, 'start'),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: ends[day],
+                                  decoration: InputDecoration(
+                                    labelText: bt(context, 'end'),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(bt(context, 'cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(bt(context, 'save')),
+                  ),
+                ],
+              ),
+            ),
+          ) ??
+          false;
+
+      if (ok == true) {
+        await LookivaBusinessApi.instance.postScoped(
+          '/business-ops/{companyId}/professionals/' +
+              professionalId +
+              '/schedules',
+          data: {
+            'branchId': branchId,
+            'schedules': List.generate(
+              7,
+              (day) => {
+                'dayOfWeek': day,
+                'isOff': off[day],
+                if (!off[day]) 'startsAt': starts[day].text.trim(),
+                if (!off[day]) 'endsAt': ends[day].text.trim(),
+              },
+            ),
+          },
+        );
+        if (mounted) {
+          setState(() {
+            _notice = bt(context, 'scheduleSaved');
+            _reload();
+          });
+        }
+      }
+
+      for (final controller in [...starts, ...ends]) {
+        controller.dispose();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _notice =
+              LookivaBusinessApi.instance.friendlyError(error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  List<Widget> _commissionRules(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    }
+    return rows.map((row) {
+      final id = row['id']?.toString() ?? '';
+      final active = row['is_active'] != false;
+      final type = row['calculation_type']?.toString() ?? '';
+      final amount = type == 'percentage'
+          ? '${row['percent_rate'] ?? 0}%'
+          : row['fixed_amount']?.toString() ?? '0';
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.percent_rounded),
+          title: Text(
+            row['name']?.toString() ?? bt(context, 'commission'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text('$type • $amount'),
+          trailing: Switch(
+            value: active,
+            onChanged: _busy || id.isEmpty
+                ? null
+                : (next) => _mutate(
+                      () => LookivaBusinessApi.instance.patchScoped(
+                        '/business-ops/{companyId}/commission-rules/' + id,
+                        data: {'isActive': next},
+                      ),
+                      bt(context, 'commissionUpdated'),
+                    ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _payouts(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    }
+    return rows.map((row) {
+      final professional = row['professional'] is Map
+          ? Map<String, dynamic>.from(row['professional'] as Map)
+          : <String, dynamic>{};
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.account_balance_outlined),
+          title: Text(
+            professional['display_name']?.toString() ??
+                bt(context, 'professional'),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            '${row['net_amount'] ?? 0} ${row['currency_code'] ?? ''} • '
+            '${row['status'] ?? ''}\n'
+            '${row['payout_period_start'] ?? ''} → '
+            '${row['payout_period_end'] ?? ''}',
+          ),
+          isThreeLine: true,
+        ),
+      );
+    }).toList();
   }
 
   List<Widget> _calendar(dynamic data) {
@@ -508,6 +1231,97 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     }).toList();
   }
 
+  Future<void> _editService(Map<String, dynamic> row) async {
+    final id = row['id']?.toString();
+    if (id == null || id.isEmpty || _busy) return;
+    final name = TextEditingController(text: row['name']?.toString() ?? '');
+    final duration = TextEditingController(
+      text: row['duration_minutes']?.toString() ?? '30',
+    );
+    final price = TextEditingController(
+      text: row['base_price']?.toString() ?? '0',
+    );
+    final deposit = TextEditingController(
+      text: row['deposit_percent']?.toString() ?? '',
+    );
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(bt(context, 'editService')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: name,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'serviceName'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: duration,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'durationMinutes'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: price,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'price'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: deposit,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'depositPercent'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(bt(context, 'cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(bt(context, 'save')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (ok == true) {
+      await _mutate(
+        () => LookivaBusinessApi.instance.patchScoped(
+          '/business-ops/{companyId}/services/' + id,
+          data: {
+            'name': name.text.trim(),
+            'durationMinutes': int.tryParse(duration.text) ?? 30,
+            'basePrice': double.tryParse(price.text) ?? 0,
+            'depositPercent': deposit.text.trim().isEmpty
+                ? null
+                : double.tryParse(deposit.text),
+          },
+        ),
+        bt(context, 'serviceUpdated'),
+      );
+    }
+    name.dispose();
+    duration.dispose();
+    price.dispose();
+    deposit.dispose();
+  }
+
   List<Widget> _services(dynamic data) {
     final rows = _maps(data);
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
@@ -520,6 +1334,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         leading: Icon(config.icon, color: Theme.of(context).colorScheme.primary),
         title: Text(row['name']?.toString() ?? 'Service', style: const TextStyle(fontWeight: FontWeight.w900)),
         subtitle: Text(subtitle),
+        onTap: () => _editService(row),
         trailing: Switch(
           value: active,
           onChanged: _busy ? null : (value) => _mutate(
