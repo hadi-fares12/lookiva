@@ -263,10 +263,11 @@ class _ReelCard extends StatelessWidget {
                                 ct(context, 'verifiedWork') +
                                 ((post['verifiedWork'] as Map)['rating'] != null
                                     ? ' • ' +
-                                        double.tryParse(
-                                          (post['verifiedWork'] as Map)['rating']
-                                              .toString(),
-                                        )!
+                                        (double.tryParse(
+                                                  (post['verifiedWork'] as Map)['rating']
+                                                      .toString(),
+                                                ) ??
+                                                0)
                                             .toStringAsFixed(1) +
                                         '★'
                                     : ''),
