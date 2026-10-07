@@ -9,40 +9,6 @@ class BusinessRemotePage extends StatelessWidget {
   final String section;
   const BusinessRemotePage({super.key, required this.section});
 
-  Future<void> _toggleActiveOptimistically(
-    String key,
-    bool nextValue,
-    Future<dynamic> Function() action,
-    String success,
-  ) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _notice = null;
-      _optimisticActive[key] = nextValue;
-    });
-
-    try {
-      await action();
-      if (!mounted) return;
-      setState(() {
-        _optimisticActive.remove(key);
-        _notice = success;
-        _reload();
-      });
-      await _future;
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _optimisticActive.remove(key);
-          _notice = LookivaBusinessApi.instance.friendlyError(error);
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final config = BusinessRemoteBody.configFor(section);
@@ -247,6 +213,40 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
       await _future;
     } catch (error) {
       if (mounted) setState(() => _notice = LookivaBusinessApi.instance.friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _toggleActiveOptimistically(
+    String key,
+    bool nextValue,
+    Future<dynamic> Function() action,
+    String success,
+  ) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+      _optimisticActive[key] = nextValue;
+    });
+
+    try {
+      await action();
+      if (!mounted) return;
+      setState(() {
+        _optimisticActive.remove(key);
+        _notice = success;
+        _reload();
+      });
+      await _future;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _optimisticActive.remove(key);
+          _notice = LookivaBusinessApi.instance.friendlyError(error);
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
