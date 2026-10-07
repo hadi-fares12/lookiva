@@ -3705,12 +3705,11 @@ model bank_accounts {
   payout_enabled      Boolean  @default(true)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
+  withdrawals         withdrawal_requests[]
 
   @@index([owner_type, owner_id])
   @@index([currency_code])
   @@index([is_verified])
-  withdrawals         withdrawal_requests[]
-
   @@index([payout_enabled])
 }
 
