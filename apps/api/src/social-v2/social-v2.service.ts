@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -362,7 +363,7 @@ export class SocialV2Service {
             author_user_id: user.id,
             reason_type: autoViolation.reasonType,
             confidence: autoViolation.confidence,
-            details: autoViolation.details,
+            details: autoViolation.details as Prisma.InputJsonValue,
           },
         });
       }
