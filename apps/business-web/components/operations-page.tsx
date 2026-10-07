@@ -66,6 +66,7 @@ export function OperationsPage({ section }: { section: string }) {
   const [professionals, setProfessionals] = useState<Option[]>([]);
   const [serviceOptions, setServiceOptions] = useState<Option[]>([]);
   const [verifiedReviews, setVerifiedReviews] = useState<Option[]>([]);
+  const [portfolioReviewByPost, setPortfolioReviewByPost] = useState<Record<string, string>>({});
   const [analyticsBranchId, setAnalyticsBranchId] = useState(session?.branchId ?? '');
   const [analyticsProfessionalId, setAnalyticsProfessionalId] = useState('');
   const [analyticsFrom, setAnalyticsFrom] = useState('');
@@ -395,14 +396,18 @@ export function OperationsPage({ section }: { section: string }) {
     }
   }
 
-  async function verifyPortfolioPost(postId: string) {
-    const reviewId = window.prompt(t('labels.verifiedReviewId'), '');
-    if (!reviewId?.trim()) return;
+  async function verifyPortfolioPost(postId: string, reviewId: string) {
+    if (!reviewId) return;
     await mutate(
       `/social-v2/posts/${postId}/verify-work`,
-      { method: 'POST', body: JSON.stringify({ reviewId: reviewId.trim() }) },
+      { method: 'POST', body: JSON.stringify({ reviewId }) },
       t('messages.portfolioVerified'),
     );
+    setPortfolioReviewByPost((current) => {
+      const next = { ...current };
+      delete next[postId];
+      return next;
+    });
   }
 
   async function submitService(event: FormEvent<HTMLFormElement>) {
@@ -878,7 +883,25 @@ export function OperationsPage({ section }: { section: string }) {
             {verified&&<span>{Number(post.verified_review?.overall_rating || 0).toFixed(1)}★</span>}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {!verified&&<button type="button" disabled={!!busy} onClick={()=>void verifyPortfolioPost(String(post.id))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.verifyWork')}</button>}
+            {!verified&&<>
+              <select
+                value={portfolioReviewByPost[String(post.id)] || ''}
+                onChange={(e)=>setPortfolioReviewByPost((current)=>({...current,[String(post.id)]:e.target.value}))}
+                aria-label={t('labels.selectVerifiedReview')}
+                className="h-9 min-w-48 rounded-radius-md border border-border-subtle bg-surface-0 px-2 text-xs text-primary"
+              >
+                <option value="">{t('labels.selectVerifiedReview')}</option>
+                {verifiedReviews.map((review)=><option key={review.id} value={review.id}>{review.name}</option>)}
+              </select>
+              <button
+                type="button"
+                disabled={!!busy||!portfolioReviewByPost[String(post.id)]}
+                onClick={()=>void verifyPortfolioPost(String(post.id),portfolioReviewByPost[String(post.id)]||'')}
+                className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0 disabled:opacity-50"
+              >
+                {t('actions.verifyWork')}
+              </button>
+            </>}
             <button type="button" disabled={!!busy} onClick={()=>void mutate(`/social-v2/posts/${post.id}`,{method:'DELETE'},t('messages.portfolioArchived'))} className="rounded-radius-md border border-accent-red/30 px-3 py-2 text-xs font-semibold text-accent-red">{t('actions.archive')}</button>
           </div>
         </article>;
