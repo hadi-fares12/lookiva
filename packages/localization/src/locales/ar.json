@@ -717,7 +717,9 @@
       "remove": "إزالة",
       "useTemplate": "استخدام القالب",
       "saveCrm": "حفظ CRM",
-      "mergeDuplicate": "دمج عميل مكرر"
+      "mergeDuplicate": "دمج عميل مكرر",
+      "viewCrm": "فتح إدارة العميل",
+      "merge": "دمج التكرار"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -784,15 +786,24 @@
       "stageName": "اسم المرحلة",
       "stageDuration": "مدة المرحلة (دقائق)",
       "noStages": "لا توجد مراحل مضبوطة. أضف مرحلة إذا كانت الخدمة متعددة الخطوات.",
-      "crmProfile": "ملف CRM",
+      "crmProfile": "إدارة علاقة العميل",
       "crmNotes": "ملاحظات المؤسسة",
-      "crmNotesHint": "ملاحظات خاصة بهذه المؤسسة فقط.",
+      "crmNotesHint": "سياق تشغيلي خاص بهذا العميل داخل مؤسستك.",
       "crmTags": "وسوم العميل",
       "crmTagsHint": "VIP، عميل صبغة، يفضّل هادي…",
       "duplicateCustomerId": "معرّف العميل المكرر للدمج",
-      "mergedAliases": "الملفات المكررة المدمجة",
+      "mergedAliases": "السجلات المدمجة",
       "recentAppointments": "المواعيد الأخيرة",
-      "recentPayments": "المدفوعات الأخيرة"
+      "recentPayments": "المدفوعات الأخيرة",
+      "crmNotesTags": "ملاحظات المؤسسة والوسوم",
+      "tags": "الوسوم",
+      "tagsHint": "vip، عميل-صبغة، يفضل-هادي",
+      "privateNotes": "ملاحظات خاصة",
+      "privateNotesHint": "التفضيلات والسياق وملاحظات المتابعة أو اعتبارات الخدمة للموظفين المصرح لهم.",
+      "mergeDuplicate": "دمج عميل مكرر",
+      "mergeDuplicateHint": "اختر سجلاً آخر يمثل الشخص نفسه. يبقى السجل التاريخي محفوظاً تحت العميل الأساسي.",
+      "chooseDuplicate": "اختر السجل المكرر",
+      "mergeConfirm": "هل تريد دمج {name} في هذا العميل؟ سيبقى السجل محفوظاً ويصبح هذا العميل هو السجل الأساسي."
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -818,9 +829,9 @@
       "dependenciesSaved": "تم حفظ متطلبات الخدمة.",
       "stagesSaved": "تم حفظ مراحل الخدمة.",
       "templateCreated": "تم إنشاء نموذج الموافقة من القالب.",
-      "crmSaved": "تم حفظ ملف CRM للعميل.",
+      "crmSaved": "تم حفظ بيانات إدارة العميل.",
       "mergeSameCustomer": "اختر عميلاً مكرراً مختلفاً.",
-      "customerMerged": "تم دمج العميل المكرر لهذه المؤسسة."
+      "customerMerged": "تم دمج العميل المكرر."
     }
   },
   "adminOps": {
