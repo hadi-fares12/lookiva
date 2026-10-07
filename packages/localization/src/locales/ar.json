@@ -556,7 +556,8 @@
         "forms": "نماذج الموافقة",
         "banking": "الحسابات البنكية",
         "packageRedemptions": "استخدام الباقات",
-        "withdrawals": "السحوبات"
+        "withdrawals": "السحوبات",
+        "portfolio": "معرض الأعمال"
       }
     },
     "admin": {
@@ -703,6 +704,10 @@
       "withdrawals": {
         "title": "السحوبات",
         "subtitle": "اطلب تحويلات إلى حسابات بنكية موثقة وتابع حالة المعالجة."
+      },
+      "portfolio": {
+        "title": "معرض الأعمال والريلز",
+        "subtitle": "انشر صور وفيديوهات الأعمال واربط الخدمات والمحترفين ووثّق العمل بحجز مكتمل ومراجعة موثّقة."
       }
     },
     "actions": {
@@ -744,7 +749,11 @@
       "exportXlsx": "تصدير XLSX",
       "redeemPackage": "استخدام الباقة",
       "requestWithdrawal": "طلب سحب",
-      "cancelWithdrawal": "إلغاء الطلب"
+      "cancelWithdrawal": "إلغاء الطلب",
+      "uploading": "جارٍ الرفع…",
+      "publishPortfolio": "نشر العمل",
+      "verifyWork": "توثيق العمل",
+      "archive": "أرشفة"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -845,7 +854,16 @@
       "bankAccount": "الحساب البنكي",
       "withdrawalAmount": "مبلغ السحب",
       "referenceCode": "رمز المرجع",
-      "withdrawalReason": "السبب / ملاحظة"
+      "withdrawalReason": "السبب / ملاحظة",
+      "portfolioTitle": "عنوان المنشور",
+      "portfolioCaption": "الوصف",
+      "portfolioTags": "الوسوم مفصولة بفواصل",
+      "portfolioMedia": "اختر حتى 6 صور أو فيديوهات",
+      "noVerifiedReview": "نشر بدون توثيق العمل",
+      "portfolioPost": "منشور معرض الأعمال",
+      "verifiedWork": "عمل موثّق",
+      "mediaItems": "وسائط",
+      "verifiedReviewId": "معرّف المراجعة الموثّقة"
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -882,7 +900,12 @@
       "withdrawalBankRequired": "اختر حساباً بنكياً موثقاً.",
       "withdrawalRequested": "تم إرسال طلب السحب.",
       "noVerifiedBank": "أضف حساب دفع بنكي وتحقق منه قبل طلب السحب.",
-      "withdrawalCancelled": "تم إلغاء طلب السحب."
+      "withdrawalCancelled": "تم إلغاء طلب السحب.",
+      "portfolioMediaLimit": "يمكن أن يحتوي منشور معرض الأعمال على 6 ملفات وسائط كحد أقصى.",
+      "portfolioPublished": "تم نشر العمل.",
+      "portfolioPublishedVerified": "تم نشر العمل كعمل موثّق.",
+      "portfolioVerified": "تم توثيق العمل.",
+      "portfolioArchived": "تمت أرشفة المنشور."
     }
   },
   "adminOps": {
