@@ -983,4 +983,347 @@ export class BusinessOpsService {
     return updated;
   }
 
+  async serviceStructure(user: AuthenticatedUser, companyId: string, serviceId: string) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true, duration_minutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+    const [dependencies, stages] = await Promise.all([
+      this.prisma.service_dependencies.findMany({
+        where: { service_id: serviceId },
+        include: {
+          prerequisite: {
+            select: { id: true, name: true, duration_minutes: true, is_active: true },
+          },
+        },
+        orderBy: { created_at: 'asc' },
+      }),
+      this.prisma.service_stages.findMany({
+        where: { service_id: serviceId },
+        include: {
+          resource_type: {
+            select: { id: true, code: true, key: true, name: true, is_active: true },
+          },
+        },
+        orderBy: [{ stage_order: 'asc' }, { created_at: 'asc' }],
+      }),
+    ]);
+    return { service, dependencies, stages };
+  }
+
+  async replaceServiceDependencies(
+    user: AuthenticatedUser,
+    companyId: string,
+    serviceId: string,
+    dto: any,
+  ) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+
+    const rows = Array.isArray(dto.dependencies) ? dto.dependencies : [];
+    const prerequisiteIds = Array.from(
+      new Set(
+        rows
+          .map((row: any) => String(row.prerequisiteId || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (prerequisiteIds.includes(serviceId)) {
+      throw new BadRequestException('A service cannot depend on itself');
+    }
+    if (prerequisiteIds.length !== rows.length) {
+      throw new BadRequestException('Dependencies must be unique and include prerequisiteId');
+    }
+
+    if (prerequisiteIds.length) {
+      const validCount = await this.prisma.services.count({
+        where: {
+          id: { in: prerequisiteIds },
+          company_id: companyId,
+          is_active: true,
+          deleted_at: null,
+        },
+      });
+      if (validCount !== prerequisiteIds.length) {
+        throw new BadRequestException('One or more prerequisite services are invalid');
+      }
+    }
+
+    for (const row of rows) {
+      const minGap = Math.trunc(Number(row.minGapMinutes ?? 0));
+      const maxGap =
+        row.maxGapMinutes === null || row.maxGapMinutes === undefined
+          ? null
+          : Math.trunc(Number(row.maxGapMinutes));
+      if (!Number.isFinite(minGap) || minGap < 0) {
+        throw new BadRequestException('minGapMinutes must be zero or greater');
+      }
+      if (maxGap !== null && (!Number.isFinite(maxGap) || maxGap < minGap)) {
+        throw new BadRequestException('maxGapMinutes must be greater than or equal to minGapMinutes');
+      }
+    }
+
+    const existing = await this.prisma.service_dependencies.findMany({
+      where: {
+        service: { company_id: companyId },
+        service_id: { not: serviceId },
+      },
+      select: { service_id: true, prerequisite_id: true },
+    });
+    const graph = new Map<string, string[]>();
+    const addEdge = (from: string, to: string) => {
+      const list = graph.get(from) ?? [];
+      list.push(to);
+      graph.set(from, list);
+    };
+    for (const edge of existing) addEdge(edge.service_id, edge.prerequisite_id);
+    for (const prerequisiteId of prerequisiteIds) addEdge(serviceId, prerequisiteId);
+
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const hasCycle = (node: string): boolean => {
+      if (visiting.has(node)) return true;
+      if (visited.has(node)) return false;
+      visiting.add(node);
+      for (const next of graph.get(node) ?? []) {
+        if (hasCycle(next)) return true;
+      }
+      visiting.delete(node);
+      visited.add(node);
+      return false;
+    };
+    for (const node of graph.keys()) {
+      if (hasCycle(node)) {
+        throw new ConflictException('Service dependencies would create a circular dependency');
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.service_dependencies.deleteMany({ where: { service_id: serviceId } });
+      if (rows.length) {
+        await tx.service_dependencies.createMany({
+          data: rows.map((row: any) => ({
+            service_id: serviceId,
+            prerequisite_id: String(row.prerequisiteId),
+            min_gap_minutes: Math.trunc(Number(row.minGapMinutes ?? 0)),
+            max_gap_minutes:
+              row.maxGapMinutes === null || row.maxGapMinutes === undefined
+                ? null
+                : Math.trunc(Number(row.maxGapMinutes)),
+            is_optional: row.isOptional === true,
+          })),
+        });
+      }
+      return tx.service_dependencies.findMany({
+        where: { service_id: serviceId },
+        include: {
+          prerequisite: { select: { id: true, name: true, duration_minutes: true } },
+        },
+        orderBy: { created_at: 'asc' },
+      });
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'service.dependencies.replace',
+      'service',
+      serviceId,
+      undefined,
+      result,
+    );
+    return result;
+  }
+
+  async replaceServiceStages(
+    user: AuthenticatedUser,
+    companyId: string,
+    serviceId: string,
+    dto: any,
+  ) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true, duration_minutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+
+    const rows = Array.isArray(dto.stages) ? dto.stages : [];
+    const orders = rows.map((row: any) => Math.trunc(Number(row.stageOrder)));
+    if (new Set(orders).size !== orders.length) {
+      throw new BadRequestException('Each service stage must have a unique stageOrder');
+    }
+    for (const row of rows) {
+      const name = String(row.name || '').trim();
+      const order = Math.trunc(Number(row.stageOrder));
+      const duration = Math.trunc(Number(row.durationMinutes));
+      if (!name) throw new BadRequestException('Each service stage requires a name');
+      if (!Number.isInteger(order) || order < 1) {
+        throw new BadRequestException('stageOrder must be a positive integer');
+      }
+      if (!Number.isInteger(duration) || duration < 1) {
+        throw new BadRequestException('durationMinutes must be a positive integer');
+      }
+    }
+
+    const resourceTypeIds = Array.from(
+      new Set(
+        rows
+          .map((row: any) => row.resourceTypeId ? String(row.resourceTypeId) : '')
+          .filter(Boolean),
+      ),
+    );
+    if (resourceTypeIds.length) {
+      const validCount = await this.prisma.resource_types.count({
+        where: { id: { in: resourceTypeIds }, is_active: true },
+      });
+      if (validCount !== resourceTypeIds.length) {
+        throw new BadRequestException('One or more resource types are invalid');
+      }
+    }
+
+    const totalStageDuration = rows.reduce(
+      (sum: number, row: any) => sum + Math.trunc(Number(row.durationMinutes)),
+      0,
+    );
+    if (rows.length && totalStageDuration > service.duration_minutes) {
+      throw new BadRequestException(
+        'Combined stage duration cannot exceed the service duration',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.service_stages.deleteMany({ where: { service_id: serviceId } });
+      if (rows.length) {
+        await tx.service_stages.createMany({
+          data: rows.map((row: any) => ({
+            service_id: serviceId,
+            stage_order: Math.trunc(Number(row.stageOrder)),
+            name: String(row.name).trim(),
+            description: row.description ? String(row.description).trim() : null,
+            duration_minutes: Math.trunc(Number(row.durationMinutes)),
+            resource_type_id: row.resourceTypeId ? String(row.resourceTypeId) : null,
+          })),
+        });
+      }
+      return tx.service_stages.findMany({
+        where: { service_id: serviceId },
+        include: {
+          resource_type: { select: { id: true, code: true, key: true, name: true } },
+        },
+        orderBy: { stage_order: 'asc' },
+      });
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'service.stages.replace',
+      'service',
+      serviceId,
+      undefined,
+      result,
+    );
+    return result;
+  }
+
+  consentFormTemplates(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return [
+      {
+        key: 'general_service',
+        name: 'General service consent',
+        formType: 'general',
+        description: 'General acknowledgement of service scope, aftercare and risks.',
+        contentPlain:
+          'I confirm that the service, expected result, aftercare, relevant risks and opportunity to ask questions were explained to me. I consent to receive the selected service.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: null,
+      },
+      {
+        key: 'client_intake',
+        name: 'Client intake',
+        formType: 'intake',
+        description: 'Reusable intake template for preferences, sensitivities and service history.',
+        contentPlain:
+          'I confirm that the information I provide about preferences, sensitivities, allergies, medications and relevant service history is accurate to the best of my knowledge.',
+        fieldsJson: {
+          fields: [
+            { key: 'allergies', type: 'textarea', required: false },
+            { key: 'medications', type: 'textarea', required: false },
+            { key: 'sensitivities', type: 'textarea', required: false },
+            { key: 'serviceHistory', type: 'textarea', required: false },
+          ],
+        },
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 365,
+      },
+      {
+        key: 'medical_allergy',
+        name: 'Medical & allergy acknowledgement',
+        formType: 'medical',
+        description: 'Medical/allergy acknowledgement before higher-risk services.',
+        contentPlain:
+          'I have disclosed known allergies, sensitivities, medical conditions and medications relevant to this service. I understand I should stop the service and inform staff if I experience discomfort or a reaction.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 180,
+      },
+      {
+        key: 'media_release',
+        name: 'Photo & media release',
+        formType: 'media',
+        description: 'Optional authorization for before/after portfolio and social content.',
+        contentPlain:
+          'I authorize the business to use approved before/after photos or videos of the completed work for portfolio and promotional purposes. I understand this consent may be revoked for future use.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: null,
+      },
+      {
+        key: 'health_screening',
+        name: 'Health screening',
+        formType: 'health',
+        description: 'Reusable health-screening template for services requiring a current wellness declaration.',
+        contentPlain:
+          'I confirm that I have disclosed any current symptoms, conditions or exposure information that may affect whether this service should proceed safely today.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 30,
+      },
+    ];
+  }
+
+  async createConsentFormFromTemplate(
+    user: AuthenticatedUser,
+    companyId: string,
+    templateKey: string,
+    overrides: any,
+  ) {
+    const template = this.consentFormTemplates(user, companyId).find(
+      (item) => item.key === templateKey,
+    );
+    if (!template) throw new NotFoundException('Consent form template not found');
+    return this.createConsentForm(user, companyId, {
+      ...template,
+      ...overrides,
+      name: overrides?.name || template.name,
+      formType: overrides?.formType || template.formType,
+      contentPlain: overrides?.contentPlain || template.contentPlain,
+      fieldsJson: overrides?.fieldsJson ?? (template as any).fieldsJson,
+      requireSignature:
+        overrides?.requireSignature ?? template.requireSignature,
+      requirePhotoId:
+        overrides?.requirePhotoId ?? template.requirePhotoId,
+      expiresDays: overrides?.expiresDays ?? template.expiresDays,
+    });
+  }
+
+
 }
