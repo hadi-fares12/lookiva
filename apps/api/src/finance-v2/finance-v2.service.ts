@@ -1009,6 +1009,279 @@ export class FinanceV2Service {
     return this.maskBankAccount(updated);
   }
 
+  async listWithdrawals(
+    user: AuthenticatedUser,
+    companyId: string,
+    status?: string,
+    limit = 100,
+  ) {
+    this.assertBusinessScope(user, companyId);
+    const rows = await this.prisma.withdrawal_requests.findMany({
+      where: {
+        company_id: companyId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        bank_account: true,
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+    return rows.map((row) => ({
+      ...row,
+      bank_account: this.maskBankAccount(row.bank_account),
+    }));
+  }
+
+  async createWithdrawal(
+    user: AuthenticatedUser,
+    dto: Record<string, any>,
+  ) {
+    const companyId = String(dto.companyId || '').trim();
+    const bankAccountId = String(dto.bankAccountId || '').trim();
+    const currencyCode = String(dto.currencyCode || '').trim().toUpperCase();
+    const amount = money(Number(dto.amount));
+    if (!companyId || !bankAccountId) {
+      throw new BadRequestException('companyId and bankAccountId are required');
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Withdrawal amount must be greater than zero');
+    }
+    if (currencyCode.length !== 3) {
+      throw new BadRequestException('currencyCode must be a 3-letter currency code');
+    }
+
+    this.assertBusinessScope(user, companyId);
+    const bankAccount = await this.prisma.bank_accounts.findUnique({
+      where: { id: bankAccountId },
+    });
+    if (!bankAccount) throw new NotFoundException('Bank account not found');
+
+    const ownerCompanyId = await this.bankOwnerCompany(
+      bankAccount.owner_type,
+      bankAccount.owner_id,
+    );
+    if (ownerCompanyId !== companyId) {
+      throw new ForbiddenException('Bank account does not belong to this company');
+    }
+    if (!bankAccount.payout_enabled) {
+      throw new ConflictException('Payouts are disabled for this bank account');
+    }
+    if (!bankAccount.is_verified) {
+      throw new ConflictException('Bank account must be verified before requesting a withdrawal');
+    }
+    if (bankAccount.currency_code !== currencyCode) {
+      throw new ConflictException('Withdrawal currency must match the bank account currency');
+    }
+
+    const referenceCode = dto.referenceCode
+      ? String(dto.referenceCode).trim()
+      : null;
+    if (referenceCode) {
+      const existing = await this.prisma.withdrawal_requests.findFirst({
+        where: {
+          company_id: companyId,
+          reference_code: referenceCode,
+          status: { not: 'cancelled' },
+        },
+        include: { bank_account: true },
+      });
+      if (existing) {
+        return {
+          ...existing,
+          bank_account: this.maskBankAccount(existing.bank_account),
+          duplicate: true,
+        };
+      }
+    }
+
+    const request = await this.prisma.withdrawal_requests.create({
+      data: {
+        company_id: companyId,
+        bank_account_id: bankAccount.id,
+        requested_by_user_id: user.id,
+        amount,
+        currency_code: currencyCode,
+        reason: dto.reason ? String(dto.reason).trim() : null,
+        reference_code: referenceCode,
+        metadata: dto.metadata ?? undefined,
+      },
+      include: { bank_account: true },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'withdrawal.request.create',
+        entity_type: 'withdrawal_request',
+        entity_id: request.id,
+        company_id: companyId,
+        new_value: {
+          amount,
+          currencyCode,
+          bankAccountId: bankAccount.id,
+          status: request.status,
+          referenceCode,
+        },
+      },
+    });
+
+    return {
+      ...request,
+      bank_account: this.maskBankAccount(request.bank_account),
+    };
+  }
+
+  async cancelWithdrawal(
+    user: AuthenticatedUser,
+    withdrawalId: string,
+  ) {
+    const existing = await this.prisma.withdrawal_requests.findUnique({
+      where: { id: withdrawalId },
+    });
+    if (!existing) throw new NotFoundException('Withdrawal request not found');
+    this.assertBusinessScope(user, existing.company_id);
+    if (existing.status !== 'pending') {
+      throw new ConflictException('Only pending withdrawal requests can be cancelled');
+    }
+
+    const updated = await this.prisma.withdrawal_requests.update({
+      where: { id: existing.id },
+      data: { status: 'cancelled' },
+    });
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'withdrawal.request.cancel',
+        entity_type: 'withdrawal_request',
+        entity_id: existing.id,
+        company_id: existing.company_id,
+        old_value: { status: existing.status },
+        new_value: { status: updated.status },
+      },
+    });
+    return updated;
+  }
+
+  async reviewWithdrawal(
+    user: AuthenticatedUser,
+    withdrawalId: string,
+    dto: Record<string, any>,
+  ) {
+    if (!this.hasPlatformRole(user)) {
+      throw new ForbiddenException('Only platform finance staff may review withdrawals');
+    }
+    const existing = await this.prisma.withdrawal_requests.findUnique({
+      where: { id: withdrawalId },
+      include: { bank_account: true },
+    });
+    if (!existing) throw new NotFoundException('Withdrawal request not found');
+
+    const next = String(dto.status || '').trim().toLowerCase();
+    const transitions: Record<string, string[]> = {
+      pending: ['approved', 'rejected'],
+      approved: ['processing', 'rejected'],
+      processing: ['completed', 'failed'],
+      failed: ['processing', 'rejected'],
+    };
+    if (!(transitions[existing.status] ?? []).includes(next)) {
+      throw new ConflictException(
+        'Invalid withdrawal status transition from ' +
+          existing.status +
+          ' to ' +
+          next,
+      );
+    }
+    if (next === 'rejected' && !String(dto.rejectionReason || '').trim()) {
+      throw new BadRequestException('rejectionReason is required when rejecting a withdrawal');
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.withdrawal_requests.update({
+        where: { id: existing.id },
+        data: {
+          status: next,
+          reviewed_by_user_id: user.id,
+          reviewed_at:
+            existing.reviewed_at ??
+            (['approved', 'rejected'].includes(next) ? now : null),
+          rejection_reason:
+            next === 'rejected'
+              ? String(dto.rejectionReason).trim()
+              : existing.rejection_reason,
+          reference_code:
+            dto.referenceCode !== undefined
+              ? String(dto.referenceCode || '').trim() || null
+              : existing.reference_code,
+          processed_at:
+            ['completed', 'failed'].includes(next) ? now : null,
+          metadata:
+            dto.metadata !== undefined
+              ? (dto.metadata as Prisma.InputJsonValue)
+              : existing.metadata ?? undefined,
+        },
+      });
+
+      if (next === 'completed') {
+        const priorLedger = await tx.financial_ledger.findFirst({
+          where: {
+            company_id: existing.company_id,
+            reference_type: 'withdrawal',
+            reference_id: existing.id,
+            entry_type: 'withdrawal',
+          },
+          select: { id: true },
+        });
+        if (!priorLedger) {
+          await tx.financial_ledger.create({
+            data: {
+              company_id: existing.company_id,
+              entry_type: 'withdrawal',
+              debit_amount: existing.amount,
+              credit_amount: 0,
+              currency_code: existing.currency_code,
+              category: 'business_withdrawal',
+              subcategory: 'bank_transfer',
+              description:
+                'Withdrawal to ' +
+                (existing.bank_account.bank_name || 'verified bank account'),
+              reference_id: existing.id,
+              reference_type: 'withdrawal',
+              transaction_date: now,
+              created_by_id: user.id,
+            },
+          });
+        }
+      }
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: user.id,
+          actor_role: user.roleScopes[0]?.roleKey ?? null,
+          action: 'withdrawal.request.' + next,
+          entity_type: 'withdrawal_request',
+          entity_id: existing.id,
+          company_id: existing.company_id,
+          old_value: {
+            status: existing.status,
+            referenceCode: existing.reference_code,
+          },
+          new_value: {
+            status: row.status,
+            referenceCode: row.reference_code,
+            rejectionReason: row.rejection_reason,
+          },
+        },
+      });
+      return row;
+    });
+
+    return updated;
+  }
+
   async listPayouts(
     user: AuthenticatedUser,
     companyId: string,
