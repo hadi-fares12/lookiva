@@ -36,6 +36,7 @@ import { AnalyticsV2Module } from './analytics-v2/analytics-v2.module';
 import { PlatformOpsV2Module } from './platform-ops-v2/platform-ops-v2.module';
 import { BusinessOpsModule } from './business-ops/business-ops.module';
 import { CustomerOpsModule } from './customer-ops/customer-ops.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { LoggerModule } from 'nestjs-pino';
 
 @Module({
@@ -135,6 +136,7 @@ import { LoggerModule } from 'nestjs-pino';
     PlatformOpsV2Module,
     BusinessOpsModule,
     CustomerOpsModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}
