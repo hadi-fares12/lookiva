@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -287,6 +288,29 @@ class LookivaApi {
     } catch (_) {
       // Offline cache is best-effort and must never break a successful request.
     }
+  }
+
+  Future<dynamic> uploadMedia({
+    required String filePath,
+    required String fileName,
+    required String mimeType,
+    bool isPublic = false,
+  }) async {
+    final contentType = MediaType.parse(mimeType);
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+        contentType: contentType,
+      ),
+    });
+    final response = await _dio.post<dynamic>(
+      '/media/upload',
+      queryParameters: {'isPublic': isPublic},
+      data: form,
+      options: Options(contentType: 'multipart/form-data'),
+    );
+    return _unwrap(response.data);
   }
 
   Future<dynamic> post(String path, {Object? data}) async {
