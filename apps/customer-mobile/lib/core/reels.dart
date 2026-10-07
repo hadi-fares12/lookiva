@@ -243,6 +243,41 @@ class _ReelCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if (post['verifiedWork'] is Map) ...[
+                      const SizedBox(height: 8),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: .45),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            '✓ ' +
+                                ct(context, 'verifiedWork') +
+                                ((post['verifiedWork'] as Map)['rating'] != null
+                                    ? ' • ' +
+                                        double.tryParse(
+                                          (post['verifiedWork'] as Map)['rating']
+                                              .toString(),
+                                        )!
+                                            .toStringAsFixed(1) +
+                                        '★'
+                                    : ''),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       post['title']?.toString() ??
