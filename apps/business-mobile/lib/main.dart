@@ -947,7 +947,7 @@ class _BusinessDashboardPageState extends State<BusinessDashboardPage> {
           IconButton(
             tooltip: bt(context, 'notifications'),
             icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () {},
+            onPressed: () => context.push('/ops/notifications'),
           ),
           const SizedBox(width: 4),
         ],
@@ -1012,6 +1012,7 @@ class BusinessMoreTab extends StatelessWidget {
     (Icons.percent_rounded, 'commissions', 'commissions'),
     (Icons.assignment_turned_in_outlined, 'forms', 'forms'),
     (Icons.account_balance_wallet_outlined, 'finance', 'finance'),
+    (Icons.account_balance_outlined, 'payouts', 'payouts'),
     (Icons.analytics_outlined, 'analytics', 'analytics'),
     (Icons.groups_rounded, 'queue', 'queue'),
     (Icons.local_offer_rounded, 'promotions', 'promotions'),
@@ -1019,6 +1020,7 @@ class BusinessMoreTab extends StatelessWidget {
     (Icons.storefront_rounded, 'branches', 'branches'),
     (Icons.workspace_premium_outlined, 'subscription', 'subscription'),
     (Icons.fact_check_outlined, 'audit', 'audit'),
+    (Icons.notifications_none_rounded, 'notifications', 'notifications'),
   ];
 
   @override
