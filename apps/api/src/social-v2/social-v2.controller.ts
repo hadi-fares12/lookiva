@@ -32,6 +32,16 @@ export class SocialV2Controller {
     return this.social.feed(user, Number(limit) || 20, cursor);
   }
 
+  @Get('portfolio')
+  @RequirePermissions(PermissionKey.SocialPostCreate)
+  @ApiOperation({ summary: 'List portfolio posts manageable by the current business/professional account' })
+  portfolio(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId: string,
+  ) {
+    return this.social.portfolio(user, companyId);
+  }
+
   @Post('posts')
   @RequirePermissions(PermissionKey.SocialPostCreate)
   @ApiOperation({ summary: 'Create a portfolio/reels/social post' })
