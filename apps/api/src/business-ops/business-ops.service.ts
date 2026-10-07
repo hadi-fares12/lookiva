@@ -726,13 +726,15 @@ export class BusinessOpsService {
       throw new ConflictException('Edit the canonical customer after merging this duplicate');
     }
 
-    const tags = dto.tags === undefined
+    const tags: string[] | undefined = dto.tags === undefined
       ? undefined
       : Array.from(
-          new Set(
+          new Set<string>(
             (Array.isArray(dto.tags) ? dto.tags : [])
-              .map((value: unknown) => String(value).trim().toLowerCase())
-              .filter(Boolean),
+              .map((value: unknown): string =>
+                String(value).trim().toLowerCase(),
+              )
+              .filter((value: string): value is string => value.length > 0),
           ),
         ).slice(0, 50);
 
