@@ -46,6 +46,145 @@ export class BusinessOpsController {
     return this.ops.customers(user, companyId, Number(limit) || 100);
   }
 
+  @Get('customers/:customerId')
+  @RequirePermissions(PermissionKey.CustomerProfileView)
+  customerDetails(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('customerId') customerId: string,
+  ) {
+    return this.ops.customerDetails(user, companyId, customerId);
+  }
+
+  @Get('inventory')
+  @RequirePermissions(PermissionKey.SettingsView)
+  inventory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    return this.ops.inventory(user, companyId, branchId);
+  }
+
+  @Get('inventory/movements')
+  @RequirePermissions(PermissionKey.SettingsView)
+  inventoryMovements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('productId') productId?: string,
+    @Query('branchId') branchId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.inventoryMovements(user, companyId, productId, branchId, Number(limit) || 100);
+  }
+
+  @Post('products')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  createProduct(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.createProduct(user, companyId, body);
+  }
+
+  @Patch('products/:productId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  updateProduct(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('productId') productId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.updateProduct(user, companyId, productId, body);
+  }
+
+  @Post('products/:productId/stock-movements')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  stockMovement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('productId') productId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.stockMovement(user, companyId, productId, body);
+  }
+
+  @Get('professionals/:professionalId/schedules')
+  @RequirePermissions(PermissionKey.BusinessProfessionalView)
+  professionalSchedules(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+  ) {
+    return this.ops.professionalSchedules(user, companyId, professionalId);
+  }
+
+  @Post('professionals/:professionalId/schedules')
+  @RequirePermissions(PermissionKey.BusinessProfessionalEdit)
+  replaceProfessionalSchedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('professionalId') professionalId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.replaceProfessionalSchedule(user, companyId, professionalId, body);
+  }
+
+  @Get('commission-rules')
+  @RequirePermissions(PermissionKey.FinanceCommissionManage)
+  commissionRules(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
+    return this.ops.commissionRules(user, companyId);
+  }
+
+  @Post('commission-rules')
+  @RequirePermissions(PermissionKey.FinanceCommissionManage)
+  createCommissionRule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.createCommissionRule(user, companyId, body);
+  }
+
+  @Patch('commission-rules/:ruleId')
+  @RequirePermissions(PermissionKey.FinanceCommissionManage)
+  updateCommissionRule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('ruleId') ruleId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.updateCommissionRule(user, companyId, ruleId, body);
+  }
+
+  @Get('consent-forms')
+  @RequirePermissions(PermissionKey.ComplianceView)
+  consentForms(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
+    return this.ops.consentForms(user, companyId);
+  }
+
+  @Post('consent-forms')
+  @RequirePermissions(PermissionKey.ComplianceManage)
+  createConsentForm(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.createConsentForm(user, companyId, body);
+  }
+
+  @Patch('consent-forms/:formId')
+  @RequirePermissions(PermissionKey.ComplianceManage)
+  updateConsentForm(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('formId') formId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.updateConsentForm(user, companyId, formId, body);
+  }
+
   @Get('professionals')
   @RequirePermissions(PermissionKey.BusinessProfessionalView)
   professionals(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
