@@ -15,6 +15,7 @@ import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
 import 'core/l10n.dart';
+import 'core/privacy.dart';
 import 'core/mobile_services.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
@@ -295,6 +296,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const CustomerLoginPage(),
+    ),
+    GoRoute(
+      path: '/account/privacy',
+      builder: (context, state) => const CustomerPrivacyPage(),
     ),
     GoRoute(
       path: '/account/:section',
