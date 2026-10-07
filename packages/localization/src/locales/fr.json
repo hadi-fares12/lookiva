@@ -555,7 +555,8 @@
         "commissions": "Commissions",
         "forms": "Formulaires de consentement",
         "banking": "Banque",
-        "packageRedemptions": "Utilisation des forfaits"
+        "packageRedemptions": "Utilisation des forfaits",
+        "withdrawals": "Retraits"
       }
     },
     "admin": {
@@ -697,6 +698,10 @@
       "packageRedemptions": {
         "title": "Utilisation des forfaits",
         "subtitle": "Utilisez des séances de forfait en toute sécurité et consultez l’historique."
+      },
+      "withdrawals": {
+        "title": "Retraits",
+        "subtitle": "Demandez des virements vers des comptes bancaires vérifiés et suivez leur traitement."
       }
     },
     "actions": {
@@ -736,7 +741,9 @@
       "disablePayouts": "Désactiver les paiements",
       "exportCsv": "Exporter CSV",
       "exportXlsx": "Exporter XLSX",
-      "redeemPackage": "Utiliser le forfait"
+      "redeemPackage": "Utiliser le forfait",
+      "requestWithdrawal": "Demander un retrait",
+      "cancelWithdrawal": "Annuler la demande"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -832,7 +839,12 @@
       "packagePurchaseId": "ID d’achat du forfait",
       "serviceId": "ID du service",
       "appointmentId": "ID du rendez-vous",
-      "sessionsUsed": "Séances à utiliser"
+      "sessionsUsed": "Séances à utiliser",
+      "chooseBankAccount": "Choisir un compte bancaire vérifié",
+      "bankAccount": "Compte bancaire",
+      "withdrawalAmount": "Montant du retrait",
+      "referenceCode": "Code de référence",
+      "withdrawalReason": "Motif / note"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -865,7 +877,11 @@
       "bankAccountCreated": "Compte bancaire ajouté.",
       "bankAccountEnabled": "Paiements activés pour ce compte.",
       "bankAccountDisabled": "Paiements désactivés pour ce compte.",
-      "packageRedeemed": "Séance du forfait utilisée."
+      "packageRedeemed": "Séance du forfait utilisée.",
+      "withdrawalBankRequired": "Choisissez un compte bancaire vérifié.",
+      "withdrawalRequested": "Demande de retrait envoyée.",
+      "noVerifiedBank": "Ajoutez et faites vérifier un compte bancaire avant de demander un retrait.",
+      "withdrawalCancelled": "Demande de retrait annulée."
     }
   },
   "adminOps": {
