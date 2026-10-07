@@ -80,6 +80,23 @@ export class FinanceV2Controller {
     return this.finance.getReconciliation(user, companyId);
   }
 
+  @Get('companies/:companyId/payouts')
+  @RequirePermissions(PermissionKey.FinancePayoutView)
+  @ApiOperation({ summary: 'List professional payout history for a company' })
+  payouts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('professionalId') professionalId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.finance.listPayouts(
+      user,
+      companyId,
+      professionalId,
+      Number(limit) || 100,
+    );
+  }
+
   @Post('payouts')
   @RequirePermissions(PermissionKey.FinancePayoutManage)
   @ApiOperation({ summary: 'Create a professional payout batch from pending commissions' })
