@@ -98,14 +98,11 @@ class _CustomerConversationsPageState
                       (conversation['messages'] as List? ?? const [])
                           .whereType<Map>()
                           .toList();
-                  final last =
-                      messages.isNotEmpty ? messages.first : <String, dynamic>{};
-                  final body = last is Map
-                      ? last['body_plain']?.toString()
-                      : null;
-                  final attachmentCount = last is Map
-                      ? (last['attachments'] as List? ?? const []).length
-                      : 0;
+                  final Map<dynamic, dynamic> last =
+                      messages.isNotEmpty ? messages.first : const {};
+                  final body = last['body_plain']?.toString();
+                  final attachmentCount =
+                      (last['attachments'] as List? ?? const []).length;
 
                   return Card(
                     child: ListTile(
