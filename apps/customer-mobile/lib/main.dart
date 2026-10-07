@@ -319,6 +319,7 @@ final GoRouter _router = GoRouter(
       path: '/book/:serviceId',
       builder: (context, state) => CustomerBookingPage(
         serviceId: state.pathParameters['serviceId'] ?? '',
+        postId: state.uri.queryParameters['postId'],
       ),
     ),
     GoRoute(
