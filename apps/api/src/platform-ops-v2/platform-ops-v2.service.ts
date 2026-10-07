@@ -333,6 +333,14 @@ export class PlatformOpsV2Service {
     });
   }
 
+  myModerationStrikes(user: AuthenticatedUser) {
+    return this.prisma.user_strikes.findMany({
+      where: { user_id: user.id },
+      orderBy: [{ is_active: 'desc' }, { created_at: 'desc' }],
+      take: 100,
+    });
+  }
+
   myModerationAppeals(user: AuthenticatedUser) {
     return this.prisma.moderation_appeals.findMany({
       where: { reporter_user_id: user.id },
