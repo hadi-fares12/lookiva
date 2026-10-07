@@ -581,6 +581,7 @@ model companies {
   gift_cards                gift_cards[]
   products                  products[]
   consent_forms             consent_forms[]
+  customer_company_profiles customer_company_profiles[] @relation("CompanyCustomerProfiles")
   commission_rules          commission_rules[]
   disputes                  disputes[]
 
@@ -1353,12 +1354,36 @@ model customers {
   queue_entries            queue_entries[]
   membership_subscriptions membership_subscriptions[]
   consent_form_responses   consent_form_responses[]
+  company_profiles         customer_company_profiles[] @relation("CustomerCompanyProfileCustomer")
+  merged_company_profiles  customer_company_profiles[] @relation("CustomerCompanyProfileMergedInto")
 
   @@index([user_id])
   @@index([referral_code])
   @@index([referred_by_user_id])
   @@index([total_bookings])
   @@index([loyalty_points])
+}
+
+model customer_company_profiles {
+  id                      String    @id @default(cuid())
+  company_id              String
+  customer_id             String
+  merged_into_customer_id String?
+  notes                   String?
+  tags                    String[]  @default([])
+  created_by_id           String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  company     companies  @relation("CompanyCustomerProfiles", fields: [company_id], references: [id], onDelete: Cascade)
+  customer    customers  @relation("CustomerCompanyProfileCustomer", fields: [customer_id], references: [id], onDelete: Cascade)
+  merged_into customers? @relation("CustomerCompanyProfileMergedInto", fields: [merged_into_customer_id], references: [id], onDelete: SetNull)
+
+  @@unique([company_id, customer_id])
+  @@index([company_id])
+  @@index([customer_id])
+  @@index([merged_into_customer_id])
+  @@index([tags])
 }
 
 model customer_profiles {
