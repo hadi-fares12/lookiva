@@ -717,7 +717,9 @@
       "remove": "Remove",
       "useTemplate": "Use template",
       "saveCrm": "Save CRM",
-      "mergeDuplicate": "Merge duplicate"
+      "mergeDuplicate": "Merge duplicate",
+      "viewCrm": "Open CRM",
+      "merge": "Merge duplicate"
     },
     "labels": {
       "serviceName": "Service name",
@@ -784,15 +786,24 @@
       "stageName": "Stage name",
       "stageDuration": "Stage duration (minutes)",
       "noStages": "No stages configured. Add a stage if this service has a multi-step workflow.",
-      "crmProfile": "CRM profile",
+      "crmProfile": "Customer CRM",
       "crmNotes": "Business notes",
-      "crmNotesHint": "Private notes for this business only.",
+      "crmNotesHint": "Private operational context for this customer inside your company.",
       "crmTags": "Customer tags",
       "crmTagsHint": "VIP, color client, prefers Hadi…",
       "duplicateCustomerId": "Duplicate customer ID to merge",
-      "mergedAliases": "Merged duplicate profiles",
+      "mergedAliases": "Merged aliases",
       "recentAppointments": "Recent appointments",
-      "recentPayments": "Recent payments"
+      "recentPayments": "Recent payments",
+      "crmNotesTags": "Business notes & tags",
+      "tags": "Tags",
+      "tagsHint": "vip, color-client, prefers-hadi",
+      "privateNotes": "Private notes",
+      "privateNotesHint": "Preferences, context, follow-up notes or service considerations visible to authorized staff.",
+      "mergeDuplicate": "Merge duplicate customer",
+      "mergeDuplicateHint": "Choose another customer record that represents the same person. History is preserved under this canonical customer.",
+      "chooseDuplicate": "Choose duplicate record",
+      "mergeConfirm": "Merge {name} into this customer? This keeps history but makes the selected customer the canonical record."
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -818,9 +829,9 @@
       "dependenciesSaved": "Service dependencies saved.",
       "stagesSaved": "Service stages saved.",
       "templateCreated": "Consent form created from template.",
-      "crmSaved": "Customer CRM profile saved.",
+      "crmSaved": "Customer CRM saved.",
       "mergeSameCustomer": "Choose a different duplicate customer.",
-      "customerMerged": "Duplicate customer merged for this business."
+      "customerMerged": "Duplicate customer merged."
     }
   },
   "adminOps": {
