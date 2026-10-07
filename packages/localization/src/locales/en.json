@@ -590,7 +590,8 @@
         "services": "Services",
         "regions": "Regions",
         "currencies": "Currencies",
-        "plans": "Plans"
+        "plans": "Plans",
+        "appeals": "Appeals"
       }
     }
   },
@@ -972,6 +973,10 @@
       "plans": {
         "title": "Subscription plans",
         "subtitle": "Platform subscription tiers, pricing and trial configuration."
+      },
+      "appeals": {
+        "title": "Moderation appeals",
+        "subtitle": "Review appeals, reverse incorrect actions, restore content and clear linked strikes."
       }
     },
     "prompts": {
