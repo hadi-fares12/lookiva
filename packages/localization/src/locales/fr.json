@@ -217,7 +217,8 @@
     "wallet": "Portefeuille",
     "settings": "Paramètres",
     "help": "Aide et support",
-    "menu": "Menu"
+    "menu": "Menu",
+    "reels": "Reels"
   },
   "homeSections": {
     "forYou": "Pour vous",
@@ -991,6 +992,10 @@
       "privacy": {
         "title": "Confidentialité et données",
         "subtitle": "Téléchargez vos données ou supprimez définitivement votre compte LOOKIVA."
+      },
+      "collections": {
+        "title": "Collections",
+        "subtitle": "Découvrez les travaux récents des salons et professionnels que vous suivez."
       }
     },
     "actions": {
@@ -1260,5 +1265,18 @@
       "title": "Des recommandations près de vous",
       "subtitle": "Des suggestions adaptées à vos goûts, votre budget et votre localisation. Explorez maintenant."
     }
+  },
+  "customerReels": {
+    "title": "Reels et réalisations",
+    "subtitle": "Découvrez les travaux récents des salons et professionnels que vous suivez.",
+    "signIn": "Connectez-vous pour personnaliser votre fil Reels.",
+    "loadError": "Impossible de charger les Reels.",
+    "bookThisLook": "Réserver ce look",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "by": "Par",
+    "empty": "Aucun Reel disponible pour le moment.",
+    "collections": "Collections",
+    "createCollection": "Créer une collection"
   }
 }
