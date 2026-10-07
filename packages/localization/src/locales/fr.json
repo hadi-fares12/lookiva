@@ -1227,7 +1227,12 @@
     "accept": "J’ai lu et j’accepte ces conditions",
     "signing": "Signature…",
     "consentSigned": "Consentement signé.",
-    "noConsents": "Aucun formulaire de consentement n’est requis pour cette réservation."
+    "noConsents": "Aucun formulaire de consentement n’est requis pour cette réservation.",
+    "checkInQr": "QR d’arrivée",
+    "showQr": "Afficher le QR d’arrivée",
+    "qrHint": "Montrez ce QR à l’équipe du salon à votre arrivée. Il expire automatiquement.",
+    "qrUnavailable": "Le QR d’arrivée n’est pas encore disponible.",
+    "qrExpires": "Expire"
   },
   "availableNowPage": {
     "realOpenings": "créneaux réellement disponibles",
