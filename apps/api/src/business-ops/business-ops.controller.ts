@@ -185,6 +185,63 @@ export class BusinessOpsController {
     return this.ops.updateConsentForm(user, companyId, formId, body);
   }
 
+  @Get('services/:serviceId/structure')
+  @RequirePermissions(PermissionKey.BusinessServiceView)
+  serviceStructure(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('serviceId') serviceId: string,
+  ) {
+    return this.ops.serviceStructure(user, companyId, serviceId);
+  }
+
+  @Patch('services/:serviceId/dependencies')
+  @RequirePermissions(PermissionKey.BusinessServiceEdit)
+  replaceServiceDependencies(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('serviceId') serviceId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.replaceServiceDependencies(user, companyId, serviceId, body);
+  }
+
+  @Patch('services/:serviceId/stages')
+  @RequirePermissions(PermissionKey.BusinessServiceEdit)
+  replaceServiceStages(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('serviceId') serviceId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.replaceServiceStages(user, companyId, serviceId, body);
+  }
+
+  @Get('consent-form-templates')
+  @RequirePermissions(PermissionKey.ComplianceView)
+  consentFormTemplates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+  ) {
+    return this.ops.consentFormTemplates(user, companyId);
+  }
+
+  @Post('consent-form-templates/:templateKey/instantiate')
+  @RequirePermissions(PermissionKey.ComplianceManage)
+  instantiateConsentFormTemplate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Param('templateKey') templateKey: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.ops.createConsentFormFromTemplate(
+      user,
+      companyId,
+      templateKey,
+      body,
+    );
+  }
+
   @Get('professionals')
   @RequirePermissions(PermissionKey.BusinessProfessionalView)
   professionals(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string) {
