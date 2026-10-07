@@ -63,6 +63,11 @@ export function OperationsPage({ section }: { section: string }) {
   const [analyticsProfessionalId, setAnalyticsProfessionalId] = useState('');
   const [analyticsFrom, setAnalyticsFrom] = useState('');
   const [analyticsTo, setAnalyticsTo] = useState('');
+  const [serviceStructure, setServiceStructure] = useState<any>(null);
+  const [structureService, setStructureService] = useState<any>(null);
+  const [dependencyIds, setDependencyIds] = useState<string[]>([]);
+  const [stageDrafts, setStageDrafts] = useState<Array<{ stageOrder: number; name: string; durationMinutes: number; resourceTypeId?: string }>>([]);
+  const [consentTemplates, setConsentTemplates] = useState<any[]>([]);
 
   async function load() {
     if (!session) return;
@@ -83,6 +88,112 @@ export function OperationsPage({ section }: { section: string }) {
     finally { setLoading(false); }
   }
 
+  async function loadConsentTemplates() {
+    if (!session || section !== 'forms') {
+      setConsentTemplates([]);
+      return;
+    }
+    try {
+      const templates = await businessFetch<any[]>(
+        `/business-ops/${session.companyId}/consent-form-templates`,
+      );
+      setConsentTemplates(Array.isArray(templates) ? templates : []);
+    } catch {
+      setConsentTemplates([]);
+    }
+  }
+
+  async function openServiceStructure(service: any) {
+    if (!session || !service?.id) return;
+    setBusy(`structure:${service.id}`);
+    setMessage('');
+    setError('');
+    try {
+      const result = await businessFetch<any>(
+        `/business-ops/${session.companyId}/services/${service.id}/structure`,
+      );
+      setStructureService(service);
+      setServiceStructure(result);
+      setDependencyIds(
+        (result?.dependencies || [])
+          .map((row: any) => row.prerequisite_id || row.prerequisite?.id)
+          .filter(Boolean),
+      );
+      setStageDrafts(
+        (result?.stages || []).map((row: any, index: number) => ({
+          stageOrder: Number(row.stage_order || index + 1),
+          name: String(row.name || ''),
+          durationMinutes: Number(row.duration_minutes || 1),
+          resourceTypeId: row.resource_type_id || row.resource_type?.id || undefined,
+        })),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveServiceDependencies() {
+    if (!session || !structureService?.id) return;
+    const existing = Array.isArray(serviceStructure?.dependencies)
+      ? serviceStructure.dependencies
+      : [];
+    await mutate(
+      `/business-ops/${session.companyId}/services/${structureService.id}/dependencies`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          dependencies: dependencyIds.map((prerequisiteId) => {
+            const current = existing.find(
+              (row: any) =>
+                (row.prerequisite_id || row.prerequisite?.id) === prerequisiteId,
+            );
+            return {
+              prerequisiteId,
+              minGapMinutes: Number(current?.min_gap_minutes || 0),
+              maxGapMinutes: current?.max_gap_minutes ?? undefined,
+              isOptional: current?.is_optional === true,
+            };
+          }),
+        }),
+      },
+      t('messages.dependenciesSaved'),
+    );
+    await openServiceStructure(structureService);
+  }
+
+  async function saveServiceStages() {
+    if (!session || !structureService?.id) return;
+    const clean = stageDrafts
+      .map((stage, index) => ({
+        ...stage,
+        stageOrder: index + 1,
+        name: stage.name.trim(),
+        durationMinutes: Math.max(1, Number(stage.durationMinutes || 1)),
+      }))
+      .filter((stage) => stage.name);
+    await mutate(
+      `/business-ops/${session.companyId}/services/${structureService.id}/stages`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ stages: clean }),
+      },
+      t('messages.stagesSaved'),
+    );
+    await openServiceStructure(structureService);
+  }
+
+  async function instantiateConsentTemplate(template: any) {
+    if (!session || !template?.key) return;
+    await mutate(
+      `/business-ops/${session.companyId}/consent-form-templates/${encodeURIComponent(template.key)}/instantiate`,
+      { method: 'POST', body: '{}' },
+      t('messages.templateCreated'),
+    );
+    await loadConsentTemplates();
+  }
+
   async function loadLookups() {
     if (!session) return;
     try {
@@ -98,6 +209,7 @@ export function OperationsPage({ section }: { section: string }) {
   }
 
   useEffect(() => { void loadLookups(); }, [section]);
+  useEffect(() => { void loadConsentTemplates(); }, [section]);
   useEffect(() => { void load(); }, [section, analyticsBranchId, analyticsProfessionalId, analyticsFrom, analyticsTo]);
   useBusinessRealtimeReload(['booking:changed','queue:changed','floor:changed','business:changed'],()=>void load(),session?.branchId);
 
@@ -350,6 +462,23 @@ export function OperationsPage({ section }: { section: string }) {
       <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0">Add rule</button>
     </form>}
 
+    {section === 'forms' && consentTemplates.length > 0 && <section className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5">
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-primary">{t('labels.formTemplates')}</h2>
+        <p className="mt-1 text-sm text-muted">{t('labels.formTemplatesHint')}</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {consentTemplates.map((template:any)=><article key={template.key} className="rounded-radius-lg border border-border-subtle bg-surface-2 p-4">
+          <h3 className="font-semibold text-primary">{template.name}</h3>
+          <p className="mt-1 text-sm text-muted">{template.description}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">{template.formType}</span>
+            <button type="button" disabled={!!busy} onClick={()=>void instantiateConsentTemplate(template)} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.useTemplate')}</button>
+          </div>
+        </article>)}
+      </div>
+    </section>}
+
     {section === 'forms' && <form onSubmit={submitConsentForm} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
       <input name="name" required placeholder="Form name" className={`${inputClass} md:col-span-2`} />
       <select name="formType" className={inputClass}><option value="general">General</option><option value="service">Service consent</option><option value="medical">Medical / allergy</option><option value="media">Media release</option></select>
@@ -374,6 +503,57 @@ export function OperationsPage({ section }: { section: string }) {
       {!loading && !error && Array.isArray(data?.professionalBreakdown) && data.professionalBreakdown.length>0 && <section className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="mb-4"><h2 className="text-lg font-semibold text-primary">{t('labels.professionalPerformance')}</h2><p className="text-sm text-muted">{t('labels.professionalPerformanceHint')}</p></div><div className="grid gap-3 lg:grid-cols-2">{data.professionalBreakdown.map((professional:any)=><button type="button" key={professional.professionalId} onClick={()=>setAnalyticsProfessionalId(professional.professionalId)} className="rounded-radius-lg border border-border-subtle bg-surface-2 p-4 text-left hover:border-accent-gold-2/50"><div className="flex items-center justify-between"><div><p className="font-semibold text-primary">{professional.name}</p><p className="text-xs text-muted">{professional.bookings} {t('labels.bookings')} · {professional.completed} {t('labels.completed')}{professional.rating ? ` · ★ ${Number(professional.rating).toFixed(1)}` : ''}</p></div><span className="text-xs font-semibold text-accent-gold-2">{t('actions.viewOnly')}</span></div>{Array.isArray(professional.financeByCurrency)&&professional.financeByCurrency.map((f:any)=><div key={f.currency} className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4"><div><p className="text-xs text-muted">{t('labels.booked')}</p><p className="font-semibold text-primary">{f.currency} {Number(f.bookedRevenue||0).toLocaleString()}</p></div><div><p className="text-xs text-muted">{t('labels.collected')}</p><p className="font-semibold text-primary">{f.currency} {Number(f.collectedRevenue||0).toLocaleString()}</p></div><div><p className="text-xs text-muted">{t('labels.cash')}</p><p className="font-semibold text-primary">{f.currency} {Number(f.cash||0).toLocaleString()}</p></div><div><p className="text-xs text-muted">{t('labels.outstanding')}</p><p className="font-semibold text-primary">{f.currency} {Number(f.outstanding||0).toLocaleString()}</p></div></div>)}</button>)}</div></section>}
     </div>}
 
+    {section === 'services' && serviceStructure && structureService && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm md:items-center md:p-6">
+      <section role="dialog" aria-modal="true" aria-label={t('labels.serviceStructure')} className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-t-radius-2xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-4 md:rounded-radius-2xl md:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-gold-2">{t('labels.serviceStructure')}</p>
+            <h2 className="mt-1 text-2xl font-bold text-primary">{structureService.name}</h2>
+            <p className="mt-1 text-sm text-muted">{t('labels.serviceStructureHint')}</p>
+          </div>
+          <button type="button" onClick={()=>{setServiceStructure(null);setStructureService(null);}} className="rounded-radius-md border border-border-subtle px-3 py-2 text-sm font-semibold text-primary">{t('actions.close')}</button>
+        </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-2">
+          <div className="rounded-radius-xl border border-border-subtle bg-surface-0 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div><h3 className="font-semibold text-primary">{t('labels.dependencies')}</h3><p className="mt-1 text-xs text-muted">{t('labels.dependenciesHint')}</p></div>
+              <button type="button" disabled={!!busy} onClick={()=>void saveServiceDependencies()} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.saveDependencies')}</button>
+            </div>
+            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
+              {rows.filter((row:any)=>row?.id && row.id!==structureService.id).map((row:any)=>{
+                const checked=dependencyIds.includes(String(row.id));
+                return <label key={row.id} className="flex cursor-pointer items-center gap-3 rounded-radius-md border border-border-subtle bg-surface-1 px-3 py-3 text-sm text-primary">
+                  <input type="checkbox" checked={checked} onChange={(e)=>setDependencyIds((current)=>e.target.checked?[...new Set([...current,String(row.id)])]:current.filter((id)=>id!==String(row.id)))} />
+                  <span className="min-w-0 flex-1"><span className="font-semibold">{row.name}</span><span className="block text-xs text-muted">{row.duration_minutes ?? '—'} {t('labels.minutes')}</span></span>
+                </label>;
+              })}
+              {rows.filter((row:any)=>row?.id && row.id!==structureService.id).length===0&&<p className="text-sm text-muted">{t('labels.noDependencyOptions')}</p>}
+            </div>
+          </div>
+
+          <div className="rounded-radius-xl border border-border-subtle bg-surface-0 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="font-semibold text-primary">{t('labels.serviceStages')}</h3><p className="mt-1 text-xs text-muted">{t('labels.serviceStagesHint')}</p></div>
+              <div className="flex gap-2">
+                <button type="button" onClick={()=>setStageDrafts((current)=>[...current,{stageOrder:current.length+1,name:'',durationMinutes:15}])} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.addStage')}</button>
+                <button type="button" disabled={!!busy} onClick={()=>void saveServiceStages()} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.saveStages')}</button>
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {stageDrafts.map((stage,index)=><div key={index} className="grid gap-2 rounded-radius-lg border border-border-subtle bg-surface-1 p-3 sm:grid-cols-[auto_1fr_120px_auto] sm:items-center">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-gold-2/10 text-xs font-bold text-accent-gold-2">{index+1}</div>
+                <input value={stage.name} onChange={(e)=>setStageDrafts((current)=>current.map((item,i)=>i===index?{...item,name:e.target.value}:item))} placeholder={t('labels.stageName')} className={inputClass}/>
+                <input value={stage.durationMinutes} onChange={(e)=>setStageDrafts((current)=>current.map((item,i)=>i===index?{...item,durationMinutes:Number(e.target.value)}:item))} type="number" min="1" aria-label={t('labels.stageDuration')} className={inputClass}/>
+                <button type="button" onClick={()=>setStageDrafts((current)=>current.filter((_,i)=>i!==index))} className="rounded-radius-md border border-accent-red/30 px-3 py-2 text-xs font-semibold text-accent-red">{t('actions.remove')}</button>
+              </div>)}
+              {stageDrafts.length===0&&<p className="text-sm text-muted">{t('labels.noStages')}</p>}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>}
+
     {loading && <div className="grid gap-3 md:grid-cols-3">{[1,2,3].map(i => <div key={i} className="h-28 animate-pulse rounded-radius-xl bg-surface-2" />)}</div>}
 
     {!loading && !error && (section === 'floor' || section === 'resources') && Array.isArray(data) && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{data.map((resource:any) => {
@@ -386,6 +566,6 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}</tr>)}</tbody></table></div>}
   </div>;
 }
