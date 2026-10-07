@@ -11,6 +11,7 @@ import {
   CreatePostV2Dto,
   FollowTargetDto,
   ReportContentDto,
+  VerifyWorkDto,
 } from './dto/social-v2.dto';
 import { SocialV2Service } from './social-v2.service';
 
@@ -39,6 +40,17 @@ export class SocialV2Controller {
     @Body() dto: CreatePostV2Dto,
   ) {
     return this.social.createPost(user, dto);
+  }
+
+  @Post('posts/:id/verify-work')
+  @RequirePermissions(PermissionKey.SocialPostCreate)
+  @ApiOperation({ summary: 'Verify portfolio work against a verified review and completed booking' })
+  verifyWork(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: VerifyWorkDto,
+  ) {
+    return this.social.verifyWork(user, id, dto);
   }
 
   @Post('posts/:id/save')
