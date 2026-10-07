@@ -20,6 +20,7 @@ const CONFIG: Record<string, { key: string; endpoint: (company: string, branch?:
   'analytics': { key: 'analytics', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'reports': { key: 'reports', endpoint: (c) => `/analytics-v2/companies/${c}/dashboard` },
   'promotions': { key: 'promotions', endpoint: (c) => `/business-ops/${c}/promotions` },
+  'package-redemptions': { key: 'packageRedemptions', endpoint: (c) => `/business-ops/${c}/package-redemptions` },
   'inventory': { key: 'inventory', endpoint: (c, b) => `/business-ops/${c}/inventory${b ? `?branchId=${b}` : ''}` },
   'commissions': { key: 'commissions', endpoint: (c) => `/business-ops/${c}/commission-rules` },
   'forms': { key: 'forms', endpoint: (c) => `/business-ops/${c}/consent-forms` },
@@ -403,6 +404,22 @@ export function OperationsPage({ section }: { section: string }) {
     event.currentTarget.reset();
   }
 
+  async function submitPackageRedemption(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!session) return;
+    const fd = new FormData(event.currentTarget);
+    await mutate(`/business-ops/${session.companyId}/package-redemptions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        packagePurchaseId: String(fd.get('packagePurchaseId') || '').trim(),
+        serviceId: String(fd.get('serviceId') || '').trim(),
+        appointmentId: String(fd.get('appointmentId') || '').trim() || undefined,
+        professionalId: String(fd.get('professionalId') || '').trim() || undefined,
+        sessionsUsed: Number(fd.get('sessionsUsed') || 1),
+      }),
+    }, t('messages.packageRedeemed'));
+    event.currentTarget.reset();
+  }
+
   async function submitBankAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session) return;
     const fd = new FormData(event.currentTarget);
@@ -582,6 +599,15 @@ export function OperationsPage({ section }: { section: string }) {
         <button disabled={!!busy} className="h-11 rounded-radius-md border border-accent-gold-2 px-5 font-semibold text-accent-gold-2 md:col-span-6 md:justify-self-start">Post stock movement</button>
       </form>
     </div>}
+
+    {section === 'package-redemptions' && <form onSubmit={submitPackageRedemption} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-6">
+      <input name="packagePurchaseId" required placeholder={t('labels.packagePurchaseId')} className={`${inputClass} md:col-span-2`} />
+      <input name="serviceId" required placeholder={t('labels.serviceId')} className={inputClass} />
+      <input name="appointmentId" placeholder={t('labels.appointmentId')} className={inputClass} />
+      <select name="professionalId" className={inputClass}><option value="">{t('labels.anyProfessional')}</option>{professionals.map((o)=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+      <input name="sessionsUsed" type="number" min="1" max="25" defaultValue="1" aria-label={t('labels.sessionsUsed')} className={inputClass} />
+      <button disabled={!!busy} className="h-11 rounded-radius-md bg-accent-gold-2 px-5 font-semibold text-surface-0 md:col-span-6 md:justify-self-start">{t('actions.redeemPackage')}</button>
+    </form>}
 
     {section === 'banking' && <form onSubmit={submitBankAccount} className="grid gap-3 rounded-radius-xl border border-border-subtle bg-surface-1 p-5 md:grid-cols-4">
       <input name="bankName" placeholder={t('labels.bankName')} className={inputClass} />
