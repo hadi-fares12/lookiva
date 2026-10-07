@@ -83,6 +83,20 @@ export class BusinessOpsController {
     );
   }
 
+  @Get('package-purchases')
+  @RequirePermissions(PermissionKey.PackagesView)
+  packagePurchases(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('companyId') companyId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ops.packagePurchases(
+      user,
+      companyId,
+      Number(limit) || 100,
+    );
+  }
+
   @Get('package-redemptions')
   @RequirePermissions(PermissionKey.PackagesView)
   packageRedemptions(
