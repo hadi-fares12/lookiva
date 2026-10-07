@@ -1075,7 +1075,18 @@
     "notesPlaceholder": "Tell the professional what you want…",
     "processing": "Processing…",
     "confirm": "Check availability & confirm",
-    "signIn": "Sign in to book"
+    "signIn": "Sign in to book",
+    "paymentRequired": "Deposit required",
+    "depositReserved": "Your time and chair are reserved. Pay the required deposit to complete confirmation.",
+    "payDeposit": "Pay deposit",
+    "paymentMethod": "Payment method",
+    "giftCardCode": "Gift card code",
+    "paying": "Processing payment…",
+    "depositPaid": "Deposit paid",
+    "paymentPending": "Payment started. Complete the provider checkout to confirm your booking.",
+    "noPaymentMethods": "No payment method is currently available. Contact the business.",
+    "amountDueNow": "Amount due now",
+    "bookingPendingBusiness": "Deposit received. Waiting for business confirmation."
   },
   "customerChat": {
     "back": "Messages",
