@@ -1074,6 +1074,10 @@
       "collections": {
         "title": "Collections",
         "subtitle": "Discover recent work from salons and professionals you follow."
+      },
+      "moderation": {
+        "title": "Moderation & appeals",
+        "subtitle": "Review account strikes and track appeals of moderation actions."
       }
     },
     "actions": {
@@ -1088,7 +1092,8 @@
       "saveNearby": "Save nearby settings",
       "saveProfile": "Save profile",
       "downloadData": "Download my data",
-      "deleteAccount": "Delete account permanently"
+      "deleteAccount": "Delete account permanently",
+      "appeal": "Appeal"
     },
     "empty": {
       "bookings": "No bookings yet. Discover a professional and book your first appointment.",
@@ -1098,7 +1103,9 @@
       "reviews": "You have not written any reviews yet.",
       "sessions": "No active sessions were returned.",
       "generic": "This account section has no records yet.",
-      "activity": "No activity yet."
+      "activity": "No activity yet.",
+      "strikes": "No moderation strikes are associated with your account.",
+      "appeals": "You have not submitted any moderation appeals."
     },
     "labels": {
       "booking": "Booking",
@@ -1150,7 +1157,14 @@
       "standard": "Standard",
       "privacyIntro": "Your export contains account, preferences, bookings, payments, messages and other data linked to your account.",
       "deleteWarning": "Deletion is permanent. Active or future bookings must be completed or cancelled first.",
-      "deletePhrase": "Type DELETE MY ACCOUNT to confirm."
+      "deletePhrase": "Type DELETE MY ACCOUNT to confirm.",
+      "myStrikes": "My strikes",
+      "myAppeals": "My appeals",
+      "moderationAction": "Moderation action",
+      "noModerationDetails": "No additional details were provided.",
+      "inactive": "inactive",
+      "appealReasonPrompt": "Explain why this action should be reversed (at least 10 characters).",
+      "resolution": "Resolution"
     },
     "messages": {
       "favoriteRemoved": "Removed from favorites.",
@@ -1162,7 +1176,8 @@
       "nearbySaved": "Nearby settings saved.",
       "profileSaved": "Profile saved.",
       "exportReady": "Your account data export is ready.",
-      "accountDeleted": "Your account was permanently deleted."
+      "accountDeleted": "Your account was permanently deleted.",
+      "appealSubmitted": "Your moderation appeal was submitted."
     }
   },
   "customerBooking": {
