@@ -47,7 +47,7 @@ export default async function LocaleLayout({
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                   <div className="text-xs uppercase text-muted font-medium px-3 py-2">{t('navigation')}</div>
                   {[
-                    ['dashboard','dashboard'], ['calendar','calendar'], ['floor','floor'], ['queue','queue'], ['customers','customers'], ['professionals','professionals'], ['services','services'], ['resources','resources'], ['inventory','inventory'], ['payments','payments'], ['finance','finance'], ['commissions','commissions'], ['analytics','analytics'], ['reports','reports'], ['promotions','promotions'], ['forms','forms'], ['reviews','reviews'], ['staff','staff'], ['branches','branches'], ['subscriptions','subscriptions'], ['audit','audit'], ['settings','settings']
+                    ['dashboard','dashboard'], ['calendar','calendar'], ['floor','floor'], ['queue','queue'], ['customers','customers'], ['professionals','professionals'], ['services','services'], ['resources','resources'], ['inventory','inventory'], ['payments','payments'], ['finance','finance'], ['banking','banking'], ['commissions','commissions'], ['analytics','analytics'], ['reports','reports'], ['promotions','promotions'], ['forms','forms'], ['reviews','reviews'], ['staff','staff'], ['branches','branches'], ['subscriptions','subscriptions'], ['audit','audit'], ['settings','settings']
                   ].map(([key, href]) => (
                     <Link key={href} href={`/${href}`} className="block px-3 py-2 rounded-radius-md text-sm text-secondary hover:bg-surface-2 hover:text-primary">{t(`nav.${key}`)}</Link>
                   ))}
