@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException,
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { MediaService } from '../media/media.service';
 
 @Injectable()
 export class CustomerOpsService {
@@ -9,6 +10,7 @@ export class CustomerOpsService {
     private readonly prisma: PrismaService,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly realtime?: RealtimeService,
+    private readonly media: MediaService,
   ) {}
 
   private async customerForUser(userId: string) {
@@ -428,6 +430,66 @@ export class CustomerOpsService {
       this.realtime?.emitUser(member.user_id, 'message:read', payload);
     }
     return payload;
+  }
+
+  async conversationAttachmentAccess(
+    userId: string,
+    conversationId: string,
+    mediaId: string,
+  ) {
+    await this.assertConversationMember(userId, conversationId);
+
+    const attachment = await this.prisma.message_attachments.findFirst({
+      where: {
+        media_id: mediaId,
+        message: {
+          conversation_id: conversationId,
+          deleted_at: null,
+        },
+      },
+      select: {
+        id: true,
+        media_id: true,
+        media_type: true,
+        file_name: true,
+        size_bytes: true,
+      },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Conversation attachment not found');
+    }
+
+    const media = await this.prisma.media.findUnique({
+      where: { id: mediaId },
+      select: {
+        id: true,
+        storage_key: true,
+        storage_bucket: true,
+        mime_type: true,
+        mime_category: true,
+        original_file_name: true,
+        size_bytes: true,
+        status: true,
+      },
+    });
+    if (!media || !['uploaded', 'processing', 'ready'].includes(media.status)) {
+      throw new NotFoundException('Attachment media is unavailable');
+    }
+
+    const url = await this.media.getPresignedUrl(
+      media.storage_key,
+      media.storage_bucket,
+      15 * 60,
+    );
+    return {
+      mediaId: media.id,
+      url,
+      mimeType: media.mime_type,
+      mimeCategory: media.mime_category,
+      fileName: attachment.file_name ?? media.original_file_name,
+      sizeBytes: attachment.size_bytes ?? media.size_bytes,
+      expiresInSeconds: 15 * 60,
+    };
   }
 
   async retention(userId: string) {
