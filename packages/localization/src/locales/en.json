@@ -584,7 +584,13 @@
         "remoteConfig": "Remote config",
         "audit": "Audit",
         "system": "System",
-        "strikes": "User strikes"
+        "strikes": "User strikes",
+        "branches": "Branches",
+        "professionals": "Professionals",
+        "services": "Services",
+        "regions": "Regions",
+        "currencies": "Currencies",
+        "plans": "Plans"
       }
     }
   },
@@ -894,6 +900,30 @@
       "strikes": {
         "title": "User strikes",
         "subtitle": "Warnings, policy strikes, expiry and active enforcement state."
+      },
+      "branches": {
+        "title": "Branches",
+        "subtitle": "Platform-wide branch directory, booking state and operating status."
+      },
+      "professionals": {
+        "title": "Professionals",
+        "subtitle": "Professional profiles, verification and platform status."
+      },
+      "services": {
+        "title": "Services",
+        "subtitle": "Service catalog across businesses, pricing and availability state."
+      },
+      "regions": {
+        "title": "Regions",
+        "subtitle": "Market regions and their country relationships."
+      },
+      "currencies": {
+        "title": "Currencies",
+        "subtitle": "Supported currencies, symbols, decimals and active state."
+      },
+      "plans": {
+        "title": "Subscription plans",
+        "subtitle": "Platform subscription tiers, pricing and trial configuration."
       }
     },
     "prompts": {
