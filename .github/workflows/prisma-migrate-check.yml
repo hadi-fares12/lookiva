@@ -5,10 +5,16 @@ on:
     branches: [main, develop]
     paths:
       - "apps/api/prisma/**"
+      - ".github/workflows/prisma-migrate-check.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
   pull_request:
     branches: [main, develop]
     paths:
       - "apps/api/prisma/**"
+      - ".github/workflows/prisma-migrate-check.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,30 +45,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install pnpm from packageManager
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Install pnpm@9
-        uses: pnpm/action-setup@v4
-        with:
-          version: "9"
-          run_install: false
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          cache: "pnpm"
 
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
@@ -97,10 +89,7 @@ jobs:
           DIRECT_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
           DATABASE_URL: "postgresql://prisma:prisma@localhost:5432/shadow_db?schema=public"
         run: |
-          pnpm exec prisma migrate diff \
-            --from-url "$DATABASE_URL" \
-            --to-schema-datamodel prisma/schema.prisma \
-            --exit-code
+          pnpm exec prisma migrate diff             --from-url "$DATABASE_URL"             --to-schema-datamodel prisma/schema.prisma             --exit-code
 
       - name: Generate Prisma client (compile check)
         working-directory: apps/api
