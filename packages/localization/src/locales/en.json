@@ -549,7 +549,10 @@
         "branches": "Branches",
         "subscriptions": "Subscription",
         "audit": "Audit",
-        "settings": "Settings"
+        "settings": "Settings",
+        "inventory": "Inventory",
+        "commissions": "Commissions",
+        "forms": "Consent forms"
       }
     },
     "admin": {
@@ -663,6 +666,18 @@
       "settings": {
         "title": "Business settings",
         "subtitle": "Company profile and booking configuration."
+      },
+      "inventory": {
+        "title": "Products & inventory",
+        "subtitle": "Products, branch stock, reorder levels, expiry and stock movements."
+      },
+      "commissions": {
+        "title": "Commission rules",
+        "subtitle": "Professional commission rules, rates and payout logic."
+      },
+      "forms": {
+        "title": "Consent forms",
+        "subtitle": "Service, medical, media and general consent templates with versioning."
       }
     },
     "actions": {
