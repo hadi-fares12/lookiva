@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { ReactQueryProvider } from '@/components/react-query-provider';
 import { Header } from '@/components/header';
 import { BottomNav } from '@/components/bottom-nav';
+import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { Toaster } from 'sonner';
 import '../globals.css';
 
@@ -84,6 +85,7 @@ export default async function LocaleLayout({
                   },
                 }}
               />
+              <ImpersonationBanner />
               <div className="flex min-h-screen flex-col pb-[calc(env(safe-area-inset-bottom)+4rem)] md:pb-0">
                 <Header />
                 <main className="flex-1 w-full">
