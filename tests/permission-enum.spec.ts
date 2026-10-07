@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { PermissionKey, ALL_PERMISSION_KEYS, PERMISSION_DEFINITIONS } from '@lookiva/shared-types';
+import { PermissionKey, ALL_PERMISSION_KEYS, PERMISSION_DEFINITIONS, ROLE_PERMISSION_MAP, UserRole } from '@lookiva/shared-types';
 
 describe('PermissionKey enum integrity', () => {
   const enumEntries = Object.keys(PermissionKey);
   const enumValues = Object.values(PermissionKey) as string[];
 
   it('should have at least 112 PermissionKey enum entries', () => {
-    expect(enumEntries.length).toBeGreaterThanOrEqual(112);
+    expect(enumEntries.length).toBeGreaterThanOrEqual(113);
   });
 
   it('should have unique string values', () => {
@@ -39,7 +39,13 @@ describe('PermissionKey enum integrity', () => {
     }
   });
 
-  it('should have exactly 112 entries (current snapshot)', () => {
-    expect(enumEntries.length).toBe(112);
+  it('keeps admin impersonation super-admin-only by default', () => {
+    expect(ALL_PERMISSION_KEYS).toContain(PermissionKey.AdminImpersonate);
+    expect(ROLE_PERMISSION_MAP[UserRole.SuperAdmin]).toContain(PermissionKey.AdminImpersonate);
+    expect(ROLE_PERMISSION_MAP[UserRole.PlatformAdmin]).not.toContain(PermissionKey.AdminImpersonate);
+  });
+
+  it('should have exactly 113 entries (current snapshot)', () => {
+    expect(enumEntries.length).toBe(113);
   });
 });
