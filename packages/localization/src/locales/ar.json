@@ -753,7 +753,12 @@
       "uploading": "جارٍ الرفع…",
       "publishPortfolio": "نشر العمل",
       "verifyWork": "توثيق العمل",
-      "archive": "أرشفة"
+      "archive": "أرشفة",
+      "previous": "السابق",
+      "today": "اليوم",
+      "next": "التالي",
+      "quickAdd": "إضافة سريعة",
+      "createBooking": "إنشاء حجز"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -864,7 +869,14 @@
       "verifiedWork": "عمل موثّق",
       "mediaItems": "وسائط",
       "verifiedReviewId": "معرّف المراجعة الموثّقة",
-      "selectVerifiedReview": "اختر مراجعة موثّقة"
+      "selectVerifiedReview": "اختر مراجعة موثّقة",
+      "calendarDate": "تاريخ التقويم",
+      "allResources": "كل الكراسي / الموارد",
+      "anyResource": "أي كرسي / مورد",
+      "calendarDragHint": "اسحب الحجز المؤهل المعلّق أو المؤكد إلى يوم آخر لإعادة جدولته بأمان.",
+      "startTime": "وقت البداية",
+      "staffNote": "ملاحظة للموظفين",
+      "emptyDay": "لا توجد حجوزات"
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -906,7 +918,18 @@
       "portfolioPublished": "تم نشر العمل.",
       "portfolioPublishedVerified": "تم نشر العمل كعمل موثّق.",
       "portfolioVerified": "تم توثيق العمل.",
-      "portfolioArchived": "تمت أرشفة المنشور."
+      "portfolioArchived": "تمت أرشفة المنشور.",
+      "calendarQuickAddRequired": "الفرع والعميل والخدمة ووقت البداية مطلوبة.",
+      "calendarBookingCreated": "تم إنشاء الحجز.",
+      "calendarBookingMoved": "تمت إعادة جدولة الحجز."
+    },
+    "calendarViews": {
+      "day": "يوم",
+      "fourDay": "4 أيام",
+      "week": "أسبوع",
+      "twoWeek": "أسبوعان",
+      "month": "شهر",
+      "list": "قائمة"
     }
   },
   "adminOps": {
