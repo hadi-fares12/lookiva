@@ -68,6 +68,9 @@ export function OperationsPage({ section }: { section: string }) {
   const [dependencyIds, setDependencyIds] = useState<string[]>([]);
   const [stageDrafts, setStageDrafts] = useState<Array<{ stageOrder: number; name: string; durationMinutes: number; resourceTypeId?: string }>>([]);
   const [consentTemplates, setConsentTemplates] = useState<any[]>([]);
+  const [customerDetail, setCustomerDetail] = useState<any>(null);
+  const [crmNotes, setCrmNotes] = useState('');
+  const [crmTags, setCrmTags] = useState('');
 
   async function load() {
     if (!session) return;
@@ -86,6 +89,89 @@ export function OperationsPage({ section }: { section: string }) {
       setData(result); setUpdated(new Date());
     } catch (e) { setError(e instanceof Error ? e.message : t('loadError')); }
     finally { setLoading(false); }
+  }
+
+  async function openCustomerDetail(customerId: string) {
+    if (!session || !customerId) return;
+    setBusy(`customer:${customerId}`);
+    setError('');
+    try {
+      const result = await businessFetch<any>(
+        `/business-ops/${session.companyId}/customers/${customerId}`,
+      );
+      setCustomerDetail(result);
+      setCrmNotes(String(result?.crmProfile?.notes || ''));
+      setCrmTags(
+        Array.isArray(result?.crmProfile?.tags)
+          ? result.crmProfile.tags.join(', ')
+          : '',
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function saveCustomerCrm() {
+    if (!session || !customerDetail?.canonicalCustomerId) return;
+    const id = String(customerDetail.canonicalCustomerId);
+    setBusy(`crm:${id}`);
+    setError('');
+    setMessage('');
+    try {
+      const updated = await businessFetch(
+        `/business-ops/${session.companyId}/customers/${id}/crm`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            notes: crmNotes.trim() || null,
+            tags: crmTags
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+          }),
+        },
+      );
+      setCustomerDetail((current: any) =>
+        current ? { ...current, crmProfile: updated } : current,
+      );
+      setMessage(t('messages.crmSaved'));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function mergeCustomerDuplicate() {
+    if (!session || !customerDetail?.canonicalCustomerId) return;
+    const duplicateId = window.prompt(t('labels.duplicateCustomerId'), '');
+    if (!duplicateId?.trim()) return;
+    if (duplicateId.trim() === String(customerDetail.canonicalCustomerId)) {
+      setError(t('messages.mergeSameCustomer'));
+      return;
+    }
+    setBusy('crm-merge');
+    setError('');
+    setMessage('');
+    try {
+      await businessFetch(
+        `/business-ops/${session.companyId}/customers/${customerDetail.canonicalCustomerId}/merge-duplicate`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ duplicateCustomerId: duplicateId.trim() }),
+        },
+      );
+      setMessage(t('messages.customerMerged'));
+      await load();
+      await openCustomerDetail(String(customerDetail.canonicalCustomerId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('operationError'));
+    } finally {
+      setBusy('');
+    }
   }
 
   async function loadConsentTemplates() {
@@ -554,6 +640,65 @@ export function OperationsPage({ section }: { section: string }) {
       </section>
     </div>}
 
+    {!loading && !error && section === 'customers' && Array.isArray(data) && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {data.map((customer:any)=>{
+        const profile=customer.company_profiles?.[0];
+        const name=customer.user?.full_name || t('labels.customer');
+        const tags=Array.isArray(profile?.tags)?profile.tags:[];
+        return <button key={customer.id} type="button" onClick={()=>void openCustomerDetail(customer.id)} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 text-left shadow-shadow-1 transition hover:border-accent-gold-2/50 hover:bg-surface-2">
+          <div className="flex items-start justify-between gap-3">
+            <div><h2 className="font-semibold text-primary">{name}</h2><p className="mt-1 text-sm text-muted">{customer.user?.phone || customer.user?.email || '—'}</p></div>
+            <span className="rounded-radius-full bg-accent-gold-2/10 px-2.5 py-1 text-xs font-semibold text-accent-gold-2">{customer.total_bookings ?? 0} {t('labels.bookings')}</span>
+          </div>
+          {tags.length>0&&<div className="mt-3 flex flex-wrap gap-1.5">{tags.slice(0,5).map((tag:string)=><span key={tag} className="rounded-radius-full bg-surface-2 px-2 py-1 text-xs text-secondary">{tag}</span>)}</div>}
+          {profile?.notes&&<p className="mt-3 line-clamp-2 text-sm text-secondary">{profile.notes}</p>}
+        </button>;
+      })}
+    </div>}
+
+    {customerDetail&&<div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/50" onMouseDown={(e)=>{if(e.target===e.currentTarget)setCustomerDetail(null);}}>
+      <aside className="h-full w-full max-w-2xl overflow-y-auto border-l border-border-subtle bg-surface-0 p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-gold-2">{t('labels.crmProfile')}</p>
+            <h2 className="mt-1 text-2xl font-bold text-primary">{customerDetail.user?.full_name || t('labels.customer')}</h2>
+            <p className="mt-1 text-sm text-muted">{[customerDetail.user?.phone,customerDetail.user?.email].filter(Boolean).join(' • ')}</p>
+          </div>
+          <button type="button" onClick={()=>setCustomerDetail(null)} className="rounded-radius-md border border-border-subtle px-3 py-2 text-sm font-semibold text-primary">{t('actions.close')}</button>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-secondary">{t('labels.crmNotes')}</span>
+            <textarea value={crmNotes} onChange={(e)=>setCrmNotes(e.target.value)} rows={5} className="w-full rounded-radius-md border border-border-subtle bg-surface-1 p-3 text-primary outline-none focus:border-accent-gold-2" placeholder={t('labels.crmNotesHint')}/>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-secondary">{t('labels.crmTags')}</span>
+            <input value={crmTags} onChange={(e)=>setCrmTags(e.target.value)} className={inputClass} placeholder={t('labels.crmTagsHint')}/>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!!busy} onClick={()=>void saveCustomerCrm()} className="rounded-radius-md bg-accent-gold-2 px-4 py-2.5 text-sm font-semibold text-surface-0">{t('actions.saveCrm')}</button>
+            <button type="button" disabled={!!busy} onClick={()=>void mergeCustomerDuplicate()} className="rounded-radius-md border border-border-subtle px-4 py-2.5 text-sm font-semibold text-primary">{t('actions.mergeDuplicate')}</button>
+          </div>
+        </div>
+
+        {Array.isArray(customerDetail.mergedAliases)&&customerDetail.mergedAliases.length>0&&<section className="mt-6 rounded-radius-xl border border-border-subtle bg-surface-1 p-4">
+          <h3 className="font-semibold text-primary">{t('labels.mergedAliases')}</h3>
+          <div className="mt-2 space-y-2">{customerDetail.mergedAliases.map((alias:any)=><div key={alias.id} className="rounded-radius-md bg-surface-2 px-3 py-2 text-sm text-secondary">{alias.user?.full_name || alias.id} · {alias.user?.phone || alias.user?.email || alias.id}</div>)}</div>
+        </section>}
+
+        <section className="mt-6">
+          <h3 className="font-semibold text-primary">{t('labels.recentAppointments')}</h3>
+          <div className="mt-3 space-y-2">{(customerDetail.appointments||[]).slice(0,20).map((appointment:any)=><div key={appointment.id} className="rounded-radius-lg border border-border-subtle bg-surface-1 p-3"><div className="flex justify-between gap-3"><p className="font-semibold text-primary">{appointment.services?.map((s:any)=>s.service?.name).filter(Boolean).join(', ') || t('labels.service')}</p><span className={`rounded-radius-full px-2 py-1 text-xs font-semibold ${statusClass(appointment.status)}`}>{appointment.status}</span></div><p className="mt-1 text-xs text-muted">{new Date(appointment.starts_at).toLocaleString()} · {appointment.branch?.name}</p></div>)}{!(customerDetail.appointments||[]).length&&<p className="text-sm text-muted">{t('noRecords')}</p>}</div>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="font-semibold text-primary">{t('labels.recentPayments')}</h3>
+          <div className="mt-3 space-y-2">{(customerDetail.payments||[]).slice(0,20).map((payment:any)=><div key={payment.id} className="flex items-center justify-between rounded-radius-lg border border-border-subtle bg-surface-1 p-3 text-sm"><span className="font-semibold text-primary">{payment.amount} {payment.currency_code}</span><span className="text-muted">{payment.payment_method} · {payment.status}</span></div>)}{!(customerDetail.payments||[]).length&&<p className="text-sm text-muted">{t('noRecords')}</p>}</div>
+        </section>
+      </aside>
+    </div>}
+
     {loading && <div className="grid gap-3 md:grid-cols-3">{[1,2,3].map(i => <div key={i} className="h-28 animate-pulse rounded-radius-xl bg-surface-2" />)}</div>}
 
     {!loading && !error && (section === 'floor' || section === 'resources') && Array.isArray(data) && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{data.map((resource:any) => {
@@ -564,7 +709,7 @@ export function OperationsPage({ section }: { section: string }) {
 
     {!loading && !error && section === 'queue' && Array.isArray(data) && <div className="space-y-5">{data.map((queue:any)=><section key={queue.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold text-primary">{queue.name}</h2><p className="text-xs text-muted">{queue.branch?.name || t('labels.branch')} · {queue.estimated_wait_per_person_minutes} {t('labels.minutesPerPerson')} · {t('labels.max')} {queue.max_waiting}</p></div><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/queues/${queue.id}`,{method:'PATCH',body:JSON.stringify({isActive:!queue.is_active})},queue.is_active?t('messages.queuePaused'):t('messages.queueActivated'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{queue.is_active?t('actions.pause'):t('actions.activate')}</button></div><div className="mt-4 space-y-2">{(queue.entries||[]).map((entry:any)=><div key={entry.id} className="flex flex-col gap-3 rounded-radius-lg bg-surface-2 p-4 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-primary">#{entry.position} · {entry.customer_name || entry.customer?.user?.full_name || t('labels.customer')}</p><p className="text-sm text-muted">{t('labels.estimatedWait')} {entry.estimated_wait_minutes ?? '—'} min · {entry.status}</p></div><div className="flex gap-2">{entry.status==='waiting'&&<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/call`,{method:'PATCH',body:'{}'},t('messages.customerCalled'))} className="rounded-radius-md bg-accent-gold-2 px-3 py-2 text-xs font-semibold text-surface-0">{t('actions.call')}</button>}<button onClick={()=>void mutate(`/booking-v2/queue-entries/${entry.id}/serve`,{method:'PATCH',body:'{}'},t('messages.queueServed'))} className="rounded-radius-md border border-border-subtle px-3 py-2 text-xs font-semibold text-primary">{t('actions.served')}</button></div></div>)}{!(queue.entries||[]).length&&<p className="text-sm text-muted">{t('messages.noCustomersWaiting')}</p>}</div></section>)}</div>}
 
-    {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
+    {!loading && !error && !['floor','resources','calendar','queue','customers','settings','analytics','reports'].includes(section) && rows.length === 0 && <div className="rounded-radius-xl border border-border-subtle bg-surface-1 p-10 text-center"><h2 className="text-lg font-semibold text-primary">{t('noRecords')}</h2><p className="mt-2 text-sm text-muted">{t('liveEmpty')}</p></div>}
 
     {!loading && !error && !['floor','resources','calendar','queue','settings','analytics','reports'].includes(section) && rows.length > 0 && <div className="overflow-x-auto rounded-radius-xl border border-border-subtle bg-surface-1"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-surface-2 text-xs uppercase text-muted"><tr>{columns.map(c => <th key={c} className="px-4 py-3">{c.replaceAll('_',' ')}</th>)}{['services','promotions'].includes(section)&&<th className="px-4 py-3">{t('labels.actions')}</th>}</tr></thead><tbody className="divide-y divide-border-subtle">{rows.map((row, i) => <tr key={row.id || i} className="align-top hover:bg-surface-2/60">{columns.map(c => <td key={c} className="max-w-[260px] px-4 py-3 text-secondary"><span className="line-clamp-3 break-words">{typeof row[c] === 'object' ? JSON.stringify(row[c]) : String(row[c] ?? '—')}</span></td>)}{section==='services'&&<td className="px-4 py-3"><div className="flex flex-wrap gap-2"><button onClick={()=>void openServiceStructure(row)} className="text-xs font-semibold text-accent-gold-2">{t('actions.structure')}</button><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/services/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.serviceDisabled'):t('messages.serviceEnabled'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.disable'):t('actions.enable')}</button></div></td>}{section==='promotions'&&<td className="px-4 py-3"><button onClick={()=>void mutate(`/business-ops/${session!.companyId}/promotions/${row.id}`,{method:'PATCH',body:JSON.stringify({isActive:!row.is_active})},row.is_active?t('messages.promotionPaused'):t('messages.promotionActivated'))} className="text-xs font-semibold text-accent-gold-2">{row.is_active?t('actions.pause'):t('actions.activate')}</button></td>}</tr>)}</tbody></table></div>}
   </div>;
