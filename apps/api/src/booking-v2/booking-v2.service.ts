@@ -760,6 +760,171 @@ export class BookingV2Service {
     return updated;
   }
 
+  async updateFloorStatus(
+    user: AuthenticatedUser,
+    appointmentId: string,
+    requestedState: string,
+  ) {
+    const state = String(requestedState || '').trim().toLowerCase();
+    if (!['ready', 'started', 'completed', 'paid', 'checked_out'].includes(state)) {
+      throw new BadRequestException(
+        'Floor state must be ready, started, completed, paid, or checked_out',
+      );
+    }
+
+    const read = () =>
+      this.prisma.appointments.findUnique({
+        where: { id: appointmentId },
+        include: {
+          financial_snapshot: true,
+          payments: {
+            where: {
+              status: { in: ['succeeded', 'partially_refunded', 'refunded'] },
+            },
+            include: {
+              refunds: {
+                where: { status: 'succeeded' },
+                select: { amount: true },
+              },
+            },
+          },
+          status_history: {
+            where: { reason: { in: ['floor_paid', 'floor_checked_out'] } },
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+    let appointment = await read();
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    await this.assertAppointmentAccess(this.prisma, user, appointment, {
+      customerAllowed: false,
+      professionalAllowed: true,
+    });
+
+    const recordedFloorState =
+      appointment.status_history[0]?.reason === 'floor_checked_out'
+        ? 'checked_out'
+        : appointment.status_history[0]?.reason === 'floor_paid'
+          ? 'paid'
+          : appointment.status === 'checked_in'
+            ? 'ready'
+            : appointment.status === 'in_progress'
+              ? 'started'
+              : appointment.status === 'completed'
+                ? 'completed'
+                : 'scheduled';
+
+    if (recordedFloorState === state) {
+      return { ...appointment, floorStatus: recordedFloorState };
+    }
+
+    if (state === 'ready') {
+      if (!['pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
+        throw new ConflictException(
+          `Appointment cannot be marked ready from ${appointment.status}`,
+        );
+      }
+      if (appointment.status !== 'checked_in') {
+        await this.checkIn(user, appointment.id, {});
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'ready' };
+    }
+
+    if (state === 'started') {
+      if (appointment.status === 'checked_in') {
+        await this.startAppointment(user, appointment.id, 'Started from floor board');
+      } else if (appointment.status !== 'in_progress') {
+        throw new ConflictException(
+          `Appointment cannot be started from ${appointment.status}`,
+        );
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'started' };
+    }
+
+    if (state === 'completed') {
+      if (appointment.status === 'in_progress') {
+        await this.completeAppointment(
+          user,
+          appointment.id,
+          'Completed from floor board',
+        );
+      } else if (appointment.status !== 'completed') {
+        throw new ConflictException(
+          `Appointment cannot be completed from ${appointment.status}`,
+        );
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'completed' };
+    }
+
+    if (appointment.status !== 'completed') {
+      throw new ConflictException(
+        `Appointment must be completed before it can be marked ${state.replace('_', ' ')}`,
+      );
+    }
+
+    const requiredTotal = Number(
+      appointment.financial_snapshot?.grand_total ?? 0,
+    );
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce(
+              (refundSum, refund) => refundSum + Number(refund.amount),
+              0,
+            ),
+        ),
+      0,
+    );
+    if (requiredTotal > 0 && collected + 0.009 < requiredTotal) {
+      throw new ConflictException(
+        `Booking is not fully paid (${collected.toFixed(2)} of ${requiredTotal.toFixed(2)})`,
+      );
+    }
+
+    if (state === 'checked_out' && recordedFloorState !== 'paid') {
+      throw new ConflictException('Mark the completed booking paid before checkout');
+    }
+
+    const reason = state === 'paid' ? 'floor_paid' : 'floor_checked_out';
+    await this.prisma.appointment_status_history.create({
+      data: {
+        appointment_id: appointment.id,
+        old_status: appointment.status,
+        new_status: appointment.status,
+        changed_by_id: user.id,
+        reason,
+        notes:
+          state === 'paid'
+            ? 'Full payment confirmed from floor board'
+            : 'Customer checked out from floor board',
+      },
+    });
+
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      floorStatus: state,
+      changeType: reason,
+    };
+    this.realtime?.emitAppointment(appointment.id, 'floor:changed', payload);
+    this.realtime?.emitCompany(appointment.company_id, 'floor:changed', payload);
+    this.realtime?.emitBranch(appointment.branch_id, 'floor:changed', payload);
+    if (appointment.customer_user_id) {
+      this.realtime?.emitUser(appointment.customer_user_id, 'booking:changed', payload);
+    }
+
+    appointment = await read();
+    return { ...appointment, floorStatus: state };
+  }
+
   async markNoShow(user: AuthenticatedUser, appointmentId: string, notes?: string) {
     const updated = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
