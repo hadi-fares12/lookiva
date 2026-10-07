@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { businessFetch, businessUpload, getBusinessSession } from '@/lib/api';
+import { API_BASE, businessFetch, businessUpload, getBusinessSession } from '@/lib/api';
 import { useBusinessRealtimeReload } from '@/lib/realtime';
 import { downloadCsv, downloadXlsx } from '@/lib/export-data';
 
@@ -871,7 +871,14 @@ export function OperationsPage({ section }: { section: string }) {
       {data.map((post:any)=>{
         const verified=post.is_verified_work===true && post.verified_review?.is_verified===true && post.verified_appointment?.status==='completed';
         const service=post.services?.find((link:any)=>link.is_primary)?.service || post.services?.[0]?.service;
-        return <article key={post.id} className="rounded-radius-xl border border-border-subtle bg-surface-1 p-5 shadow-shadow-1">
+        const firstMedia=Array.isArray(post.media_list)?post.media_list[0]:null;
+        const mediaId=firstMedia?.media_id?encodeURIComponent(String(firstMedia.media_id)):'';
+        const mediaBase=mediaId?`${API_BASE}/media/public/${mediaId}`:'';
+        return <article key={post.id} className="overflow-hidden rounded-radius-xl border border-border-subtle bg-surface-1 shadow-shadow-1">
+          {mediaBase&&(firstMedia?.media_type==='video'
+            ? <video className="aspect-video w-full bg-black object-cover" controls playsInline preload="metadata" poster={`${mediaBase}?variant=thumb`} src={`${mediaBase}?variant=medium`}/>
+            : <img src={`${mediaBase}?variant=medium`} alt={post.title||service?.name||t('labels.portfolioPost')} className="aspect-video w-full bg-surface-2 object-cover" loading="lazy"/>)}
+          <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div><p className="text-xs font-semibold text-accent-gold-2">{post.professional?.display_name || t('sections.portfolio.title')}</p><h2 className="mt-1 text-lg font-bold text-primary">{post.title || service?.name || t('labels.portfolioPost')}</h2></div>
             {verified&&<span className="rounded-radius-full bg-accent-gold-2/10 px-2.5 py-1 text-xs font-bold text-accent-gold-2">✓ {t('labels.verifiedWork')}</span>}
@@ -903,6 +910,7 @@ export function OperationsPage({ section }: { section: string }) {
               </button>
             </>}
             <button type="button" disabled={!!busy} onClick={()=>void mutate(`/social-v2/posts/${post.id}`,{method:'DELETE'},t('messages.portfolioArchived'))} className="rounded-radius-md border border-accent-red/30 px-3 py-2 text-xs font-semibold text-accent-red">{t('actions.archive')}</button>
+          </div>
           </div>
         </article>;
       })}
