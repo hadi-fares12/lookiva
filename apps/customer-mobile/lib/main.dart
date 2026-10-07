@@ -17,6 +17,7 @@ import 'core/chat.dart';
 import 'core/reels.dart';
 import 'core/l10n.dart';
 import 'core/privacy.dart';
+import 'core/moderation.dart';
 import 'core/mobile_services.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
@@ -297,6 +298,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const CustomerLoginPage(),
+    ),
+    GoRoute(
+      path: '/account/moderation',
+      builder: (context, state) => const CustomerModerationPage(),
     ),
     GoRoute(
       path: '/account/privacy',
