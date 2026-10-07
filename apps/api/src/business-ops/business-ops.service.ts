@@ -533,4 +533,454 @@ export class BusinessOpsService {
     return updated;
   }
 
+  async customerDetails(user: AuthenticatedUser, companyId: string, customerId: string) {
+    const access = this.companyAccess(user, companyId);
+    const customer = await this.prisma.customers.findFirst({
+      where: {
+        id: customerId,
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      include: {
+        user: { select: { id: true, full_name: true, email: true, phone: true, created_at: true, is_active: true } },
+        profile: true,
+        preferences: true,
+        dependents: true,
+        addresses: true,
+        preferred_resources: { include: { resource: { select: { id: true, name: true, type: true } } } },
+        appointments: {
+          where: { company_id: companyId, ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }) },
+          include: {
+            branch: { select: { id: true, name: true } },
+            services: { include: { service: { select: { id: true, name: true } } } },
+            participants: { include: { professional: { select: { id: true, display_name: true } } } },
+            financial_snapshot: true,
+          },
+          orderBy: { starts_at: 'desc' },
+          take: 100,
+        },
+        payments: {
+          where: { company_id: companyId },
+          include: { refunds: true },
+          orderBy: { created_at: 'desc' },
+          take: 100,
+        },
+      },
+    });
+    if (!customer) throw new NotFoundException('Customer not found in this business scope');
+    return customer;
+  }
+
+  async inventory(user: AuthenticatedUser, companyId: string, branchId?: string) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    const branchFilter = branchId
+      ? { branch_id: branchId }
+      : access.allBranches
+        ? {}
+        : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] };
+
+    const products = await this.prisma.products.findMany({
+      where: { company_id: companyId },
+      include: {
+        inventory: {
+          where: branchFilter as any,
+          include: { branch: { select: { id: true, name: true } } },
+          orderBy: [{ branch_id: 'asc' }, { created_at: 'asc' }],
+        },
+      },
+      orderBy: [{ is_active: 'desc' }, { name: 'asc' }],
+    });
+
+    return products.map((product) => {
+      const onHand = product.inventory.reduce((sum, row) => sum + row.quantity_on_hand, 0);
+      const reserved = product.inventory.reduce((sum, row) => sum + row.quantity_reserved, 0);
+      const lowStock = product.inventory.some(
+        (row) => row.is_active && row.quantity_on_hand - row.quantity_reserved <= row.reorder_level,
+      );
+      return { ...product, onHand, reserved, available: onHand - reserved, lowStock };
+    });
+  }
+
+  async createProduct(user: AuthenticatedUser, companyId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Product creation requires company-level access');
+    const name = String(dto.name ?? '').trim();
+    const currencyCode = String(dto.currencyCode ?? '').trim().toUpperCase();
+    const price = Number(dto.price);
+    if (!name) throw new BadRequestException('Product name is required');
+    if (!currencyCode || currencyCode.length !== 3) throw new BadRequestException('currencyCode must be 3 characters');
+    if (!Number.isFinite(price) || price < 0) throw new BadRequestException('Product price must be zero or greater');
+
+    if (dto.sku) {
+      const exists = await this.prisma.products.findFirst({ where: { company_id: companyId, sku: String(dto.sku).trim() } });
+      if (exists) throw new ConflictException('SKU already exists for this business');
+    }
+    if (dto.barcode) {
+      const exists = await this.prisma.products.findFirst({ where: { company_id: companyId, barcode: String(dto.barcode).trim() } });
+      if (exists) throw new ConflictException('Barcode already exists for this business');
+    }
+
+    const product = await this.prisma.products.create({
+      data: {
+        company_id: companyId,
+        category_id: dto.categoryId || null,
+        sku: dto.sku ? String(dto.sku).trim() : null,
+        barcode: dto.barcode ? String(dto.barcode).trim() : null,
+        name,
+        description: dto.description || null,
+        price,
+        cost: dto.cost == null ? null : Number(dto.cost),
+        currency_code: currencyCode,
+        is_salable: dto.isSalable !== false,
+        is_consumable: dto.isConsumable === true,
+        tax_percent: dto.taxPercent == null ? null : Number(dto.taxPercent),
+        tags: Array.isArray(dto.tags) ? dto.tags.map(String) : [],
+      },
+    });
+
+    if (dto.branchId || dto.initialQuantity != null) {
+      if (dto.branchId) await this.assertBranchesBelongToCompany(companyId, [String(dto.branchId)], access);
+      const quantity = Math.trunc(Number(dto.initialQuantity ?? 0));
+      const inventory = await this.prisma.inventory_items.create({
+        data: {
+          product_id: product.id,
+          branch_id: dto.branchId || null,
+          quantity_on_hand: quantity,
+          reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel ?? 0))),
+          reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))),
+          cost_unit: dto.cost == null ? null : Number(dto.cost),
+          location_note: dto.locationNote || null,
+          batch_number: dto.batchNumber || null,
+          expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          last_restocked_at: quantity > 0 ? new Date() : null,
+        },
+      });
+      if (quantity !== 0) {
+        await this.prisma.inventory_movements.create({
+          data: {
+            product_id: product.id,
+            inventory_id: inventory.id,
+            branch_id: inventory.branch_id,
+            movement_type: 'opening',
+            quantity_change: quantity,
+            balance_after: quantity,
+            reason: 'Initial stock',
+            unit_cost: product.cost,
+            created_by_id: user.id,
+          },
+        });
+      }
+    }
+
+    await this.auditMutation(user, companyId, 'product.create', 'product', product.id, undefined, product);
+    return product;
+  }
+
+  async updateProduct(user: AuthenticatedUser, companyId: string, productId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.products.findFirst({ where: { id: productId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Product not found');
+    if (dto.sku && dto.sku !== existing.sku) {
+      const duplicate = await this.prisma.products.findFirst({ where: { company_id: companyId, sku: String(dto.sku).trim(), id: { not: productId } } });
+      if (duplicate) throw new ConflictException('SKU already exists for this business');
+    }
+    if (dto.barcode && dto.barcode !== existing.barcode) {
+      const duplicate = await this.prisma.products.findFirst({ where: { company_id: companyId, barcode: String(dto.barcode).trim(), id: { not: productId } } });
+      if (duplicate) throw new ConflictException('Barcode already exists for this business');
+    }
+    const updated = await this.prisma.products.update({
+      where: { id: productId },
+      data: {
+        ...(dto.categoryId !== undefined ? { category_id: dto.categoryId || null } : {}),
+        ...(dto.sku !== undefined ? { sku: dto.sku ? String(dto.sku).trim() : null } : {}),
+        ...(dto.barcode !== undefined ? { barcode: dto.barcode ? String(dto.barcode).trim() : null } : {}),
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.price !== undefined ? { price: Number(dto.price) } : {}),
+        ...(dto.cost !== undefined ? { cost: dto.cost == null ? null : Number(dto.cost) } : {}),
+        ...(dto.currencyCode !== undefined ? { currency_code: String(dto.currencyCode).toUpperCase() } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(dto.isSalable !== undefined ? { is_salable: Boolean(dto.isSalable) } : {}),
+        ...(dto.isConsumable !== undefined ? { is_consumable: Boolean(dto.isConsumable) } : {}),
+        ...(dto.taxPercent !== undefined ? { tax_percent: dto.taxPercent == null ? null : Number(dto.taxPercent) } : {}),
+        ...(dto.tags !== undefined ? { tags: Array.isArray(dto.tags) ? dto.tags.map(String) : [] } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'product.update', 'product', productId, existing, updated);
+    return updated;
+  }
+
+  async stockMovement(user: AuthenticatedUser, companyId: string, productId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    const branchId = dto.branchId ? String(dto.branchId) : null;
+    if (branchId) await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    if (!access.allBranches && !branchId) {
+      throw new BadRequestException('Branch-scoped users must select an authorized branch');
+    }
+    const delta = Math.trunc(Number(dto.quantityChange));
+    if (!Number.isFinite(delta) || delta === 0) throw new BadRequestException('quantityChange must be a non-zero integer');
+    const product = await this.prisma.products.findFirst({ where: { id: productId, company_id: companyId, is_active: true } });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let inventory = await tx.inventory_items.findFirst({
+        where: {
+          product_id: productId,
+          branch_id: branchId,
+          batch_number: dto.batchNumber ? String(dto.batchNumber) : null,
+          is_active: true,
+        },
+      });
+      if (!inventory) {
+        if (delta < 0) throw new ConflictException('Cannot remove stock from a missing inventory record');
+        inventory = await tx.inventory_items.create({
+          data: {
+            product_id: productId,
+            branch_id: branchId,
+            batch_number: dto.batchNumber ? String(dto.batchNumber) : null,
+            quantity_on_hand: 0,
+            reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel ?? 0))),
+            reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))),
+            cost_unit: dto.unitCost == null ? product.cost : Number(dto.unitCost),
+            location_note: dto.locationNote || null,
+            expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          },
+        });
+      }
+      const balance = inventory.quantity_on_hand + delta;
+      if (balance < inventory.quantity_reserved) {
+        throw new ConflictException('Stock movement would reduce quantity below reserved stock');
+      }
+      const updated = await tx.inventory_items.update({
+        where: { id: inventory.id },
+        data: {
+          quantity_on_hand: balance,
+          ...(delta > 0 ? { last_restocked_at: new Date() } : {}),
+          ...(dto.reorderLevel !== undefined ? { reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel))) } : {}),
+          ...(dto.reorderQuantity !== undefined ? { reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))) } : {}),
+          ...(dto.locationNote !== undefined ? { location_note: dto.locationNote || null } : {}),
+          ...(dto.expiresAt !== undefined ? { expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null } : {}),
+          ...(dto.unitCost !== undefined ? { cost_unit: dto.unitCost == null ? null : Number(dto.unitCost) } : {}),
+        },
+      });
+      const movement = await tx.inventory_movements.create({
+        data: {
+          product_id: productId,
+          inventory_id: inventory.id,
+          branch_id: branchId,
+          movement_type: String(dto.movementType || (delta > 0 ? 'stock_in' : 'stock_out')),
+          quantity_change: delta,
+          balance_after: balance,
+          reference_id: dto.referenceId || null,
+          reference_type: dto.referenceType || null,
+          reason: dto.reason || null,
+          unit_cost: dto.unitCost == null ? product.cost : Number(dto.unitCost),
+          created_by_id: user.id,
+        },
+      });
+      return { inventory: updated, movement };
+    });
+    await this.auditMutation(user, companyId, 'inventory.movement', 'product', productId, undefined, result, branchId);
+    return result;
+  }
+
+  async inventoryMovements(user: AuthenticatedUser, companyId: string, productId?: string, branchId?: string, limit = 100) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    return this.prisma.inventory_movements.findMany({
+      where: {
+        product: { company_id: companyId },
+        ...(productId ? { product_id: productId } : {}),
+        ...(branchId ? { branch_id: branchId } : access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+      },
+      include: { product: { select: { id: true, name: true, sku: true, barcode: true } }, branch: { select: { id: true, name: true } } },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
+  async professionalSchedules(user: AuthenticatedUser, companyId: string, professionalId: string) {
+    const access = this.companyAccess(user, companyId);
+    const professional = await this.prisma.professionals.findFirst({ where: { id: professionalId, company_id: companyId, deleted_at: null } });
+    if (!professional) throw new NotFoundException('Professional not found');
+    return this.prisma.professional_schedules.findMany({
+      where: {
+        professional_id: professionalId,
+        ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+      },
+      include: { branch: { select: { id: true, name: true } } },
+      orderBy: [{ branch_id: 'asc' }, { day_of_week: 'asc' }, { effective_from: 'desc' }],
+    });
+  }
+
+  async replaceProfessionalSchedule(user: AuthenticatedUser, companyId: string, professionalId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    const branchId = String(dto.branchId || '');
+    if (!branchId) throw new BadRequestException('branchId is required');
+    await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    const professional = await this.prisma.professionals.findFirst({ where: { id: professionalId, company_id: companyId, deleted_at: null } });
+    if (!professional) throw new NotFoundException('Professional not found');
+    const schedules = Array.isArray(dto.schedules) ? dto.schedules : [];
+    for (const row of schedules) {
+      const day = Number(row.dayOfWeek);
+      if (!Number.isInteger(day) || day < 0 || day > 6) throw new BadRequestException('dayOfWeek must be between 0 and 6');
+      if (!row.isOff && (!row.startsAt || !row.endsAt)) throw new BadRequestException('Working days require startsAt and endsAt');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.professional_schedules.deleteMany({ where: { professional_id: professionalId, branch_id: branchId } });
+      if (schedules.length) {
+        await tx.professional_schedules.createMany({
+          data: schedules.map((row: any) => ({
+            professional_id: professionalId,
+            branch_id: branchId,
+            day_of_week: Number(row.dayOfWeek),
+            is_off: row.isOff === true,
+            starts_at: row.isOff ? null : String(row.startsAt),
+            ends_at: row.isOff ? null : String(row.endsAt),
+            break_starts_at: row.breakStartsAt || null,
+            break_ends_at: row.breakEndsAt || null,
+            effective_from: row.effectiveFrom ? new Date(row.effectiveFrom) : null,
+            effective_to: row.effectiveTo ? new Date(row.effectiveTo) : null,
+          })),
+        });
+      }
+      return tx.professional_schedules.findMany({
+        where: { professional_id: professionalId, branch_id: branchId },
+        orderBy: { day_of_week: 'asc' },
+      });
+    });
+    await this.auditMutation(user, companyId, 'professional.schedule.replace', 'professional', professionalId, undefined, result, branchId);
+    return result;
+  }
+
+  async commissionRules(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.commission_rules.findMany({
+      where: { company_id: companyId },
+      orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { created_at: 'desc' }],
+    });
+  }
+
+  async createCommissionRule(user: AuthenticatedUser, companyId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const type = String(dto.calculationType || '');
+    if (!['percentage', 'fixed', 'tiered'].includes(type)) throw new BadRequestException('Unsupported commission calculation type');
+    if (type === 'percentage' && (dto.percentRate == null || Number(dto.percentRate) < 0 || Number(dto.percentRate) > 100)) {
+      throw new BadRequestException('percentRate must be between 0 and 100');
+    }
+    if (type === 'fixed' && (dto.fixedAmount == null || Number(dto.fixedAmount) < 0)) {
+      throw new BadRequestException('fixedAmount must be zero or greater');
+    }
+    const rule = await this.prisma.commission_rules.create({
+      data: {
+        company_id: companyId,
+        name: String(dto.name || '').trim() || 'Commission rule',
+        description: dto.description || null,
+        professional_id: dto.professionalId || null,
+        service_category_id: dto.serviceCategoryId || null,
+        service_id: dto.serviceId || null,
+        calculation_type: type,
+        percent_rate: dto.percentRate == null ? null : Number(dto.percentRate),
+        fixed_amount: dto.fixedAmount == null ? null : Number(dto.fixedAmount),
+        tiered_rates: dto.tieredRates ?? undefined,
+        effective_from: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null,
+        effective_to: dto.effectiveTo ? new Date(dto.effectiveTo) : null,
+        sort_order: Math.trunc(Number(dto.sortOrder ?? 0)),
+      },
+    });
+    await this.auditMutation(user, companyId, 'commission_rule.create', 'commission_rule', rule.id, undefined, rule);
+    return rule;
+  }
+
+  async updateCommissionRule(user: AuthenticatedUser, companyId: string, ruleId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.commission_rules.findFirst({ where: { id: ruleId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Commission rule not found');
+    const updated = await this.prisma.commission_rules.update({
+      where: { id: ruleId },
+      data: {
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.professionalId !== undefined ? { professional_id: dto.professionalId || null } : {}),
+        ...(dto.serviceCategoryId !== undefined ? { service_category_id: dto.serviceCategoryId || null } : {}),
+        ...(dto.serviceId !== undefined ? { service_id: dto.serviceId || null } : {}),
+        ...(dto.calculationType !== undefined ? { calculation_type: String(dto.calculationType) } : {}),
+        ...(dto.percentRate !== undefined ? { percent_rate: dto.percentRate == null ? null : Number(dto.percentRate) } : {}),
+        ...(dto.fixedAmount !== undefined ? { fixed_amount: dto.fixedAmount == null ? null : Number(dto.fixedAmount) } : {}),
+        ...(dto.tieredRates !== undefined ? { tiered_rates: dto.tieredRates } : {}),
+        ...(dto.effectiveFrom !== undefined ? { effective_from: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null } : {}),
+        ...(dto.effectiveTo !== undefined ? { effective_to: dto.effectiveTo ? new Date(dto.effectiveTo) : null } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(dto.sortOrder !== undefined ? { sort_order: Math.trunc(Number(dto.sortOrder)) } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'commission_rule.update', 'commission_rule', ruleId, existing, updated);
+    return updated;
+  }
+
+  async consentForms(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.consent_forms.findMany({
+      where: { company_id: companyId },
+      include: { _count: { select: { responses: true } } },
+      orderBy: [{ is_active: 'desc' }, { updated_at: 'desc' }],
+    });
+  }
+
+  async createConsentForm(user: AuthenticatedUser, companyId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const name = String(dto.name || '').trim();
+    const content = String(dto.contentPlain || '').trim();
+    if (!name || !content) throw new BadRequestException('Consent form name and contentPlain are required');
+    const form = await this.prisma.consent_forms.create({
+      data: {
+        company_id: companyId,
+        name,
+        description: dto.description || null,
+        form_type: String(dto.formType || 'general'),
+        content_html: dto.contentHtml || null,
+        content_plain: content,
+        fields_json: dto.fieldsJson ?? undefined,
+        require_signature: dto.requireSignature !== false,
+        require_photo_id: dto.requirePhotoId === true,
+        expires_days: dto.expiresDays == null ? null : Math.max(1, Math.trunc(Number(dto.expiresDays))),
+      },
+    });
+    await this.auditMutation(user, companyId, 'consent_form.create', 'consent_form', form.id, undefined, form);
+    return form;
+  }
+
+  async updateConsentForm(user: AuthenticatedUser, companyId: string, formId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.consent_forms.findFirst({ where: { id: formId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Consent form not found');
+    const contentChanged =
+      (dto.contentPlain !== undefined && dto.contentPlain !== existing.content_plain) ||
+      (dto.contentHtml !== undefined && dto.contentHtml !== existing.content_html) ||
+      (dto.fieldsJson !== undefined && JSON.stringify(dto.fieldsJson) !== JSON.stringify(existing.fields_json));
+    const updated = await this.prisma.consent_forms.update({
+      where: { id: formId },
+      data: {
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.formType !== undefined ? { form_type: String(dto.formType) } : {}),
+        ...(dto.contentPlain !== undefined ? { content_plain: String(dto.contentPlain) } : {}),
+        ...(dto.contentHtml !== undefined ? { content_html: dto.contentHtml || null } : {}),
+        ...(dto.fieldsJson !== undefined ? { fields_json: dto.fieldsJson } : {}),
+        ...(dto.requireSignature !== undefined ? { require_signature: Boolean(dto.requireSignature) } : {}),
+        ...(dto.requirePhotoId !== undefined ? { require_photo_id: Boolean(dto.requirePhotoId) } : {}),
+        ...(dto.expiresDays !== undefined ? { expires_days: dto.expiresDays == null ? null : Math.max(1, Math.trunc(Number(dto.expiresDays))) } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(contentChanged ? { version: { increment: 1 } } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'consent_form.update', 'consent_form', formId, existing, updated);
+    return updated;
+  }
+
 }
