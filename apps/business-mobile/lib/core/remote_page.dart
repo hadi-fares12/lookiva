@@ -9,6 +9,40 @@ class BusinessRemotePage extends StatelessWidget {
   final String section;
   const BusinessRemotePage({super.key, required this.section});
 
+  Future<void> _toggleActiveOptimistically(
+    String key,
+    bool nextValue,
+    Future<dynamic> Function() action,
+    String success,
+  ) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _notice = null;
+      _optimisticActive[key] = nextValue;
+    });
+
+    try {
+      await action();
+      if (!mounted) return;
+      setState(() {
+        _optimisticActive.remove(key);
+        _notice = success;
+        _reload();
+      });
+      await _future;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _optimisticActive.remove(key);
+          _notice = LookivaBusinessApi.instance.friendlyError(error);
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = BusinessRemoteBody.configFor(section);
@@ -61,6 +95,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   String? _notice;
   String _calendarView = 'day';
   DateTime _calendarAnchor = DateTime.now();
+  final Map<String, bool> _optimisticActive = <String, bool>{};
 
   ({String titleKey, String path, IconData icon}) get config =>
       BusinessRemoteBody.configFor(widget.section);
@@ -1168,7 +1203,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     }
     return rows.map((row) {
       final id = row['id']?.toString() ?? '';
-      final active = row['is_active'] != false;
+      final active = _optimisticActive['commission:$id'] ?? row['is_active'] != false;
       final type = row['calculation_type']?.toString() ?? '';
       final amount = type == 'percentage'
           ? '${row['percent_rate'] ?? 0}%'
@@ -1185,7 +1220,9 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
             value: active,
             onChanged: _busy || id.isEmpty
                 ? null
-                : (next) => _mutate(
+                : (next) => _toggleActiveOptimistically(
+                      'commission:$id',
+                      next,
                       () => LookivaBusinessApi.instance.patchScoped(
                         '/business-ops/{companyId}/commission-rules/' + id,
                         data: {'isActive': next},
@@ -1384,7 +1421,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
     return rows.map((row) {
       final id = row['id']?.toString() ?? '';
-      final active = row['is_active'] != false;
+      final active = _optimisticActive['resource:$id'] ?? row['is_active'] != false;
       final occupied = (row['activeBookings'] as List? ?? const []).isNotEmpty;
       final subtitle = (row['type']?.toString() ?? 'resource') + ' • ' + (occupied ? 'Occupied' : 'Available');
       return Card(child: ListTile(
@@ -1393,10 +1430,17 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         subtitle: Text(subtitle),
         trailing: Switch(
           value: active,
-          onChanged: _busy ? null : (value) => _mutate(
-            () => LookivaBusinessApi.instance.patchScoped('/business-ops/{companyId}/resources/' + id, data: {'isActive': value}),
-            'Resource updated.',
-          ),
+          onChanged: _busy
+              ? null
+              : (value) => _toggleActiveOptimistically(
+                    'resource:$id',
+                    value,
+                    () => LookivaBusinessApi.instance.patchScoped(
+                      '/business-ops/{companyId}/resources/' + id,
+                      data: {'isActive': value},
+                    ),
+                    'Resource updated.',
+                  ),
         ),
       ));
     }).toList();
@@ -1498,7 +1542,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
     return rows.map((row) {
       final id = row['id']?.toString() ?? '';
-      final active = row['is_active'] != false;
+      final active = _optimisticActive['service:$id'] ?? row['is_active'] != false;
       final subtitle = (row['duration_minutes']?.toString() ?? '—') + ' min • ' +
           (row['base_price']?.toString() ?? '—') + ' ' + (row['currency_code']?.toString() ?? '');
       return Card(child: ListTile(
@@ -1508,10 +1552,17 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         onTap: () => _editService(row),
         trailing: Switch(
           value: active,
-          onChanged: _busy ? null : (value) => _mutate(
-            () => LookivaBusinessApi.instance.patchScoped('/business-ops/{companyId}/services/' + id, data: {'isActive': value}),
-            'Service updated.',
-          ),
+          onChanged: _busy
+              ? null
+              : (value) => _toggleActiveOptimistically(
+                    'service:$id',
+                    value,
+                    () => LookivaBusinessApi.instance.patchScoped(
+                      '/business-ops/{companyId}/services/' + id,
+                      data: {'isActive': value},
+                    ),
+                    'Service updated.',
+                  ),
         ),
       ));
     }).toList();
@@ -1522,17 +1573,24 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
     return rows.map((row) {
       final id = row['id']?.toString() ?? '';
-      final active = row['is_active'] != false;
+      final active = _optimisticActive['promotion:$id'] ?? row['is_active'] != false;
       return Card(child: ListTile(
         leading: Icon(config.icon, color: Theme.of(context).colorScheme.primary),
         title: Text(row['name']?.toString() ?? 'Promotion', style: const TextStyle(fontWeight: FontWeight.w900)),
         subtitle: Text((row['promotion_type']?.toString() ?? '') + ' • ' + (row['value_percent'] ?? row['value_fixed'] ?? '').toString()),
         trailing: Switch(
           value: active,
-          onChanged: _busy ? null : (value) => _mutate(
-            () => LookivaBusinessApi.instance.patchScoped('/business-ops/{companyId}/promotions/' + id, data: {'isActive': value}),
-            'Promotion updated.',
-          ),
+          onChanged: _busy
+              ? null
+              : (value) => _toggleActiveOptimistically(
+                    'promotion:$id',
+                    value,
+                    () => LookivaBusinessApi.instance.patchScoped(
+                      '/business-ops/{companyId}/promotions/' + id,
+                      data: {'isActive': value},
+                    ),
+                    'Promotion updated.',
+                  ),
         ),
       ));
     }).toList();
@@ -1543,7 +1601,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
     return rows.map((queue) {
       final queueId = queue['id']?.toString() ?? '';
-      final active = queue['is_active'] != false;
+      final active = _optimisticActive['queue:$queueId'] ?? queue['is_active'] != false;
       final entries = (queue['entries'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       return Card(child: Padding(
         padding: const EdgeInsets.all(14),
@@ -1552,10 +1610,17 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
             Expanded(child: Text(queue['name']?.toString() ?? 'Queue', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17))),
             Switch(
               value: active,
-              onChanged: _busy ? null : (value) => _mutate(
-                () => LookivaBusinessApi.instance.patchScoped('/business-ops/{companyId}/queues/' + queueId, data: {'isActive': value}),
-                'Queue updated.',
-              ),
+              onChanged: _busy
+                  ? null
+                  : (value) => _toggleActiveOptimistically(
+                        'queue:$queueId',
+                        value,
+                        () => LookivaBusinessApi.instance.patchScoped(
+                          '/business-ops/{companyId}/queues/' + queueId,
+                          data: {'isActive': value},
+                        ),
+                        'Queue updated.',
+                      ),
             ),
           ]),
           Text(entries.length.toString() + ' waiting'),
