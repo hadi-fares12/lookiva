@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { evaluateAutomaticViolation } from '../common/moderation/auto-violation';
 
 @Injectable()
 export class ReviewsService {
@@ -272,6 +273,20 @@ export class ReviewsService {
           published_at: new Date(),
         },
       });
+
+      const autoViolation = evaluateAutomaticViolation([dto.title, dto.body]);
+      if (autoViolation) {
+        await tx.moderation_auto_flags.create({
+          data: {
+            target_type: 'review',
+            target_id: review.id,
+            author_user_id: userId,
+            reason_type: autoViolation.reasonType,
+            confidence: autoViolation.confidence,
+            details: autoViolation.details,
+          },
+        });
+      }
 
       if (dimensions.length) {
         await tx.review_ratings.createMany({
