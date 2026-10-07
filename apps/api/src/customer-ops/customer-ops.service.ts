@@ -1,9 +1,15 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class CustomerOpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   private async customerForUser(userId: string) {
     const customer = await this.prisma.customers.findFirst({ where: { user_id: userId } });
@@ -92,11 +98,50 @@ export class CustomerOpsService {
     await this.assertConversationMember(userId, conversationId);
     const clean = body?.trim();
     if (!clean) throw new BadRequestException('Message body is required');
-    return this.prisma.$transaction(async (tx) => {
-      const message = await tx.messages.create({ data: { conversation_id: conversationId, sender_user_id: userId, message_type: messageType, body_plain: clean } });
-      await tx.conversations.update({ where: { id: conversationId }, data: { last_message_id: message.id, last_message_at: message.created_at } });
-      return message;
+
+    const message = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.messages.create({
+        data: {
+          conversation_id: conversationId,
+          sender_user_id: userId,
+          message_type: messageType,
+          body_plain: clean,
+        },
+        include: { sender: { select: { id: true, full_name: true } } },
+      });
+      await tx.conversations.update({
+        where: { id: conversationId },
+        data: { last_message_id: created.id, last_message_at: created.created_at },
+      });
+      return created;
     });
+
+    const payload = {
+      conversationId,
+      message,
+    };
+    this.realtime.emitConversation(conversationId, 'message:created', payload);
+
+    const members = await this.prisma.conversation_members.findMany({
+      where: { conversation_id: conversationId, left_at: null },
+      select: { user_id: true },
+    });
+    for (const member of members) {
+      this.realtime.emitUser(member.user_id, 'message:created', payload);
+      if (member.user_id !== userId) {
+        await this.notifications.dispatch({
+          recipientUserId: member.user_id,
+          notificationType: 'chat_message',
+          title: message.sender?.full_name || 'New message',
+          body: clean.length > 140 ? `${clean.slice(0, 137)}...` : clean,
+          deepLink: `/messages/${conversationId}`,
+          payload: { conversationId, messageId: message.id },
+          channels: ['in_app', 'push'],
+        });
+      }
+    }
+
+    return message;
   }
 
   async retention(userId: string) {
