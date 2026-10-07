@@ -1213,7 +1213,16 @@
     "total": "الإجمالي",
     "currency": "العملة",
     "timeline": "الخط الزمني",
-    "notAvailable": "غير متوفر"
+    "notAvailable": "غير متوفر",
+    "consents": "نماذج الموافقة",
+    "consentRequired": "إجراء مطلوب",
+    "signed": "تم التوقيع",
+    "sign": "مراجعة وتوقيع",
+    "signatureName": "اكتب اسمك الكامل كتوقيع",
+    "accept": "قرأت هذه الشروط وأوافق عليها",
+    "signing": "جارٍ التوقيع…",
+    "consentSigned": "تم توقيع الموافقة.",
+    "noConsents": "لا توجد نماذج موافقة مطلوبة لهذا الحجز."
   },
   "availableNowPage": {
     "realOpenings": "مواعيد متاحة فعلياً",
