@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { evaluateAutomaticViolation } from '../common/moderation/auto-violation';
 
@@ -283,7 +284,7 @@ export class ReviewsService {
             author_user_id: userId,
             reason_type: autoViolation.reasonType,
             confidence: autoViolation.confidence,
-            details: autoViolation.details,
+            details: autoViolation.details as Prisma.InputJsonValue,
           },
         });
       }
