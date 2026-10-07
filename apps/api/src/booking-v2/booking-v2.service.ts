@@ -57,6 +57,7 @@ interface PreparedBooking {
 }
 
 const ACTIVE_APPOINTMENT_STATUSES = [
+  'awaiting_payment',
   'pending',
   'confirmed',
   'checked_in',
@@ -300,7 +301,11 @@ export class BookingV2Service {
         });
 
         const appointment = await this.persistAppointment(tx, user, prepared, {
-          status: prepared.company.auto_confirm_bookings ? 'confirmed' : 'pending',
+          status: prepared.depositAmount > 0
+            ? 'awaiting_payment'
+            : prepared.company.auto_confirm_bookings
+              ? 'confirmed'
+              : 'pending',
           notesCustomer: dto.notesCustomer,
           notesStaff: dto.notesStaff,
           isWalkIn: dto.isWalkIn,
@@ -328,8 +333,14 @@ export class BookingV2Service {
       await this.notifyCustomer(
         appointment,
         'booking_created',
-        appointment.status === 'confirmed' ? 'Booking confirmed' : 'Booking received',
-        `Your appointment is ${appointment.status === 'confirmed' ? 'confirmed' : 'pending confirmation'} for ${appointment.starts_at.toLocaleString()}.`,
+        appointment.status === 'confirmed'
+          ? 'Booking confirmed'
+          : appointment.status === 'awaiting_payment'
+            ? 'Deposit required'
+            : 'Booking received',
+        appointment.status === 'awaiting_payment'
+          ? `Your appointment is reserved and requires a deposit before confirmation.`
+          : `Your appointment is ${appointment.status === 'confirmed' ? 'confirmed' : 'pending confirmation'} for ${appointment.starts_at.toLocaleString()}.`,
       );
     }
     return appointment;
@@ -381,7 +392,11 @@ export class BookingV2Service {
         }
 
         const appointment = await this.persistAppointment(tx, user, prepared, {
-          status: prepared.company.auto_confirm_bookings ? 'confirmed' : 'pending',
+          status: prepared.depositAmount > 0
+            ? 'awaiting_payment'
+            : prepared.company.auto_confirm_bookings
+              ? 'confirmed'
+              : 'pending',
           notesCustomer: dto.notesCustomer,
           guestCount: dto.participants.length,
           source: 'group_booking',
@@ -428,7 +443,7 @@ export class BookingV2Service {
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     await this.assertAppointmentAccess(this.prisma, user, appointment);
-    if (!['pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
+    if (!['awaiting_payment', 'pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
       throw new ConflictException(`Appointment cannot be cancelled from ${appointment.status}`);
     }
 
@@ -476,7 +491,7 @@ export class BookingV2Service {
         });
         if (!existing) throw new NotFoundException('Appointment not found');
         await this.assertAppointmentAccess(tx, user, existing, { professionalAllowed: true });
-        if (!['pending', 'confirmed'].includes(existing.status)) throw new ConflictException(`Appointment cannot be rescheduled from ${existing.status}`);
+        if (!['awaiting_payment', 'pending', 'confirmed'].includes(existing.status)) throw new ConflictException(`Appointment cannot be rescheduled from ${existing.status}`);
 
         const serviceIds = existing.services.map((service: any) => service.service_id);
         const resourceIds = dto.resourceIds ?? existing.resources.map((resource: any) => resource.resource_id);
@@ -530,7 +545,11 @@ export class BookingV2Service {
             starts_at: start,
             ends_at: end,
             duration_minutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000)),
-            status: existing.status === 'pending' ? 'pending' : 'confirmed',
+            status: existing.status === 'awaiting_payment'
+              ? 'awaiting_payment'
+              : existing.status === 'pending'
+                ? 'pending'
+                : 'confirmed',
           },
         });
 
@@ -614,7 +633,7 @@ export class BookingV2Service {
       const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
       if (!appointment) throw new NotFoundException('Appointment not found');
       await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
-      if (!['pending', 'confirmed'].includes(appointment.status)) throw new ConflictException(`Appointment cannot be marked no-show from ${appointment.status}`);
+      if (!['awaiting_payment', 'pending', 'confirmed'].includes(appointment.status)) throw new ConflictException(`Appointment cannot be marked no-show from ${appointment.status}`);
       const changed = await tx.appointments.update({ where: { id: appointmentId }, data: { status: 'no_show', no_show_at: new Date() } });
       await tx.appointment_services.updateMany({ where: { appointment_id: appointmentId }, data: { status: 'no_show' } });
       await tx.appointment_status_history.create({ data: { appointment_id: appointmentId, old_status: appointment.status, new_status: 'no_show', changed_by_id: user.id, notes: notes ?? null } });
