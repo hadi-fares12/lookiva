@@ -126,9 +126,19 @@ export default function ReelsPage() {
                 </div>
                 <div className="space-y-4 p-5">
                   <div>
-                    <p className="text-xs font-semibold text-accent-gold-2">
-                      {t('by')} {author}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold text-accent-gold-2">
+                        {t('by')} {author}
+                      </p>
+                      {post.verifiedWork && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-accent-gold-2/40 bg-accent-gold-2/10 px-2.5 py-1 text-[11px] font-bold text-accent-gold-2">
+                          ✓ {t('verifiedWork')}
+                          {Number(post.verifiedWork.rating) > 0
+                            ? ` · ${Number(post.verifiedWork.rating).toFixed(1)}★`
+                            : ''}
+                        </span>
+                      )}
+                    </div>
                     <h2 className="mt-1 text-xl font-bold text-primary">
                       {post.title || service?.name || author}
                     </h2>
