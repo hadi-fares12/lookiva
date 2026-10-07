@@ -1383,7 +1383,7 @@ model customer_company_profiles {
   @@index([company_id])
   @@index([customer_id])
   @@index([merged_into_customer_id])
-  @@index([tags])
+  @@index([tags], type: Gin)
 }
 
 model customer_profiles {
