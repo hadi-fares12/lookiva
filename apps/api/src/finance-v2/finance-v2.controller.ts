@@ -129,6 +129,21 @@ export class FinanceV2Controller {
     );
   }
 
+  @Get('withdrawals')
+  @RequirePermissions(PermissionKey.FinancePayoutView)
+  @ApiOperation({ summary: 'List all withdrawal requests for platform finance review' })
+  allWithdrawals(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.finance.listAllWithdrawals(
+      user,
+      status,
+      Number(limit) || 100,
+    );
+  }
+
   @Post('withdrawals')
   @RequirePermissions(PermissionKey.FinancePayoutManage)
   @ApiOperation({ summary: 'Create a withdrawal request to a verified payout bank account' })
