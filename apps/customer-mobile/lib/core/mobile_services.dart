@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'lookiva_api.dart';
+import 'realtime.dart';
 
 const String _firebaseApiKey =
     String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
@@ -54,6 +55,7 @@ class CustomerMobileServices {
   StreamSubscription<RemoteMessage>? _messageSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
   bool _initialized = false;
+  String? _registeredToken;
   DateTime? _lastNearbyCheck;
   void Function(String path)? _openDeepLink;
 
@@ -67,7 +69,7 @@ class CustomerMobileServices {
     }
     _initialized = true;
 
-    await _initializeLocalNotifications();
+    try { await _initializeLocalNotifications(); } catch (_) {}
     await _initializePush();
     await _startNearbyIfEnabled();
   }
@@ -78,6 +80,16 @@ class CustomerMobileServices {
   }
 
   Future<void> onSignedOut() async {
+    LookivaRealtime.instance.disconnect();
+    final token = _registeredToken;
+    _registeredToken = null;
+    if (token != null) {
+      try { await LookivaApi.instance.delete('/notifications/devices', data: {'token': token}); } catch (_) {}
+    }
+    if (lookivaFirebaseConfigured && Firebase.apps.isNotEmpty) {
+      try { await FirebaseMessaging.instance.deleteToken(); } catch (_) {}
+    }
+    _lastNearbyCheck = null;
     await _positionSubscription?.cancel();
     _positionSubscription = null;
   }
@@ -197,6 +209,7 @@ class CustomerMobileServices {
           'deviceName': Platform.isIOS ? 'LOOKIVA iOS' : 'LOOKIVA Android',
         },
       );
+      _registeredToken = token;
     } catch (_) {}
   }
 
@@ -235,10 +248,22 @@ class CustomerMobileServices {
     }
 
     await _positionSubscription?.cancel();
-    final settings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 150,
-    );
+    final LocationSettings settings = Platform.isAndroid
+        ? AndroidSettings(
+            accuracy: LocationAccuracy.high, distanceFilter: 150,
+            intervalDuration: const Duration(minutes: 2),
+            foregroundNotificationConfig: const ForegroundNotificationConfig(
+              notificationTitle: 'LOOKIVA nearby alerts',
+              notificationText: 'Nearby alerts are enabled. Disable them in Nearby settings to stop location tracking.',
+              enableWakeLock: false,
+            ),
+          )
+        : AppleSettings(
+            accuracy: LocationAccuracy.high, distanceFilter: 150,
+            pauseLocationUpdatesAutomatically: true,
+            showBackgroundLocationIndicator: true,
+            allowBackgroundLocationUpdates: permission == LocationPermission.always,
+          );
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: settings,
     ).listen(
@@ -258,6 +283,8 @@ class CustomerMobileServices {
     Position position,
     Map<String, dynamic> nearby,
   ) async {
+    final access = await LookivaApi.instance.accessToken();
+    if (access == null || access.isEmpty) return;
     final now = DateTime.now();
     if (_lastNearbyCheck != null &&
         now.difference(_lastNearbyCheck!) < const Duration(minutes: 8)) {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'realtime.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -43,6 +44,7 @@ class LookivaApi {
 
   static final LookivaApi instance = LookivaApi._();
   static const _storage = FlutterSecureStorage();
+  int _sessionEpoch = 0;
   static const _accessKey = 'lookiva_customer_access';
   static const _refreshKey = 'lookiva_customer_refresh';
   static const _responseCacheKey = 'lookiva_customer_response_cache_v1';
@@ -219,11 +221,14 @@ class LookivaApi {
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
+    final epoch = _sessionEpoch;
     final fingerprint = _cacheFingerprint(path, query);
     try {
       final response = await _dio.get<dynamic>(path, queryParameters: query);
       final data = _unwrap(response.data);
-      await _writeCachedResponse(fingerprint, data);
+      if (epoch == _sessionEpoch && !RegExp(r'privacy|finance|payments|security|auth|availability|holds|check-in-token').hasMatch(path)) {
+        await _writeCachedResponse(fingerprint, data);
+      }
       return data;
     } catch (error) {
       if (_isOffline(error)) {
@@ -257,6 +262,8 @@ class LookivaApi {
     final cache = await _readResponseCache();
     final entry = cache[fingerprint];
     if (entry is! Map || !entry.containsKey('data')) return null;
+    final at = int.tryParse(entry['at']?.toString() ?? '') ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - at > const Duration(hours: 24).inMilliseconds) return null;
     return entry['data'];
   }
 
@@ -315,21 +322,29 @@ class LookivaApi {
 
   Future<dynamic> post(String path, {Object? data}) async {
     final response = await _dio.post<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> patch(String path, {Object? data}) async {
     final response = await _dio.patch<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> put(String path, {Object? data}) async {
     final response = await _dio.put<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> delete(String path, {Object? data}) async {
     final response = await _dio.delete<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
@@ -372,6 +387,8 @@ class LookivaApi {
   }
 
   Future<void> clearSession() async {
+    _sessionEpoch++;
+    LookivaRealtime.instance.disconnect();
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
     await _storage.delete(key: _responseCacheKey);

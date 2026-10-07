@@ -355,6 +355,18 @@ export class BusinessOpsController {
     return this.ops.staff(user, companyId);
   }
 
+  @Post('staff')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  grantStaff(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string, @Body() body: { identifier?: string; roleKey?: string; branchId?: string }) {
+    return this.ops.grantStaff(user, companyId, body);
+  }
+
+  @Delete('staff/:scopeId')
+  @RequirePermissions(PermissionKey.SettingsManage)
+  revokeStaff(@CurrentUser() user: AuthenticatedUser, @Param('companyId') companyId: string, @Param('scopeId') scopeId: string) {
+    return this.ops.revokeStaff(user, companyId, scopeId);
+  }
+
   @Get('accountants')
   @RequirePermissions(PermissionKey.SettingsView)
   accountants(

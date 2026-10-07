@@ -238,10 +238,37 @@ export class BusinessOpsService {
       orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
     });
     const bookings = await this.prisma.appointment_resources.findMany({
-      where: { resource: { company_id: companyId, ...(access.allBranches ? {} : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] }) }, appointment: { ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }), status: { in: ['confirmed', 'checked_in', 'in_progress'] }, starts_at: { lte: end }, ends_at: { gte: now } } },
-      include: { appointment: { select: { id: true, status: true, starts_at: true, ends_at: true, customer: { include: { user: { select: { full_name: true } } } }, participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } } } } },
+      where: {
+        resource_id: { in: items.map((resource) => resource.id) },
+        appointment: {
+          company_id: companyId,
+          ...(branchId ? { branch_id: branchId } : access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          OR: [
+            { status: { in: ['pending', 'confirmed'] }, starts_at: { lte: end }, ends_at: { gte: now } },
+            { status: { in: ['checked_in', 'in_progress'] } },
+            { status: 'completed', status_history: { none: { reason: 'floor_checked_out' } } },
+          ],
+        },
+      },
+      include: { appointment: { select: {
+        id: true, status: true, starts_at: true, ends_at: true,
+        status_history: { where: { reason: { in: ['floor_paid', 'floor_checked_out'] } }, orderBy: { created_at: 'desc' }, take: 1 },
+        customer: { include: { user: { select: { full_name: true } } } },
+        participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } },
+      } } },
+      orderBy: { appointment: { starts_at: 'asc' } },
     });
-    return items.map((resource) => ({ ...resource, activeBookings: bookings.filter((b) => b.resource_id === resource.id) }));
+    return items.map((resource) => ({
+      ...resource,
+      activeBookings: bookings.filter((b) => b.resource_id === resource.id).map((booking) => ({
+        ...booking,
+        appointment: {
+          ...booking.appointment,
+          floorStatus: booking.appointment.status_history[0]?.reason === 'floor_paid'
+            ? 'paid' : booking.appointment.status,
+        },
+      })),
+    }));
   }
 
   reviews(user: AuthenticatedUser, companyId: string, limit: number) {
@@ -266,6 +293,53 @@ export class BusinessOpsService {
       include: { user: { select: { id: true, full_name: true, email: true, phone: true, is_active: true, last_login_at: true } }, role: { select: { id: true, key: true, name: true } } },
       orderBy: { created_at: 'desc' },
     });
+  }
+
+  async grantStaff(user: AuthenticatedUser, companyId: string, dto: { identifier?: string; roleKey?: string; branchId?: string }) {
+    const access = this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const roleKey = String(dto.roleKey || 'staff');
+    if (!['staff', 'professional', 'branch_manager', 'business_manager'].includes(roleKey)) {
+      throw new BadRequestException('This role cannot be assigned through staff management');
+    }
+    const branchId = dto.branchId?.trim() || null;
+    if (roleKey !== 'business_manager' && !branchId) throw new BadRequestException('Select a branch for this role');
+    if (roleKey === 'business_manager' && branchId) throw new BadRequestException('Business managers require company scope');
+    if (branchId) await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    const identifier = String(dto.identifier || '').trim();
+    if (!identifier) throw new BadRequestException('Email or phone is required');
+    const target = await this.prisma.users.findFirst({
+      where: { OR: [{ email: identifier.toLowerCase() }, { phone: identifier }], is_active: true, deleted_at: null },
+      include: { role_scopes: { select: { role_key: true } } },
+    });
+    if (!target) throw new NotFoundException('Ask this person to create their LOOKIVA account first');
+    if (target.id === user.id || target.role_scopes.some((r) => platformRoles.has(r.role_key as UserRole) || r.role_key === UserRole.BusinessOwner)) {
+      throw new ForbiddenException('Owner and platform accounts cannot be changed through staff management');
+    }
+    const role = await this.prisma.roles.findUnique({ where: { key: roleKey } });
+    if (!role) throw new NotFoundException('Role is not configured');
+    const scopeType = branchId ? ScopeType.Branch : ScopeType.Company;
+    const scopeId = branchId || companyId;
+    const result = await this.prisma.user_role_scopes.upsert({
+      where: { user_id_role_id_scope_type_scope_id: { user_id: target.id, role_id: role.id, scope_type: scopeType, scope_id: scopeId } },
+      create: { user_id: target.id, role_id: role.id, role_key: roleKey, scope_type: scopeType, scope_id: scopeId, company_id: companyId, branch_id: branchId, granted_by_user_id: user.id },
+      update: { expires_at: null, granted_by_user_id: user.id },
+    });
+    await this.auditMutation(user, companyId, 'staff.grant', 'user_role_scope', result.id, undefined, { userId: target.id, roleKey, branchId }, branchId);
+    return result;
+  }
+
+  async revokeStaff(user: AuthenticatedUser, companyId: string, scopeId: string) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const scope = await this.prisma.user_role_scopes.findFirst({ where: { id: scopeId, company_id: companyId } });
+    if (!scope) throw new NotFoundException('Staff scope not found');
+    if (scope.user_id === user.id || !['staff','professional','branch_manager','business_manager'].includes(scope.role_key)) {
+      throw new ForbiddenException('This role cannot be removed through staff management');
+    }
+    await this.prisma.user_role_scopes.delete({ where: { id: scope.id } });
+    await this.auditMutation(user, companyId, 'staff.revoke', 'user_role_scope', scope.id, scope, { revoked: true }, scope.branch_id);
+    return { revoked: true };
   }
 
   accountants(user: AuthenticatedUser, companyId: string) {
@@ -1562,8 +1636,8 @@ export class BusinessOpsService {
     if (!access.allBranches && !branchId) {
       throw new BadRequestException('Branch-scoped users must select an authorized branch');
     }
-    const delta = Math.trunc(Number(dto.quantityChange));
-    if (!Number.isFinite(delta) || delta === 0) throw new BadRequestException('quantityChange must be a non-zero integer');
+    const delta = Number(dto.quantityChange);
+    if (!Number.isSafeInteger(delta) || delta === 0) throw new BadRequestException('quantityChange must be a non-zero integer');
     const product = await this.prisma.products.findFirst({ where: { id: productId, company_id: companyId, is_active: true } });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -1597,7 +1671,7 @@ export class BusinessOpsService {
         throw new ConflictException('Stock movement would reduce quantity below reserved stock');
       }
       const updated = await tx.inventory_items.update({
-        where: { id: inventory.id },
+        where: { id: inventory.id, quantity_on_hand: inventory.quantity_on_hand, quantity_reserved: inventory.quantity_reserved },
         data: {
           quantity_on_hand: balance,
           ...(delta > 0 ? { last_restocked_at: new Date() } : {}),

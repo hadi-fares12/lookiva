@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'realtime.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -51,6 +52,7 @@ class LookivaBusinessApi {
 
   static final LookivaBusinessApi instance = LookivaBusinessApi._();
   static const _storage = FlutterSecureStorage();
+  int _sessionEpoch = 0;
   static const _accessKey = 'lookiva_business_access';
   static const _refreshKey = 'lookiva_business_refresh';
   static const _sessionKey = 'lookiva_business_scope';
@@ -325,11 +327,14 @@ class LookivaBusinessApi {
     Map<String, dynamic>? query,
   }) async {
     final path = await _resolveScopedPath(pathTemplate);
+    final epoch = _sessionEpoch;
     final fingerprint = _cacheFingerprint(path, query);
     try {
       final response = await _dio.get<dynamic>(path, queryParameters: query);
       final data = _unwrap(response.data);
-      await _writeCachedResponse(fingerprint, data);
+      if (epoch == _sessionEpoch && !RegExp(r'privacy|finance|payments|security|auth|availability|holds|check-in-token').hasMatch(path)) {
+        await _writeCachedResponse(fingerprint, data);
+      }
       return data;
     } catch (error) {
       if (_isOffline(error)) {
@@ -363,6 +368,8 @@ class LookivaBusinessApi {
     final cache = await _readResponseCache();
     final entry = cache[fingerprint];
     if (entry is! Map || !entry.containsKey('data')) return null;
+    final at = int.tryParse(entry['at']?.toString() ?? '') ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - at > const Duration(hours: 24).inMilliseconds) return null;
     return entry['data'];
   }
 
@@ -399,18 +406,24 @@ class LookivaBusinessApi {
   Future<dynamic> postScoped(String pathTemplate, {Object? data}) async {
     final path = await _resolveScopedPath(pathTemplate);
     final response = await _dio.post<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> patchScoped(String pathTemplate, {Object? data}) async {
     final path = await _resolveScopedPath(pathTemplate);
     final response = await _dio.patch<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> deleteScoped(String pathTemplate, {Object? data}) async {
     final path = await _resolveScopedPath(pathTemplate);
     final response = await _dio.delete<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
@@ -438,6 +451,8 @@ class LookivaBusinessApi {
   }
 
   Future<void> clearSession() async {
+    _sessionEpoch++;
+    LookivaBusinessRealtime.instance.disconnect();
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
     await _storage.delete(key: _sessionKey);

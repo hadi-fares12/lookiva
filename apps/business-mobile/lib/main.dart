@@ -1,3 +1,4 @@
+import 'core/mobile_services.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -431,7 +432,9 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!onboardingSeen) {
       context.go('/onboarding');
     } else if (hasSession) {
-      context.go('/dashboard');
+      await BusinessMobileServices.instance.initialize(openDeepLink: (_) => _router.go('/ops/notifications'));
+      await BusinessMobileServices.instance.onSignedIn();
+      if (mounted) context.go('/dashboard');
     } else {
       context.go('/login');
     }
@@ -652,6 +655,8 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
         _password.text,
         rememberMe: _rememberMe,
       );
+      await BusinessMobileServices.instance.initialize(openDeepLink: (_) => _router.go('/ops/notifications'));
+      await BusinessMobileServices.instance.onSignedIn();
       if (mounted) context.go('/dashboard');
     } catch (error) {
       if (mounted) {
@@ -1077,6 +1082,7 @@ class BusinessMoreTab extends StatelessWidget {
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: () async {
+            await BusinessMobileServices.instance.onSignedOut();
             await LookivaBusinessApi.instance.logout();
             if (context.mounted) context.go('/login');
           },

@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'booking_payment.dart';
+import 'share.dart';
 
 class CustomerBookingsList extends StatefulWidget {
   const CustomerBookingsList({super.key});

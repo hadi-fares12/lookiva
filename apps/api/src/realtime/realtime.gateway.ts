@@ -48,7 +48,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       await client.join(`user:${user.id}`);
 
       for (const scope of user.roleScopes) {
-        if (scope.companyId) await client.join(`company:${scope.companyId}`);
+        if (scope.companyId && String(scope.scopeType) === 'company') await client.join(`company:${scope.companyId}`);
         if (scope.branchId) await client.join(`branch:${scope.branchId}`);
       }
 

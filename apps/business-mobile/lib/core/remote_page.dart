@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'realtime.dart';
+import 'inventory.dart';
 
 class BusinessRemotePage extends StatelessWidget {
   final String section;
@@ -63,6 +64,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   bool _busy = false;
   String? _notice;
   String _calendarView = 'day';
+  String? _filterBranch, _filterProfessional, _filterResource;
   DateTime _calendarAnchor = DateTime.now();
   final Map<String, bool> _optimisticActive = <String, bool>{};
 
@@ -114,9 +116,13 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     );
 
     switch (_calendarView) {
-      case 'three_days':
+      case 'four_days':
         start = anchor;
-        end = anchor.add(const Duration(days: 3));
+        end = anchor.add(const Duration(days: 4));
+        break;
+      case 'two_weeks':
+        start = anchor.subtract(Duration(days: anchor.weekday - DateTime.monday));
+        end = start.add(const Duration(days: 14));
         break;
       case 'week':
         start = anchor.subtract(Duration(days: anchor.weekday - DateTime.monday));
@@ -159,8 +165,11 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   void _moveCalendar(int direction) {
     setState(() {
       switch (_calendarView) {
-        case 'three_days':
-          _calendarAnchor = _calendarAnchor.add(Duration(days: 3 * direction));
+        case 'four_days':
+          _calendarAnchor = _calendarAnchor.add(Duration(days: 4 * direction));
+          break;
+        case 'two_weeks':
+          _calendarAnchor = _calendarAnchor.add(Duration(days: 14 * direction));
           break;
         case 'week':
           _calendarAnchor = _calendarAnchor.add(Duration(days: 7 * direction));
@@ -257,6 +266,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.section == 'inventory') return const BusinessInventory();
     return FutureBuilder<dynamic>(
       future: _future,
       builder: (context, snapshot) {
@@ -1420,6 +1430,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   }
 
   List<Widget> _buildSection(dynamic data) {
+    if (widget.section == 'staff') return _staff(data);
     if (widget.section == 'calendar') return _calendar(data);
     if (widget.section == 'floor') return _resources(data);
     if (widget.section == 'queue') return _queues(data);
@@ -1442,6 +1453,37 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         subtitle: row.$2.isEmpty ? null : Text(row.$2, maxLines: 6, overflow: TextOverflow.ellipsis),
       ),
     )).toList();
+  }
+
+  List<Widget> _staff(dynamic data) => [
+    FilledButton.icon(onPressed: _busy ? null : _grantStaff, icon: const Icon(Icons.person_add), label: const Text('Grant staff access')),
+    const Padding(padding: EdgeInsets.all(12), child: Text('Only the business owner can change staff access. The person must have a LOOKIVA account.')),
+    ..._maps(data).map((scope) => Card(child: ListTile(
+      title: Text(scope['user']?['full_name']?.toString() ?? scope['user']?['email']?.toString() ?? 'Staff'),
+      subtitle: Text('${scope['role']?['name'] ?? scope['role_key']} • ${scope['scope_type']}\n${scope['user']?['email'] ?? scope['user']?['phone'] ?? ''}'),
+      trailing: const {'staff','professional','branch_manager','business_manager'}.contains(scope['role_key']) ? IconButton(icon: const Icon(Icons.person_remove), tooltip: 'Revoke access', onPressed: _busy ? null : () async {
+        final accepted = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(title: const Text('Revoke this access?'), content: const Text('Other roles held by this person will remain unchanged.'), actions: [TextButton(onPressed: () => Navigator.pop(ctx,false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx,true), child: const Text('Revoke'))]));
+        if (accepted == true && mounted) await _mutate(() => LookivaBusinessApi.instance.deleteScoped('/business-ops/{companyId}/staff/${scope['id']}'), 'Access revoked.');
+      }) : null,
+    ))),
+  ];
+
+  Future<void> _grantStaff() async {
+    try {
+      final branches = _maps(await LookivaBusinessApi.instance.getScoped('/business-ops/{companyId}/branches'));
+      if (!mounted) return;
+      final identifier = TextEditingController();
+      var role = 'staff';
+      String? branch = branches.isEmpty ? null : branches.first['id'].toString();
+      final accepted = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, update) => AlertDialog(
+        title: const Text('Grant staff access'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: identifier, decoration: const InputDecoration(labelText: 'Account email or phone')),
+          DropdownButtonFormField<String>(initialValue: role, items: ['staff','professional','branch_manager','business_manager'].map((v) => DropdownMenuItem(value: v, child: Text(v.replaceAll('_',' ')))).toList(), onChanged: (v) => update(() => role=v!)),
+          if (role != 'business_manager') DropdownButtonFormField<String>(initialValue: branch, decoration: const InputDecoration(labelText: 'Branch'), items: branches.map((b) => DropdownMenuItem(value: b['id'].toString(), child: Text(b['name'].toString()))).toList(), onChanged: (v) => update(() => branch=v)),
+        ])), actions: [TextButton(onPressed: () => Navigator.pop(ctx,false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(ctx,true), child: const Text('Grant'))],
+      )));
+      if (accepted == true && mounted) await _mutate(() => LookivaBusinessApi.instance.postScoped('/business-ops/{companyId}/staff', data: {'identifier': identifier.text.trim(), 'roleKey': role, if (role != 'business_manager') 'branchId': branch}), 'Staff access granted.');
+    } catch (e) { if (mounted) setState(() => _notice = LookivaBusinessApi.instance.friendlyError(e)); }
   }
 
   List<Widget> _customers(dynamic data) {
@@ -2363,11 +2405,12 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   Widget _calendarControls() {
     final views = <(String, String)>[
       ('day', bt(context, 'calendarDay')),
-      ('three_days', bt(context, 'calendarThreeDays')),
+      ('four_days', '4 Days'),
+      ('two_weeks', '2 Weeks'),
       ('week', bt(context, 'calendarWeek')),
       ('month', bt(context, 'calendarMonth')),
       ('agenda', bt(context, 'calendarAgenda')),
-      ('timeline', bt(context, 'calendarTimeline')),
+
     ];
 
     return Card(
@@ -2433,41 +2476,96 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   }
 
   List<Widget> _calendar(dynamic data) {
-    final rows = _maps(data);
-    if (rows.isEmpty) return [_calendarControls(), _EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
+    final all = _maps(data);
+    final branches = <String, String>{}, people = <String, String>{}, chairs = <String, String>{};
+    for (final row in all) {
+      final branch = row['branch'];
+      if (branch is Map) branches[branch['id'].toString()] = branch['name'].toString();
+      for (final p in _maps(row['participants'])) {
+        final person = p['professional'];
+        if (person is Map) people[person['id'].toString()] = person['display_name'].toString();
+      }
+      for (final r in _maps(row['resources'])) {
+        final chair = r['resource'];
+        if (chair is Map) chairs[chair['id'].toString()] = chair['name'].toString();
+      }
+    }
+    final rows = all.where((a) =>
+      (_filterBranch == null || a['branch']?['id'] == _filterBranch) &&
+      (_filterProfessional == null || _maps(a['participants']).any((p) => p['professional']?['id'] == _filterProfessional)) &&
+      (_filterResource == null || _maps(a['resources']).any((r) => r['resource']?['id'] == _filterResource))).toList();
+    Widget filter(String label, String? value, Map<String,String> choices, void Function(String?) change) => DropdownButtonFormField<String>(
+      key: ValueKey('$label:$value:${choices.keys.join(',')}'),
+      initialValue: choices.containsKey(value) ? value : null,
+      decoration: InputDecoration(labelText: label),
+      items: [const DropdownMenuItem<String>(value: null, child: Text('All')), ...choices.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))],
+      onChanged: (v) => setState(() => change(v)),
+    );
+    final query = _calendarQuery();
+    final from = DateTime.parse(query['from']).toLocal();
+    final to = DateTime.parse(query['to']).toLocal();
+    final days = <DateTime>[];
+    for (var d = DateTime(from.year,from.month,from.day); !d.isAfter(to); d = DateTime(d.year,d.month,d.day+1)) { days.add(d); }
+    Widget card(Map<String,dynamic> a) {
+      final status = a['status']?.toString() ?? '';
+      final id = a['id'].toString();
+      final content = Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(_appointmentCustomer(a), style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(_appointmentServices(a)),
+        Text('${DateFormat.Hm().format(DateTime.parse(a['starts_at']).toLocal())} • ${status.replaceAll('_',' ')}'),
+        Wrap(spacing: 6, children: [
+          if (const {'pending','confirmed'}.contains(status)) TextButton(onPressed: _busy ? null : () => _appointmentAction(id,'check-in'), child: const Text('Check in')),
+          if (status == 'checked_in') TextButton(onPressed: _busy ? null : () => _appointmentAction(id,'start'), child: const Text('Start')),
+          if (status == 'in_progress') TextButton(onPressed: _busy ? null : () => _appointmentAction(id,'complete'), child: const Text('Complete')),
+          if (const {'pending','confirmed'}.contains(status)) TextButton(onPressed: _busy ? null : () => _reschedule(a), child: const Text('Reschedule')),
+          if (const {'pending','confirmed','checked_in'}.contains(status)) TextButton(onPressed: _busy ? null : () => _cancelAppointment(id), child: const Text('Cancel')),
+          if (const {'pending','confirmed'}.contains(status)) TextButton(onPressed: _busy ? null : () => _appointmentAction(id,'no-show'), child: const Text('No show')),
+        ]),
+      ])));
+      if (_busy || !const {'pending','confirmed'}.contains(status)) return content;
+      return LongPressDraggable<Map<String,dynamic>>(data: a, feedback: Material(elevation: 8, child: SizedBox(width: 210, child: ListTile(title: Text(_appointmentCustomer(a)), subtitle: const Text('Drop on the new day')))), childWhenDragging: Opacity(opacity: .35, child: content), child: content);
+    }
+    Widget dayColumn(DateTime day) => DragTarget<Map<String,dynamic>>(
+      onWillAcceptWithDetails: (_) => !_busy,
+      onAcceptWithDetails: (details) => _reschedule(details.data, day),
+      builder: (context, candidates, rejected) => Container(
+        width: _calendarView == 'day' ? null : 260,
+        margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: candidates.isEmpty ? Theme.of(context).colorScheme.surfaceContainerLow : Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(DateFormat.MMMEd().format(day), style: const TextStyle(fontWeight: FontWeight.bold)),
+          ...rows.where((a) { final start = DateTime.parse(a['starts_at']).toLocal(); return start.year==day.year && start.month==day.month && start.day==day.day; }).map(card),
+          const SizedBox(height: 36),
+        ]),
+      ),
+    );
     return [
       _calendarControls(),
-      ...rows.map((a) {
-      final id = a['id']?.toString() ?? '';
-      final status = a['status']?.toString() ?? '';
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(_appointmentCustomer(a), style: const TextStyle(fontWeight: FontWeight.w900))),
-              Chip(label: Text(status.replaceAll('_', ' '))),
-            ]),
-            Text(_appointmentServices(a)),
-            if (a['starts_at'] != null) Text(a['starts_at'].toString(), style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              if (const {'pending', 'confirmed'}.contains(status))
-                FilledButton.tonal(onPressed: _busy ? null : () => _appointmentAction(id, 'check-in'), child: const Text('Check in')),
-              if (const {'pending', 'confirmed'}.contains(status))
-                OutlinedButton(onPressed: _busy ? null : () => _appointmentAction(id, 'no-show'), child: const Text('No show')),
-              if (const {'pending', 'confirmed', 'checked_in'}.contains(status))
-                OutlinedButton(onPressed: _busy ? null : () => _cancelAppointment(id), child: const Text('Cancel')),
-              if (status == 'checked_in')
-                FilledButton(onPressed: _busy ? null : () => _appointmentAction(id, 'start'), child: const Text('Start')),
-              if (status == 'in_progress')
-                FilledButton(onPressed: _busy ? null : () => _appointmentAction(id, 'complete'), child: const Text('Complete')),
-            ]),
-          ]),
-        ),
-      );
-      }).toList(),
+      filter('Branch', _filterBranch, branches, (v) => _filterBranch=v),
+      filter('Professional', _filterProfessional, people, (v) => _filterProfessional=v),
+      filter('Chair / resource', _filterResource, chairs, (v) => _filterResource=v),
+      if (all.length >= 250) const Text('Showing the first 250 appointments. Select a shorter date range to see all entries.'),
+      const SizedBox(height: 12),
+      if (_calendarView == 'agenda') ...rows.map(card)
+      else if (_calendarView == 'day') ...days.map(dayColumn)
+      else SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: days.map(dayColumn).toList())),
     ];
+  }
+
+  Future<void> _reschedule(Map<String,dynamic> appointment, [DateTime? dropDay]) async {
+    final start = DateTime.parse(appointment['starts_at']).toLocal();
+    final end = DateTime.parse(appointment['ends_at']).toLocal();
+    final now = DateTime.now();
+    final day = dropDay ?? await showDatePicker(context: context, initialDate: start.isBefore(now) ? now : start, firstDate: DateTime(now.year,now.month,now.day), lastDate: DateTime(now.year+2));
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(start));
+    if (time == null || !mounted) return;
+    final next = DateTime(day.year,day.month,day.day,time.hour,time.minute);
+    await _mutate(() => LookivaBusinessApi.instance.patchScoped('/booking-v2/appointments/${appointment['id']}/reschedule', data: {
+      'startsAt': next.toUtc().toIso8601String(),
+      'endsAt': next.add(end.difference(start)).toUtc().toIso8601String(),
+      'reason': 'Rescheduled from Business Mobile calendar',
+    }), 'Appointment rescheduled.');
   }
 
   String _appointmentCustomer(Map<String, dynamic> a) {
@@ -2518,27 +2616,30 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     return rows.map((row) {
       final id = row['id']?.toString() ?? '';
       final active = _optimisticActive['resource:$id'] ?? row['is_active'] != false;
-      final occupied = (row['activeBookings'] as List? ?? const []).isNotEmpty;
-      final subtitle = (row['type']?.toString() ?? 'resource') + ' • ' + (occupied ? 'Occupied' : 'Available');
-      return Card(child: ListTile(
-        leading: CircleAvatar(child: Icon(config.icon)),
-        title: Text(row['name']?.toString() ?? 'Resource', style: const TextStyle(fontWeight: FontWeight.w900)),
-        subtitle: Text(subtitle),
-        trailing: Switch(
-          value: active,
-          onChanged: _busy
-              ? null
-              : (value) => _toggleActiveOptimistically(
-                    'resource:$id',
-                    value,
-                    () => LookivaBusinessApi.instance.patchScoped(
-                      '/business-ops/{companyId}/resources/' + id,
-                      data: {'isActive': value},
-                    ),
-                    'Resource updated.',
-                  ),
-        ),
-      ));
+      final bookings = _maps(row['activeBookings']);
+      return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: Text(row['name']?.toString() ?? 'Resource', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(bookings.isEmpty ? 'Ready • Available' : '${bookings.length} appointments'), value: active,
+            onChanged: _busy ? null : (value) => _toggleActiveOptimistically('resource:$id', value,
+              () => LookivaBusinessApi.instance.patchScoped('/business-ops/{companyId}/resources/$id', data: {'isActive': value}), 'Resource updated.')),
+          ...bookings.map((entry) {
+            final a = Map<String, dynamic>.from(entry['appointment'] as Map);
+            final state = a['floorStatus']?.toString() ?? a['status']?.toString() ?? '';
+            final next = <String, String>{'pending': 'ready', 'confirmed': 'ready', 'checked_in': 'started', 'in_progress': 'completed', 'completed': 'paid', 'paid': 'checked_out'}[state];
+            final label = <String, String>{'ready': 'Check in', 'started': 'Start service', 'completed': 'Complete service', 'paid': 'Confirm paid', 'checked_out': 'Check out'}[next];
+            return Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Divider(), Text(_appointmentCustomer(a), style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text('${a['starts_at']} • ${state.replaceAll('_', ' ')}'),
+              Text(_maps(a['participants']).map((p) => p['professional']?['display_name'] ?? '').join(', ')),
+              if (next != null) FilledButton.tonal(onPressed: _busy ? null : () => _mutate(
+                () => LookivaBusinessApi.instance.patchScoped('/booking-v2/appointments/${a['id']}/floor-status', data: {'state': next}),
+                'Floor updated.'), child: Text(label!)),
+              if (state == 'completed') const Text('Record the payment in Payments before confirming paid. The server verifies the full balance.'),
+            ]));
+          }),
+        ],
+      )));
     }).toList();
   }
 
