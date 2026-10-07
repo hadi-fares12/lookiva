@@ -75,6 +75,13 @@ export class PlatformOpsV2Controller {
     return this.ops.createModerationAppeal(user, dto);
   }
 
+  @Get('moderation/strikes/mine')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'List current user moderation strikes' })
+  myStrikes(@CurrentUser() user: AuthenticatedUser) {
+    return this.ops.myModerationStrikes(user);
+  }
+
   @Get('moderation/appeals/mine')
   @RequirePermissions(PermissionKey.ModerationAppealCreate)
   @ApiOperation({ summary: 'List the current user moderation appeals' })
