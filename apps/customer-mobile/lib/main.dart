@@ -14,6 +14,7 @@ import 'core/booking_flow.dart';
 import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
+import 'core/reels.dart';
 import 'core/l10n.dart';
 import 'core/privacy.dart';
 import 'core/mobile_services.dart';
@@ -335,6 +336,10 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const CustomerConversationsPage(),
     ),
     GoRoute(
+      path: '/reels',
+      builder: (context, state) => const CustomerReelsPage(),
+    ),
+    GoRoute(
       path: '/messages/:id',
       builder: (context, state) =>
           CustomerConversationPage(id: state.pathParameters['id'] ?? ''),
@@ -613,6 +618,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       label: ct(context, 'discover'),
     ),
     NavigationDestination(
+      icon: const Icon(Icons.video_collection_outlined),
+      selectedIcon: const Icon(Icons.video_collection_rounded),
+      label: ct(context, 'reels'),
+    ),
+    NavigationDestination(
       icon: const Icon(Icons.map_outlined),
       selectedIcon: const Icon(Icons.map_rounded),
       label: ct(context, 'map'),
@@ -675,6 +685,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         children: const [
           DiscoveryHome(),
           CustomerDiscoverTab(),
+          CustomerReels(),
           CustomerMapTab(),
           CustomerBookingsList(),
           CustomerAccountHub(),
