@@ -8,6 +8,7 @@ environment:
   flutter: ">=3.38.4"
 
 dependencies:
+  qr_flutter: ^4.1.0
   flutter:
     sdk: flutter
   flutter_localizations:
