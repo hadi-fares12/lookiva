@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import axios, { getAccessToken } from '@/lib/axios';
+import axios, { API_BASE, getAccessToken } from '@/lib/axios';
 
 export default function ReelsPage() {
   const locale = useLocale();
@@ -104,6 +104,9 @@ export default function ReelsPage() {
         <div className="grid gap-5 md:grid-cols-2">
           {items.map((post) => {
             const service = post.bookableService;
+            const firstMedia = Array.isArray(post.media_list) ? post.media_list[0] : null;
+            const mediaId = firstMedia?.media_id ? encodeURIComponent(String(firstMedia.media_id)) : '';
+            const mediaBase = mediaId ? `${API_BASE}/media/public/${mediaId}` : '';
             const author =
               post.professional?.display_name ||
               post.company?.display_name ||
@@ -114,16 +117,34 @@ export default function ReelsPage() {
                 key={post.id}
                 className="overflow-hidden rounded-radius-2xl border border-border-subtle bg-surface-1 shadow-shadow-1"
               >
-                <div className="flex min-h-64 items-center justify-center bg-gradient-to-br from-surface-2 via-surface-1 to-accent-gold-2/10 p-8">
-                  <div className="text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-radius-full bg-accent-gold-2/10 text-3xl">
-                      ✦
+                {mediaBase ? (
+                  firstMedia?.media_type === 'video' ? (
+                    <video
+                      className="aspect-[4/5] w-full bg-black object-cover"
+                      controls
+                      playsInline
+                      preload="metadata"
+                      poster={`${mediaBase}?variant=thumb`}
+                      src={`${mediaBase}?variant=medium`}
+                    />
+                  ) : (
+                    <img
+                      src={`${mediaBase}?variant=medium`}
+                      alt={post.title || service?.name || author}
+                      className="aspect-[4/5] w-full bg-surface-2 object-cover"
+                      loading="lazy"
+                    />
+                  )
+                ) : (
+                  <div className="flex min-h-64 items-center justify-center bg-gradient-to-br from-surface-2 via-surface-1 to-accent-gold-2/10 p-8">
+                    <div className="text-center">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-radius-full bg-accent-gold-2/10 text-3xl">✦</div>
+                      <p className="mt-4 text-xs uppercase tracking-[0.18em] text-muted">
+                        {post.media_list?.length || post.media_ids?.length || 0} media
+                      </p>
                     </div>
-                    <p className="mt-4 text-xs uppercase tracking-[0.18em] text-muted">
-                      {post.media_list?.length || post.media_ids?.length || 0} media
-                    </p>
                   </div>
-                </div>
+                )}
                 <div className="space-y-4 p-5">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
