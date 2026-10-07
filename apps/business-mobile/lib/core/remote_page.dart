@@ -911,6 +911,102 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                 ].whereType<String>().where((e) => e.isNotEmpty).join(' • '),
               ),
               const SizedBox(height: 18),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bt(context, 'crmProfile'),
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        customer['crmProfile'] is Map &&
+                                (customer['crmProfile'] as Map)['notes'] != null
+                            ? (customer['crmProfile'] as Map)['notes'].toString()
+                            : bt(context, 'noCrmNotes'),
+                      ),
+                      if (customer['crmProfile'] is Map &&
+                          ((customer['crmProfile'] as Map)['tags'] as List? ??
+                                  const [])
+                              .isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: (((customer['crmProfile'] as Map)['tags']
+                                          as List? ??
+                                      const []))
+                              .map(
+                                (tag) => Chip(
+                                  visualDensity: VisualDensity.compact,
+                                  label: Text(tag.toString()),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              Navigator.pop(sheetContext);
+                              _editCustomerCrm(customer);
+                            },
+                            icon: const Icon(Icons.edit_note_rounded),
+                            label: Text(bt(context, 'editCrm')),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(sheetContext);
+                              _mergeCustomerDuplicate(customer);
+                            },
+                            icon: const Icon(Icons.merge_rounded),
+                            label: Text(bt(context, 'mergeDuplicate')),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if ((customer['mergedAliases'] as List? ?? const []).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  bt(context, 'mergedAliases'),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                ...((customer['mergedAliases'] as List? ?? const [])
+                    .whereType<Map>()
+                    .map(
+                      (alias) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.merge_type_rounded),
+                        title: Text(
+                          alias['user'] is Map
+                              ? ((alias['user'] as Map)['full_name']
+                                      ?.toString() ??
+                                  alias['id'].toString())
+                              : alias['id'].toString(),
+                        ),
+                        subtitle: Text(
+                          alias['user'] is Map
+                              ? (((alias['user'] as Map)['phone']
+                                          ?.toString() ??
+                                      (alias['user'] as Map)['email']
+                                          ?.toString() ??
+                                      alias['id'].toString()))
+                              : alias['id'].toString(),
+                        ),
+                      ),
+                    )),
+              ],
+              const SizedBox(height: 18),
               Text(
                 bt(context, 'recentAppointments'),
                 style: const TextStyle(fontWeight: FontWeight.w900),
@@ -973,6 +1069,178 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
           ),
         ),
       );
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _notice =
+              LookivaBusinessApi.instance.friendlyError(error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editCustomerCrm(Map<String, dynamic> customer) async {
+    final customerId = customer['canonicalCustomerId']?.toString() ??
+        customer['id']?.toString();
+    if (customerId == null || customerId.isEmpty || _busy) return;
+
+    final profile = customer['crmProfile'] is Map
+        ? Map<String, dynamic>.from(customer['crmProfile'] as Map)
+        : <String, dynamic>{};
+    final notes = TextEditingController(
+      text: profile['notes']?.toString() ?? '',
+    );
+    final tags = TextEditingController(
+      text: (profile['tags'] as List? ?? const []).join(', '),
+    );
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(bt(context, 'editCrm')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: notes,
+                    minLines: 4,
+                    maxLines: 8,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'crmNotes'),
+                      hintText: bt(context, 'crmNotesHint'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: tags,
+                    decoration: InputDecoration(
+                      labelText: bt(context, 'crmTags'),
+                      hintText: bt(context, 'crmTagsHint'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(bt(context, 'cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(bt(context, 'save')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (ok == true) {
+      await _mutate(
+        () => LookivaBusinessApi.instance.patchScoped(
+          '/business-ops/{companyId}/customers/' +
+              customerId +
+              '/crm',
+          data: {
+            'notes': notes.text.trim().isEmpty ? null : notes.text.trim(),
+            'tags': tags.text
+                .split(',')
+                .map((value) => value.trim())
+                .where((value) => value.isNotEmpty)
+                .toList(),
+          },
+        ),
+        bt(context, 'crmSaved'),
+      );
+    }
+    notes.dispose();
+    tags.dispose();
+  }
+
+  Future<void> _mergeCustomerDuplicate(
+    Map<String, dynamic> customer,
+  ) async {
+    final primaryId = customer['canonicalCustomerId']?.toString() ??
+        customer['id']?.toString();
+    if (primaryId == null || primaryId.isEmpty || _busy) return;
+
+    setState(() => _busy = true);
+    try {
+      final raw = await LookivaBusinessApi.instance.getScoped(
+        '/business-ops/{companyId}/customers',
+      );
+      if (!mounted) return;
+      final candidates = (raw as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((e) => e['id']?.toString() != primaryId)
+          .toList();
+      if (candidates.isEmpty) {
+        setState(() => _notice = bt(context, 'noDuplicateCustomers'));
+        return;
+      }
+
+      String duplicateId = candidates.first['id'].toString();
+      final ok = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => StatefulBuilder(
+              builder: (context, setLocal) => AlertDialog(
+                title: Text(bt(context, 'mergeDuplicate')),
+                content: DropdownButtonFormField<String>(
+                  initialValue: duplicateId,
+                  decoration: InputDecoration(
+                    labelText: bt(context, 'duplicateCustomer'),
+                  ),
+                  items: candidates
+                      .map(
+                        (row) => DropdownMenuItem<String>(
+                          value: row['id'].toString(),
+                          child: Text(
+                            row['user'] is Map
+                                ? ((row['user'] as Map)['full_name']
+                                        ?.toString() ??
+                                    row['id'].toString())
+                                : row['id'].toString(),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setLocal(
+                    () => duplicateId = value ?? duplicateId,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(bt(context, 'cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: Text(bt(context, 'mergeDuplicate')),
+                  ),
+                ],
+              ),
+            ),
+          ) ??
+          false;
+
+      if (ok == true) {
+        await LookivaBusinessApi.instance.postScoped(
+          '/business-ops/{companyId}/customers/' +
+              primaryId +
+              '/merge-duplicate',
+          data: {'duplicateCustomerId': duplicateId},
+        );
+        if (mounted) {
+          setState(() {
+            _notice = bt(context, 'customerMerged');
+            _reload();
+          });
+        }
+      }
     } catch (error) {
       if (mounted) {
         setState(
