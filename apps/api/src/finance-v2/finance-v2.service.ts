@@ -11,6 +11,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { PaymentProviderService } from './payment-provider.service';
 import { calculateFinancialMetrics } from '../common/finance/financial-metrics';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   CreatePaymentDto,
   CreatePayoutDto,
@@ -48,6 +50,8 @@ export class FinanceV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentProvider: PaymentProviderService,
+    private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   private hasPlatformRole(user: AuthenticatedUser) {
@@ -77,7 +81,7 @@ export class FinanceV2Service {
   }
 
   async createPayment(user: AuthenticatedUser, dto: CreatePaymentDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const company = await tx.companies.findUnique({ where: { id: dto.companyId } });
       if (!company) throw new NotFoundException('Company not found');
 
@@ -295,7 +299,12 @@ export class FinanceV2Service {
         // customer is not completed until staff explicitly completes the appointment.
       }
 
-      return tx.payments.findUnique({
+      const appointmentTransition =
+        status === 'succeeded' && appointment
+          ? await this.transitionDepositBookingIfPaid(tx, appointment.id, user.id)
+          : null;
+
+      const savedPayment = await tx.payments.findUnique({
         where: { id: payment.id },
         include: {
           transactions: true,
@@ -303,7 +312,13 @@ export class FinanceV2Service {
           commissions: true,
         },
       });
+      return { payment: savedPayment, appointmentTransition };
     });
+
+    if (result.appointmentTransition) {
+      await this.publishDepositTransition(result.appointmentTransition);
+    }
+    return result.payment;
   }
 
   async refundPayment(
@@ -459,7 +474,7 @@ export class FinanceV2Service {
   ) {
     this.paymentProvider.verifyWebhook(rawBody, signature);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payments.findFirst({
         where: { external_transaction_id: dto.externalTransactionId },
         include: {
@@ -479,7 +494,7 @@ export class FinanceV2Service {
       // transaction. This avoids a provider retry storm while revealing no
       // customer/payment information to the caller.
       if (!payment) {
-        return { received: true, ignored: true, reason: 'unknown_transaction' };
+        return { response: { received: true, ignored: true, reason: 'unknown_transaction' }, appointmentTransition: null };
       }
 
       if (payment.external_transaction_id !== dto.externalTransactionId) {
@@ -487,14 +502,14 @@ export class FinanceV2Service {
       }
 
       if (payment.status === dto.status) {
-        return { received: true, duplicate: true, paymentId: payment.id, status: payment.status };
+        return { response: { received: true, duplicate: true, paymentId: payment.id, status: payment.status }, appointmentTransition: null };
       }
 
       // A successfully captured payment is final for capture purposes. Refunds
       // are represented by separate refund records and must never be simulated
       // by a later "failed" capture webhook.
       if (['succeeded', 'partially_refunded', 'refunded'].includes(payment.status)) {
-        return { received: true, ignored: true, paymentId: payment.id, status: payment.status };
+        return { response: { received: true, ignored: true, paymentId: payment.id, status: payment.status }, appointmentTransition: null };
       }
 
       const now = new Date();
@@ -549,12 +564,28 @@ export class FinanceV2Service {
         }
       }
 
+      const appointmentTransition =
+        nextStatus === 'succeeded' && payment.appointment_id
+          ? await this.transitionDepositBookingIfPaid(tx, payment.appointment_id, null)
+          : null;
+
       return {
-        received: true,
-        paymentId: payment.id,
-        status: nextStatus,
+        response: {
+          received: true,
+          paymentId: payment.id,
+          status: nextStatus,
+        },
+        appointmentTransition,
       };
     });
+
+    if ('response' in result) {
+      if (result.appointmentTransition) {
+        await this.publishDepositTransition(result.appointmentTransition);
+      }
+      return result.response;
+    }
+    return result;
   }
 
   async getLedger(user: AuthenticatedUser, companyId: string, currencyCode?: string) {
@@ -755,6 +786,101 @@ export class FinanceV2Service {
       total: money(dto.subtotal + tax),
       taxInclusive: false,
     };
+  }
+
+  private async transitionDepositBookingIfPaid(
+    tx: Prisma.TransactionClient,
+    appointmentId: string,
+    changedById: string | null,
+  ) {
+    const appointment = await tx.appointments.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: { select: { auto_confirm_bookings: true } },
+        financial_snapshot: true,
+        payments: {
+          where: { status: { in: ['succeeded', 'partially_refunded', 'refunded'] } },
+          include: { refunds: { where: { status: 'succeeded' } } },
+        },
+      },
+    });
+    if (!appointment || appointment.status !== 'awaiting_payment' || !appointment.financial_snapshot) {
+      return null;
+    }
+
+    const requiredDeposit = Number(appointment.financial_snapshot.deposit_amount ?? 0);
+    if (requiredDeposit <= 0) return null;
+
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce((refundSum, refund) => refundSum + Number(refund.amount), 0),
+        ),
+      0,
+    );
+    if (collected + 0.009 < requiredDeposit) return null;
+
+    const nextStatus = appointment.company.auto_confirm_bookings ? 'confirmed' : 'pending';
+    const updated = await tx.appointments.update({
+      where: { id: appointment.id },
+      data: { status: nextStatus },
+    });
+    await tx.appointment_status_history.create({
+      data: {
+        appointment_id: appointment.id,
+        old_status: 'awaiting_payment',
+        new_status: nextStatus,
+        changed_by_id: changedById,
+        reason: 'required_deposit_paid',
+        notes: `Required deposit ${money(requiredDeposit)} ${appointment.financial_snapshot.currency_code} collected.`,
+      },
+    });
+    return {
+      id: updated.id,
+      customerUserId: updated.customer_user_id,
+      companyId: updated.company_id,
+      branchId: updated.branch_id,
+      startsAt: updated.starts_at,
+      status: updated.status,
+    };
+  }
+
+  private async publishDepositTransition(appointment: {
+    id: string;
+    customerUserId: string | null;
+    companyId: string;
+    branchId: string;
+    startsAt: Date;
+    status: string;
+  }) {
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      startsAt: appointment.startsAt.toISOString(),
+      changeType: 'required_deposit_paid',
+    };
+    this.realtime.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime.emitCompany(appointment.companyId, 'booking:changed', payload);
+    this.realtime.emitBranch(appointment.branchId, 'booking:changed', payload);
+    if (appointment.customerUserId) {
+      this.realtime.emitUser(appointment.customerUserId, 'booking:changed', payload);
+      await this.notifications.dispatch({
+        recipientUserId: appointment.customerUserId,
+        notificationType: 'booking_deposit_paid',
+        title: appointment.status === 'confirmed' ? 'Booking confirmed' : 'Deposit received',
+        body:
+          appointment.status === 'confirmed'
+            ? 'Your required deposit was received and your booking is confirmed.'
+            : 'Your required deposit was received. The business will confirm your booking shortly.',
+        companyId: appointment.companyId,
+        branchId: appointment.branchId,
+        deepLink: `/bookings/${appointment.id}`,
+        payload,
+      });
+    }
   }
 
   private async writePaymentLedger(
