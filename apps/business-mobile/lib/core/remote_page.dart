@@ -32,6 +32,7 @@ class BusinessRemoteBody extends StatefulWidget {
     'services': (titleKey: 'services', path: '/business-ops/{companyId}/services', icon: Icons.design_services_rounded),
     'payments': (titleKey: 'payments', path: '/business-ops/{companyId}/payments', icon: Icons.payments_rounded),
     'payouts': (titleKey: 'payouts', path: '/finance-v2/companies/{companyId}/payouts', icon: Icons.account_balance_outlined),
+    'package-redemptions': (titleKey: 'packageRedemptions', path: '/business-ops/{companyId}/package-redemptions', icon: Icons.redeem_rounded),
     'notifications': (titleKey: 'notifications', path: '/notifications', icon: Icons.notifications_none_rounded),
     'inventory': (titleKey: 'inventory', path: '/business-ops/{companyId}/inventory', icon: Icons.inventory_2_outlined),
     'commissions': (titleKey: 'commissions', path: '/business-ops/{companyId}/commission-rules', icon: Icons.percent_rounded),
@@ -293,7 +294,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                 const SizedBox(height: 10),
                 Card(child: Padding(padding: const EdgeInsets.all(12), child: Text(_notice!))),
               ],
-              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts', 'banking'}.contains(widget.section)) ...[
+              if (const {'services', 'floor', 'promotions', 'queue', 'commissions', 'payouts', 'banking', 'package-redemptions'}.contains(widget.section)) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -321,6 +322,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'commissions') return bt(context, 'addCommission');
     if (widget.section == 'payouts') return bt(context, 'createPayout');
     if (widget.section == 'banking') return bt(context, 'addBankAccount');
+    if (widget.section == 'package-redemptions') return bt(context, 'redeemPackage');
     return 'Add';
   }
 
@@ -332,6 +334,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'commissions') return _createCommissionRule();
     if (widget.section == 'payouts') return _createPayout();
     if (widget.section == 'banking') return _createBankAccount();
+    if (widget.section == 'package-redemptions') return _redeemPackage();
   }
 
   Future<void> _createService() async {
@@ -512,6 +515,305 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
       }),
       'Queue created.',
     );
+  }
+
+  Future<void> _redeemPackage() async {
+    final purchasesRaw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/package-purchases',
+    );
+    final servicesRaw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/services',
+    );
+    final professionalsRaw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/professionals',
+    );
+    final appointmentsRaw = await LookivaBusinessApi.instance.getScoped(
+      '/business-ops/{companyId}/appointments',
+    );
+    if (!mounted) return;
+
+    final purchases = (purchasesRaw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final services = (servicesRaw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    final professionals = (professionalsRaw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['is_active'] != false)
+        .toList();
+    final appointments = (appointmentsRaw as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    if (purchases.isEmpty) {
+      setState(() => _notice = bt(context, 'noActivePackages'));
+      return;
+    }
+
+    String purchaseId = purchases.first['id'].toString();
+    String? serviceId;
+    String? appointmentId;
+    String? professionalId;
+    final sessions = TextEditingController(text: '1');
+
+    List<String> serviceIdsFor(String id) {
+      final purchase = purchases.firstWhere(
+        (row) => row['id']?.toString() == id,
+        orElse: () => purchases.first,
+      );
+      final package = purchase['package'] is Map
+          ? Map<String, dynamic>.from(purchase['package'] as Map)
+          : <String, dynamic>{};
+      return (package['service_ids'] as List? ?? const [])
+          .map((e) => e.toString())
+          .toList();
+    }
+
+    serviceId = serviceIdsFor(purchaseId).firstOrNull;
+
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) {
+              final selectedPurchase = purchases.firstWhere(
+                (row) => row['id']?.toString() == purchaseId,
+                orElse: () => purchases.first,
+              );
+              final customer = selectedPurchase['customer'] is Map
+                  ? Map<String, dynamic>.from(
+                      selectedPurchase['customer'] as Map,
+                    )
+                  : <String, dynamic>{};
+              final user = customer['user'] is Map
+                  ? Map<String, dynamic>.from(customer['user'] as Map)
+                  : <String, dynamic>{};
+              final package = selectedPurchase['package'] is Map
+                  ? Map<String, dynamic>.from(
+                      selectedPurchase['package'] as Map,
+                    )
+                  : <String, dynamic>{};
+              final allowedServiceIds = serviceIdsFor(purchaseId);
+              final allowedServices = services
+                  .where(
+                    (service) =>
+                        allowedServiceIds.contains(service['id']?.toString()),
+                  )
+                  .toList();
+              if (serviceId == null ||
+                  !allowedServiceIds.contains(serviceId)) {
+                serviceId = allowedServiceIds.firstOrNull;
+              }
+              final customerId = selectedPurchase['customer_id']?.toString();
+              final matchingAppointments = appointments
+                  .where(
+                    (appointment) =>
+                        customerId != null &&
+                        appointment['customer_id']?.toString() == customerId &&
+                        !const {'cancelled', 'no_show'}
+                            .contains(appointment['status']?.toString()),
+                  )
+                  .toList();
+              if (appointmentId != null &&
+                  !matchingAppointments.any(
+                    (appointment) =>
+                        appointment['id']?.toString() == appointmentId,
+                  )) {
+                appointmentId = null;
+              }
+
+              return AlertDialog(
+                title: Text(bt(context, 'redeemPackage')),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: purchaseId,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'packagePurchase'),
+                        ),
+                        items: purchases.map((row) {
+                          final p = row['package'] is Map
+                              ? Map<String, dynamic>.from(
+                                  row['package'] as Map,
+                                )
+                              : <String, dynamic>{};
+                          final cst = row['customer'] is Map
+                              ? Map<String, dynamic>.from(
+                                  row['customer'] as Map,
+                                )
+                              : <String, dynamic>{};
+                          final usr = cst['user'] is Map
+                              ? Map<String, dynamic>.from(
+                                  cst['user'] as Map,
+                                )
+                              : <String, dynamic>{};
+                          return DropdownMenuItem(
+                            value: row['id'].toString(),
+                            child: Text(
+                              (usr['full_name']?.toString() ??
+                                      bt(context, 'customer')) +
+                                  ' • ' +
+                                  (p['name']?.toString() ??
+                                      bt(context, 'package')) +
+                                  ' • ' +
+                                  (row['sessions_remaining']?.toString() ??
+                                      '0') +
+                                  ' ' +
+                                  bt(context, 'sessionsLeft'),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setLocal(() {
+                            purchaseId = value;
+                            serviceId =
+                                serviceIdsFor(value).firstOrNull;
+                            appointmentId = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey(
+                          'service:' + purchaseId + ':' + (serviceId ?? ''),
+                        ),
+                        initialValue: allowedServices.any(
+                          (row) => row['id']?.toString() == serviceId,
+                        )
+                            ? serviceId
+                            : null,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'service'),
+                        ),
+                        items: allowedServices
+                            .map(
+                              (row) => DropdownMenuItem(
+                                value: row['id'].toString(),
+                                child: Text(
+                                  row['name']?.toString() ??
+                                      bt(context, 'service'),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setLocal(() => serviceId = value),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String?>(
+                        key: ValueKey(
+                          'appointment:' +
+                              purchaseId +
+                              ':' +
+                              (appointmentId ?? ''),
+                        ),
+                        initialValue: appointmentId,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'appointment'),
+                        ),
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text(bt(context, 'noAppointment')),
+                          ),
+                          ...matchingAppointments.map(
+                            (row) => DropdownMenuItem<String?>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                (row['starts_at']?.toString() ?? '') +
+                                    ' • ' +
+                                    (row['status']?.toString() ?? ''),
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setLocal(() => appointmentId = value),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String?>(
+                        initialValue: professionalId,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'professional'),
+                        ),
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text(bt(context, 'anyProfessional')),
+                          ),
+                          ...professionals.map(
+                            (row) => DropdownMenuItem<String?>(
+                              value: row['id'].toString(),
+                              child: Text(
+                                row['display_name']?.toString() ??
+                                    bt(context, 'professional'),
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setLocal(() => professionalId = value),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: sessions,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: bt(context, 'sessionsUsed'),
+                          helperText:
+                              (user['full_name']?.toString() ?? '') +
+                                  ' • ' +
+                                  (package['name']?.toString() ?? ''),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: Text(bt(context, 'cancel')),
+                  ),
+                  FilledButton(
+                    onPressed: serviceId == null
+                        ? null
+                        : () => Navigator.pop(dialogContext, true),
+                    child: Text(bt(context, 'redeemPackage')),
+                  ),
+                ],
+              );
+            },
+          ),
+        ) ??
+        false;
+
+    if (ok != true || serviceId == null) {
+      sessions.dispose();
+      return;
+    }
+
+    await _mutate(
+      () => LookivaBusinessApi.instance.postScoped(
+        '/business-ops/{companyId}/package-redemptions',
+        data: {
+          'packagePurchaseId': purchaseId,
+          'serviceId': serviceId,
+          if (appointmentId != null) 'appointmentId': appointmentId,
+          if (professionalId != null) 'professionalId': professionalId,
+          'sessionsUsed': int.tryParse(sessions.text) ?? 1,
+        },
+      ),
+      bt(context, 'packageRedeemed'),
+    );
+    sessions.dispose();
   }
 
   Future<void> _createBankAccount() async {
@@ -972,6 +1274,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     if (widget.section == 'commissions') return _commissionRules(data);
     if (widget.section == 'payouts') return _payouts(data);
     if (widget.section == 'banking') return _bankAccounts(data);
+    if (widget.section == 'package-redemptions') return _packageRedemptions(data);
 
     final rows = _rows(data);
     if (rows.isEmpty) return [_EmptyState(icon: config.icon, label: bt(context, 'noRecords'))];
@@ -1706,6 +2009,71 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
                           : bt(context, 'bankAccountDisabled'),
                     ),
           ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<Widget> _packageRedemptions(dynamic data) {
+    final rows = _maps(data);
+    if (rows.isEmpty) {
+      return [
+        _EmptyState(
+          icon: config.icon,
+          label: bt(context, 'noPackageRedemptions'),
+        ),
+      ];
+    }
+    return rows.map((row) {
+      final purchase = row['package_purchase'] is Map
+          ? Map<String, dynamic>.from(row['package_purchase'] as Map)
+          : <String, dynamic>{};
+      final package = purchase['package'] is Map
+          ? Map<String, dynamic>.from(purchase['package'] as Map)
+          : <String, dynamic>{};
+      final customer = purchase['customer'] is Map
+          ? Map<String, dynamic>.from(purchase['customer'] as Map)
+          : <String, dynamic>{};
+      final user = customer['user'] is Map
+          ? Map<String, dynamic>.from(customer['user'] as Map)
+          : <String, dynamic>{};
+      final service = row['service'] is Map
+          ? Map<String, dynamic>.from(row['service'] as Map)
+          : <String, dynamic>{};
+      final appointment = row['appointment'] is Map
+          ? Map<String, dynamic>.from(row['appointment'] as Map)
+          : <String, dynamic>{};
+
+      return Card(
+        child: ListTile(
+          leading: const CircleAvatar(
+            child: Icon(Icons.redeem_rounded),
+          ),
+          title: Text(
+            (user['full_name']?.toString() ??
+                    bt(context, 'customer')) +
+                ' • ' +
+                (package['name']?.toString() ??
+                    bt(context, 'package')),
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Text(
+            (service['name']?.toString() ??
+                    bt(context, 'service')) +
+                ' • ' +
+                (row['sessions_used']?.toString() ?? '1') +
+                ' ' +
+                bt(context, 'sessionsUsedShort') +
+                (appointment.isNotEmpty
+                    ? '\n' +
+                        (appointment['starts_at']?.toString() ?? '') +
+                        ' • ' +
+                        (appointment['status']?.toString() ?? '')
+                    : '') +
+                '\n' +
+                (row['used_at']?.toString() ?? ''),
+          ),
+          isThreeLine: true,
         ),
       );
     }).toList();
