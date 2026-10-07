@@ -54,6 +54,7 @@ class LookivaBusinessApi {
   static const _accessKey = 'lookiva_business_access';
   static const _refreshKey = 'lookiva_business_refresh';
   static const _sessionKey = 'lookiva_business_scope';
+  static const _responseCacheKey = 'lookiva_business_response_cache_v1';
   static const _prefApiUrl = 'biz_api_base_url';
   static const _allowedRoles = {
     'business_owner',
@@ -182,6 +183,7 @@ class LookivaBusinessApi {
     if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
     }
+    await _storage.delete(key: _responseCacheKey);
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -323,8 +325,75 @@ class LookivaBusinessApi {
     Map<String, dynamic>? query,
   }) async {
     final path = await _resolveScopedPath(pathTemplate);
-    final response = await _dio.get<dynamic>(path, queryParameters: query);
-    return _unwrap(response.data);
+    final fingerprint = _cacheFingerprint(path, query);
+    try {
+      final response = await _dio.get<dynamic>(path, queryParameters: query);
+      final data = _unwrap(response.data);
+      await _writeCachedResponse(fingerprint, data);
+      return data;
+    } catch (error) {
+      if (_isOffline(error)) {
+        final cached = await _readCachedResponse(fingerprint);
+        if (cached != null) return cached;
+      }
+      rethrow;
+    }
+  }
+
+  String _cacheFingerprint(String path, Map<String, dynamic>? query) {
+    if (query == null || query.isEmpty) return path;
+    final keys = query.keys.toList()..sort();
+    final normalized = <String, dynamic>{
+      for (final key in keys) key: query[key],
+    };
+    return '$path?${jsonEncode(normalized)}';
+  }
+
+  Future<Map<String, dynamic>> _readResponseCache() async {
+    final raw = await _storage.read(key: _responseCacheKey);
+    if (raw == null || raw.isEmpty) return <String, dynamic>{};
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<dynamic> _readCachedResponse(String fingerprint) async {
+    final cache = await _readResponseCache();
+    final entry = cache[fingerprint];
+    if (entry is! Map || !entry.containsKey('data')) return null;
+    return entry['data'];
+  }
+
+  Future<void> _writeCachedResponse(String fingerprint, dynamic data) async {
+    try {
+      final cache = await _readResponseCache();
+      cache[fingerprint] = {
+        'at': DateTime.now().millisecondsSinceEpoch,
+        'data': data,
+      };
+
+      if (cache.length > 30) {
+        final entries = cache.entries.toList()
+          ..sort((a, b) {
+            final aAt = a.value is Map
+                ? int.tryParse((a.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            final bAt = b.value is Map
+                ? int.tryParse((b.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            return aAt.compareTo(bAt);
+          });
+        for (final entry in entries.take(cache.length - 30)) {
+          cache.remove(entry.key);
+        }
+      }
+
+      await _storage.write(key: _responseCacheKey, value: jsonEncode(cache));
+    } catch (_) {
+      // Offline cache is best-effort and must never break a successful request.
+    }
   }
 
   Future<dynamic> postScoped(String pathTemplate, {Object? data}) async {
@@ -372,6 +441,7 @@ class LookivaBusinessApi {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
     await _storage.delete(key: _sessionKey);
+    await _storage.delete(key: _responseCacheKey);
   }
 
   Future<bool> _refresh() async {
