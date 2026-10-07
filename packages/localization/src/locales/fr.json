@@ -594,7 +594,8 @@
         "regions": "Régions",
         "currencies": "Devises",
         "plans": "Forfaits",
-        "appeals": "Recours"
+        "appeals": "Recours",
+        "withdrawals": "Retraits"
       }
     }
   },
@@ -1026,13 +1027,19 @@
       "appeals": {
         "title": "Recours de modération",
         "subtitle": "Examinez les recours, annulez les actions erronées, restaurez le contenu et les sanctions liées."
+      },
+      "withdrawals": {
+        "title": "Examen des retraits",
+        "subtitle": "Approuvez, traitez, terminez ou refusez les demandes de retrait vers des comptes vérifiés."
       }
     },
     "prompts": {
       "reason": "Motif (facultatif)",
       "rejectionReason": "Motif du rejet (obligatoire)",
       "resolution": "Note de résolution",
-      "newValue": "Nouvelle valeur pour {key}"
+      "newValue": "Nouvelle valeur pour {key}",
+      "withdrawalRejectionReason": "Motif du refus du retrait",
+      "withdrawalReference": "Référence banque/prestataire (facultatif)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -1052,8 +1059,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "Retrait approuvé.",
+        "rejected": "Retrait refusé.",
+        "processing": "Retrait en cours de traitement.",
+        "completed": "Retrait terminé et comptabilisé.",
+        "failed": "Retrait marqué en échec."
+      }
+    },
+    "startProcessing": "Démarrer le traitement",
+    "completeWithdrawal": "Terminer",
+    "markFailed": "Marquer en échec",
+    "retryProcessing": "Relancer le traitement"
   },
   "customerAccount": {
     "eyebrow": "Compte LOOKIVA",
