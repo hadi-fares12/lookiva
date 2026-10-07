@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { FinanceV2Service } from '../finance-v2/finance-v2.service';
+import { BookingV2Service } from '../booking-v2/booking-v2.service';
+import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { UserRole } from '@lookiva/shared-types';
 
 function pageArgs(page: number, limit: number, max = 250) {
@@ -14,6 +17,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
+    private readonly finance: FinanceV2Service,
+    private readonly booking: BookingV2Service,
   ) {}
 
   private async writeAudit(actorUserId: string, action: string, entityType: string, entityId: string, oldValue?: unknown, newValue?: unknown, companyId?: string | null) {
@@ -587,6 +592,56 @@ export class AdminService {
       ...tokens,
       impersonationExpiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
     };
+  }
+
+  async cancelBooking(
+    actor: AuthenticatedUser,
+    appointmentId: string,
+    reason: string,
+    notes?: string,
+  ) {
+    const updated = await this.booking.cancelAppointment(actor, appointmentId, {
+      reason: reason?.trim() || 'Cancelled by platform administrator',
+      notes: notes?.trim() || undefined,
+    });
+    await this.writeAudit(
+      actor.id,
+      'admin.booking.cancel',
+      'appointment',
+      appointmentId,
+      undefined,
+      { status: updated.status, reason },
+      updated.company_id,
+    );
+    return updated;
+  }
+
+  async manualRefund(
+    actor: AuthenticatedUser,
+    paymentId: string,
+    body: { amount: number; reason: string; refundMethod?: string; notes?: string },
+  ) {
+    const refund = await this.finance.refundPayment(actor, paymentId, {
+      amount: Number(body.amount),
+      reason: String(body.reason || '').trim(),
+      refundMethod: body.refundMethod?.trim() || undefined,
+      notes: body.notes?.trim() || undefined,
+    });
+    await this.writeAudit(
+      actor.id,
+      'admin.payment.refund',
+      'payment',
+      paymentId,
+      undefined,
+      {
+        refundId: refund?.id,
+        amount: refund?.amount,
+        currencyCode: refund?.currency_code,
+        reason: body.reason,
+      },
+      refund?.company_id ?? null,
+    );
+    return refund;
   }
 
   async bookings(page = 1, limit = 50, status?: string) {
