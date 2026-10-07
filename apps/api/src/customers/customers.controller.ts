@@ -33,6 +33,19 @@ export class CustomersController {
     return this.customersService.patchProfile(user?.id, dto);
   }
 
+  @Get('privacy/export')
+  exportPrivacyData(@CurrentUser() user: any) {
+    return this.customersService.exportAccountData(user?.id);
+  }
+
+  @Post('privacy/delete')
+  deleteAccount(
+    @CurrentUser() user: any,
+    @Body() body: { confirmation?: string },
+  ) {
+    return this.customersService.deleteAccount(user?.id, String(body.confirmation || ''));
+  }
+
   @Get('favorites')
   @ApiQuery({ name: 'tab', required: false, enum: ['business', 'professional', 'service', 'post'] })
   @ApiQuery({ name: 'limit', required: false, type: Number })
