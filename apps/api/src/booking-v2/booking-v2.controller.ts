@@ -23,6 +23,7 @@ import {
   JoinQueueDto,
   QueueEntryActionDto,
   RescheduleAppointmentDto,
+  FloorStatusDto,
   AppointmentTransitionDto,
 } from './dto/booking-v2.dto';
 
@@ -134,6 +135,17 @@ export class BookingV2Controller {
     return this.booking.checkIn(user, id, dto);
   }
 
+
+  @Patch('appointments/:id/floor-status')
+  @RequirePermissions(PermissionKey.BookingManage)
+  @ApiOperation({ summary: 'Advance floor-board state through ready, started, completed, paid and checked-out' })
+  floorStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: FloorStatusDto,
+  ) {
+    return this.booking.updateFloorStatus(user, id, dto.state);
+  }
 
   @Patch('appointments/:id/start')
   @RequirePermissions(PermissionKey.BookingManage)
