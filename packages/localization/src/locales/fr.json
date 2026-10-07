@@ -1074,6 +1074,10 @@
       "collections": {
         "title": "Collections",
         "subtitle": "Découvrez les travaux récents des salons et professionnels que vous suivez."
+      },
+      "moderation": {
+        "title": "Modération et recours",
+        "subtitle": "Consultez les sanctions du compte et suivez vos recours de modération."
       }
     },
     "actions": {
@@ -1088,7 +1092,8 @@
       "saveNearby": "Enregistrer la proximité",
       "saveProfile": "Enregistrer le profil",
       "downloadData": "Télécharger mes données",
-      "deleteAccount": "Supprimer définitivement le compte"
+      "deleteAccount": "Supprimer définitivement le compte",
+      "appeal": "Faire appel"
     },
     "empty": {
       "bookings": "Aucune réservation. Découvrez un professionnel et réservez votre premier rendez-vous.",
@@ -1098,7 +1103,9 @@
       "reviews": "Vous n’avez encore publié aucun avis.",
       "sessions": "Aucune session active trouvée.",
       "generic": "Aucune donnée dans cette section.",
-      "activity": "Aucune activité."
+      "activity": "Aucune activité.",
+      "strikes": "Aucune sanction de modération n’est associée à votre compte.",
+      "appeals": "Vous n’avez encore soumis aucun recours de modération."
     },
     "labels": {
       "booking": "Réservation",
@@ -1150,7 +1157,14 @@
       "standard": "Standard",
       "privacyIntro": "L’export contient votre compte, préférences, réservations, paiements, messages et autres données liées au compte.",
       "deleteWarning": "La suppression est définitive. Les réservations actives ou futures doivent d’abord être terminées ou annulées.",
-      "deletePhrase": "Saisissez DELETE MY ACCOUNT pour confirmer."
+      "deletePhrase": "Saisissez DELETE MY ACCOUNT pour confirmer.",
+      "myStrikes": "Mes sanctions",
+      "myAppeals": "Mes recours",
+      "moderationAction": "Action de modération",
+      "noModerationDetails": "Aucun détail supplémentaire n’a été fourni.",
+      "inactive": "inactif",
+      "appealReasonPrompt": "Expliquez pourquoi cette action devrait être annulée (au moins 10 caractères).",
+      "resolution": "Résolution"
     },
     "messages": {
       "favoriteRemoved": "Retiré des favoris.",
@@ -1162,7 +1176,8 @@
       "nearbySaved": "Paramètres de proximité enregistrés.",
       "profileSaved": "Profil enregistré.",
       "exportReady": "L’export de vos données est prêt.",
-      "accountDeleted": "Votre compte a été supprimé définitivement."
+      "accountDeleted": "Votre compte a été supprimé définitivement.",
+      "appealSubmitted": "Votre recours de modération a été envoyé."
     }
   },
   "customerBooking": {
