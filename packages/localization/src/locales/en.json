@@ -1227,7 +1227,12 @@
     "accept": "I have read and accept these terms",
     "signing": "Signing…",
     "consentSigned": "Consent signed.",
-    "noConsents": "No consent forms are required for this booking."
+    "noConsents": "No consent forms are required for this booking.",
+    "checkInQr": "Check-in QR",
+    "showQr": "Show check-in QR",
+    "qrHint": "Show this QR to the salon team when you arrive. It expires automatically.",
+    "qrUnavailable": "Check-in QR is not available yet.",
+    "qrExpires": "Expires"
   },
   "availableNowPage": {
     "realOpenings": "real openings",
