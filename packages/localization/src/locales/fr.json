@@ -715,7 +715,9 @@
       "addStage": "Ajouter une étape",
       "saveStages": "Enregistrer les étapes",
       "remove": "Supprimer",
-      "useTemplate": "Utiliser le modèle"
+      "useTemplate": "Utiliser le modèle",
+      "saveCrm": "Enregistrer CRM",
+      "mergeDuplicate": "Fusionner un doublon"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -781,7 +783,16 @@
       "serviceStagesHint": "Décomposez le service en étapes opérationnelles ordonnées. La durée totale ne peut pas dépasser celle du service.",
       "stageName": "Nom de l’étape",
       "stageDuration": "Durée de l’étape (minutes)",
-      "noStages": "Aucune étape configurée. Ajoutez-en une pour un service en plusieurs phases."
+      "noStages": "Aucune étape configurée. Ajoutez-en une pour un service en plusieurs phases.",
+      "crmProfile": "Profil CRM",
+      "crmNotes": "Notes de l’entreprise",
+      "crmNotesHint": "Notes privées pour cette entreprise uniquement.",
+      "crmTags": "Étiquettes client",
+      "crmTagsHint": "VIP, coloration, préfère Hadi…",
+      "duplicateCustomerId": "ID du client en doublon à fusionner",
+      "mergedAliases": "Profils doublons fusionnés",
+      "recentAppointments": "Rendez-vous récents",
+      "recentPayments": "Paiements récents"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -806,7 +817,10 @@
       "promotionActivated": "Promotion activée.",
       "dependenciesSaved": "Dépendances du service enregistrées.",
       "stagesSaved": "Étapes du service enregistrées.",
-      "templateCreated": "Formulaire créé à partir du modèle."
+      "templateCreated": "Formulaire créé à partir du modèle.",
+      "crmSaved": "Profil CRM client enregistré.",
+      "mergeSameCustomer": "Choisissez un autre client en doublon.",
+      "customerMerged": "Client en doublon fusionné pour cette entreprise."
     }
   },
   "adminOps": {
