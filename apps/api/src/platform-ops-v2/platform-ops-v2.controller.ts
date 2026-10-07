@@ -7,7 +7,9 @@ import { AuthenticatedUser } from '../auth/types/request-with-user';
 import {
   AiParseSearchDto,
   CreateGeofenceCandidateDto,
+  CreateModerationAppealDto,
   ModerateReportDto,
+  ResolveModerationAppealDto,
 } from './dto/platform-ops-v2.dto';
 import { PlatformOpsV2Service } from './platform-ops-v2.service';
 
@@ -61,6 +63,41 @@ export class PlatformOpsV2Controller {
     @Body() dto: ModerateReportDto,
   ) {
     return this.ops.moderateReport(user, id, dto);
+  }
+
+  @Post('moderation/appeals')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'Submit an appeal for your own moderated content or strike' })
+  createAppeal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateModerationAppealDto,
+  ) {
+    return this.ops.createModerationAppeal(user, dto);
+  }
+
+  @Get('moderation/appeals/mine')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'List the current user moderation appeals' })
+  myAppeals(@CurrentUser() user: AuthenticatedUser) {
+    return this.ops.myModerationAppeals(user);
+  }
+
+  @Get('moderation/appeals')
+  @RequirePermissions(PermissionKey.ModerationView)
+  @ApiOperation({ summary: 'List moderation appeals for platform review' })
+  appeals(@Query('status') status?: string) {
+    return this.ops.listModerationAppeals(status);
+  }
+
+  @Patch('moderation/appeals/:id')
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @ApiOperation({ summary: 'Resolve a moderation appeal and optionally restore content/clear strike' })
+  resolveAppeal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ResolveModerationAppealDto,
+  ) {
+    return this.ops.resolveModerationAppeal(user, id, dto);
   }
 
   @Get('ai/status')
