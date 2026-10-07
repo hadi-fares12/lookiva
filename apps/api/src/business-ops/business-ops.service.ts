@@ -147,8 +147,35 @@ export class BusinessOpsService {
   customers(user: AuthenticatedUser, companyId: string, limit: number) {
     const access = this.companyAccess(user, companyId);
     return this.prisma.customers.findMany({
-      where: { appointments: { some: { company_id: companyId, ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }) } } },
-      include: { user: { select: { id: true, full_name: true, phone: true, email: true, created_at: true } } },
+      where: {
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+        company_profiles: {
+          none: {
+            company_id: companyId,
+            merged_into_customer_id: { not: null },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            created_at: true,
+          },
+        },
+        company_profiles: {
+          where: { company_id: companyId },
+          take: 1,
+        },
+      },
       orderBy: { last_booking_at: 'desc' },
       take: Math.min(limit, 250),
     });
@@ -535,6 +562,144 @@ export class BusinessOpsService {
 
   async customerDetails(user: AuthenticatedUser, companyId: string, customerId: string) {
     const access = this.companyAccess(user, companyId);
+    const requestedProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
+        },
+      },
+    });
+    const canonicalCustomerId =
+      requestedProfile?.merged_into_customer_id ?? customerId;
+
+    const aliasProfiles = await this.prisma.customer_company_profiles.findMany({
+      where: {
+        company_id: companyId,
+        merged_into_customer_id: canonicalCustomerId,
+      },
+      select: { customer_id: true },
+    });
+    const customerIds = Array.from(
+      new Set([
+        canonicalCustomerId,
+        ...aliasProfiles.map((item) => item.customer_id),
+      ]),
+    );
+
+    const customer = await this.prisma.customers.findFirst({
+      where: {
+        id: canonicalCustomerId,
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            created_at: true,
+            is_active: true,
+          },
+        },
+        profile: true,
+        preferences: true,
+        dependents: true,
+        addresses: true,
+        preferred_resources: {
+          include: {
+            resource: { select: { id: true, name: true, type: true } },
+          },
+        },
+        company_profiles: {
+          where: { company_id: companyId },
+          take: 1,
+        },
+      },
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer not found in this business scope');
+    }
+
+    const [appointments, payments, aliases] = await Promise.all([
+      this.prisma.appointments.findMany({
+        where: {
+          company_id: companyId,
+          customer_id: { in: customerIds },
+          ...(access.allBranches
+            ? {}
+            : { branch_id: { in: access.branchIds } }),
+        },
+        include: {
+          branch: { select: { id: true, name: true } },
+          services: {
+            include: {
+              service: { select: { id: true, name: true } },
+            },
+          },
+          participants: {
+            include: {
+              professional: {
+                select: { id: true, display_name: true },
+              },
+            },
+          },
+          financial_snapshot: true,
+        },
+        orderBy: { starts_at: 'desc' },
+        take: 150,
+      }),
+      this.prisma.payments.findMany({
+        where: {
+          company_id: companyId,
+          customer_id: { in: customerIds },
+        },
+        include: { refunds: true },
+        orderBy: { created_at: 'desc' },
+        take: 150,
+      }),
+      this.prisma.customers.findMany({
+        where: { id: { in: customerIds.filter((id) => id !== canonicalCustomerId) } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              full_name: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      ...customer,
+      appointments,
+      payments,
+      crmProfile: customer.company_profiles[0] ?? null,
+      mergedAliases: aliases.map((alias) => ({
+        id: alias.id,
+        user: alias.user,
+      })),
+      canonicalCustomerId,
+      requestedCustomerId: customerId,
+    };
+  }
+
+  async updateCustomerCrm(
+    user: AuthenticatedUser,
+    companyId: string,
+    customerId: string,
+    dto: any,
+  ) {
+    const access = this.companyAccess(user, companyId);
     const customer = await this.prisma.customers.findFirst({
       where: {
         id: customerId,
@@ -545,34 +710,192 @@ export class BusinessOpsService {
           },
         },
       },
-      include: {
-        user: { select: { id: true, full_name: true, email: true, phone: true, created_at: true, is_active: true } },
-        profile: true,
-        preferences: true,
-        dependents: true,
-        addresses: true,
-        preferred_resources: { include: { resource: { select: { id: true, name: true, type: true } } } },
-        appointments: {
-          where: { company_id: companyId, ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }) },
-          include: {
-            branch: { select: { id: true, name: true } },
-            services: { include: { service: { select: { id: true, name: true } } } },
-            participants: { include: { professional: { select: { id: true, display_name: true } } } },
-            financial_snapshot: true,
-          },
-          orderBy: { starts_at: 'desc' },
-          take: 100,
-        },
-        payments: {
-          where: { company_id: companyId },
-          include: { refunds: true },
-          orderBy: { created_at: 'desc' },
-          take: 100,
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found in this business scope');
+
+    const existing = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
         },
       },
     });
-    if (!customer) throw new NotFoundException('Customer not found in this business scope');
-    return customer;
+    if (existing?.merged_into_customer_id) {
+      throw new ConflictException('Edit the canonical customer after merging this duplicate');
+    }
+
+    const tags = dto.tags === undefined
+      ? undefined
+      : Array.from(
+          new Set(
+            (Array.isArray(dto.tags) ? dto.tags : [])
+              .map((value: unknown) => String(value).trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        ).slice(0, 50);
+
+    const updated = await this.prisma.customer_company_profiles.upsert({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
+        },
+      },
+      create: {
+        company_id: companyId,
+        customer_id: customerId,
+        notes: dto.notes ? String(dto.notes).trim() : null,
+        tags: tags ?? [],
+        created_by_id: user.id,
+      },
+      update: {
+        ...(dto.notes !== undefined
+          ? { notes: dto.notes ? String(dto.notes).trim() : null }
+          : {}),
+        ...(tags !== undefined ? { tags } : {}),
+      },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'customer.crm.update',
+      'customer',
+      customerId,
+      existing,
+      updated,
+    );
+    return updated;
+  }
+
+  async mergeCustomerDuplicate(
+    user: AuthenticatedUser,
+    companyId: string,
+    primaryCustomerId: string,
+    duplicateCustomerId: string,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    if (primaryCustomerId === duplicateCustomerId) {
+      throw new BadRequestException('Primary and duplicate customer must be different');
+    }
+
+    const customers = await this.prisma.customers.findMany({
+      where: {
+        id: { in: [primaryCustomerId, duplicateCustomerId] },
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (customers.length !== 2) {
+      throw new NotFoundException('Both customers must exist in this business scope');
+    }
+
+    const primaryProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: primaryCustomerId,
+        },
+      },
+    });
+    if (primaryProfile?.merged_into_customer_id) {
+      throw new ConflictException('Selected primary customer is already merged into another customer');
+    }
+
+    const duplicateProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: duplicateCustomerId,
+        },
+      },
+    });
+    const mergedTags = Array.from(
+      new Set([
+        ...(primaryProfile?.tags ?? []),
+        ...(duplicateProfile?.tags ?? []),
+      ]),
+    );
+    const mergedNotes = [
+      primaryProfile?.notes,
+      duplicateProfile?.notes
+        ? '[Merged duplicate notes]\n' + duplicateProfile.notes
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n') || null;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const canonical = await tx.customer_company_profiles.upsert({
+        where: {
+          company_id_customer_id: {
+            company_id: companyId,
+            customer_id: primaryCustomerId,
+          },
+        },
+        create: {
+          company_id: companyId,
+          customer_id: primaryCustomerId,
+          notes: mergedNotes,
+          tags: mergedTags,
+          created_by_id: user.id,
+        },
+        update: {
+          notes: mergedNotes,
+          tags: mergedTags,
+        },
+      });
+      const alias = await tx.customer_company_profiles.upsert({
+        where: {
+          company_id_customer_id: {
+            company_id: companyId,
+            customer_id: duplicateCustomerId,
+          },
+        },
+        create: {
+          company_id: companyId,
+          customer_id: duplicateCustomerId,
+          merged_into_customer_id: primaryCustomerId,
+          created_by_id: user.id,
+        },
+        update: {
+          merged_into_customer_id: primaryCustomerId,
+        },
+      });
+      await tx.customer_company_profiles.updateMany({
+        where: {
+          company_id: companyId,
+          merged_into_customer_id: duplicateCustomerId,
+        },
+        data: { merged_into_customer_id: primaryCustomerId },
+      });
+      return { canonical, alias };
+    });
+
+    await this.auditMutation(
+      user,
+      companyId,
+      'customer.crm.merge_duplicate',
+      'customer',
+      duplicateCustomerId,
+      duplicateProfile,
+      {
+        mergedIntoCustomerId: primaryCustomerId,
+        aliasId: result.alias.id,
+      },
+    );
+    return {
+      primaryCustomerId,
+      duplicateCustomerId,
+      merged: true,
+      canonicalProfile: result.canonical,
+    };
   }
 
   async inventory(user: AuthenticatedUser, companyId: string, branchId?: string) {
