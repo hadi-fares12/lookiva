@@ -22,6 +22,28 @@ export class CustomerOpsController {
   @Get('bookings/:id')
   booking(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.ops.booking(user.id, id); }
 
+  @Get('bookings/:id/consents')
+  bookingConsents(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.ops.bookingConsents(user.id, id);
+  }
+
+  @Post('bookings/:id/consents/:formId/sign')
+  signBookingConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() body: {
+      accepted?: boolean;
+      typedSignature?: string;
+      responses?: Record<string, unknown>;
+    },
+  ) {
+    return this.ops.signBookingConsent(user.id, id, formId, body);
+  }
+
   @Get('conversations')
   conversations(@CurrentUser() user: AuthenticatedUser) { return this.ops.conversations(user.id); }
 
