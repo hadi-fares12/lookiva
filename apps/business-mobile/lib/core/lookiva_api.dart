@@ -305,7 +305,7 @@ class LookivaBusinessApi {
     if (path.contains('{branchId}')) {
       var branchId = session.branchId;
       if (branchId == null || branchId.isEmpty) {
-        final branches = await _dio.get<dynamic>('/business-ops/${session.companyId}/branches');
+        final branches = await _dio.get<dynamic>('/business-ops/' + session.companyId + '/branches');
         final raw = _unwrap(branches.data);
         final list = (raw as List? ?? const []).whereType<Map>().toList();
         branchId = list.isNotEmpty ? list.first['id']?.toString() : null;
@@ -351,87 +351,14 @@ class LookivaBusinessApi {
     final apiBase = _dio.options.baseUrl.isNotEmpty
         ? _dio.options.baseUrl
         : await _resolveBaseUrl();
-    return apiBase
-        .replaceFirst(RegExp(r'/api/v1/?
-    try {
-      await _dio.post<dynamic>('/auth/logout');
-    } catch (_) {}
-    await clearSession();
-  }
-
-  Future<void> clearSession() async {
-    await _storage.delete(key: _accessKey);
-    await _storage.delete(key: _refreshKey);
-    await _storage.delete(key: _sessionKey);
-  }
-
-  Future<bool> _refresh() async {
-    final refreshToken = await _storage.read(key: _refreshKey);
-    if (refreshToken == null || refreshToken.isEmpty) return false;
-    final currentBase = _cachedBaseUrl ?? await _resolveBaseUrl();
-    final plain = Dio(
-      BaseOptions(
-        baseUrl: currentBase,
-        headers: const {'Content-Type': 'application/json'},
-      ),
-    );
-    final response = await plain.post<dynamic>(
-      '/auth/refresh',
-      data: {
-        'refreshToken': refreshToken,
-        'deviceName': 'LOOKIVA Business Flutter',
-      },
-    );
-    final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
-    final access = data['accessToken']?.toString();
-    final refresh = data['refreshToken']?.toString();
-    if (access == null || refresh == null) return false;
-    await _storage.write(key: _accessKey, value: access);
-    await _storage.write(key: _refreshKey, value: refresh);
-    return true;
-  }
-}
-), '')
-        .replaceFirst(RegExp(r'/
-    try {
-      await _dio.post<dynamic>('/auth/logout');
-    } catch (_) {}
-    await clearSession();
-  }
-
-  Future<void> clearSession() async {
-    await _storage.delete(key: _accessKey);
-    await _storage.delete(key: _refreshKey);
-    await _storage.delete(key: _sessionKey);
-  }
-
-  Future<bool> _refresh() async {
-    final refreshToken = await _storage.read(key: _refreshKey);
-    if (refreshToken == null || refreshToken.isEmpty) return false;
-    final currentBase = _cachedBaseUrl ?? await _resolveBaseUrl();
-    final plain = Dio(
-      BaseOptions(
-        baseUrl: currentBase,
-        headers: const {'Content-Type': 'application/json'},
-      ),
-    );
-    final response = await plain.post<dynamic>(
-      '/auth/refresh',
-      data: {
-        'refreshToken': refreshToken,
-        'deviceName': 'LOOKIVA Business Flutter',
-      },
-    );
-    final data = Map<String, dynamic>.from(_unwrap(response.data) as Map);
-    final access = data['accessToken']?.toString();
-    final refresh = data['refreshToken']?.toString();
-    if (access == null || refresh == null) return false;
-    await _storage.write(key: _accessKey, value: access);
-    await _storage.write(key: _refreshKey, value: refresh);
-    return true;
-  }
-}
-), '');
+    var base = apiBase;
+    if (base.endsWith('/api/v1')) {
+      base = base.substring(0, base.length - '/api/v1'.length);
+    }
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    return base;
   }
 
   Future<void> logout() async {
