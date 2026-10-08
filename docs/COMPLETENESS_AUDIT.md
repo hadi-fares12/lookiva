@@ -1,4 +1,33 @@
-# LOOKIVA Production Candidate Audit — 2026-09-30
+# LOOKIVA Completion Audit
+
+## Current checkpoint — 2026-10-08
+
+**Not yet full product-spec complete or production-certified.** The changes below are on `complete-a-z` / PR #4; they have not been merged into `main`. The September audit below is historical, not a claim that all current product requirements are satisfied.
+
+### Implemented and checked in this pass
+
+- Business Mobile: product creation/editing, stock movements and low-stock filtering; staff scope assignment/revocation for existing users; calendar range views and appointment rescheduling; floor lifecycle actions; cash/terminal receipt recording against the current booking balance; notification read actions.
+- Customer Mobile: favorites/following actions, notification read actions and native destinations, session revocation, notification/nearby preferences, collections and opening a specific saved Reel. Fixed the missing booking sharing import.
+- Both mobile apps: push initialization and logout cleanup, realtime disconnection on logout, cache invalidation after writes, and exclusion of sensitive/volatile data from offline response caching.
+- API: floor occupancy retains completed/unpaid appointments; payment attribution must match the appointment customer; payment collections use serializable transactions and explicit conflict responses; inventory creation is atomic and stock updates reject concurrent conflicts; collections exclude hidden/deleted posts; branch-scoped realtime users do not join company-wide rooms.
+
+### Evidence and limits
+
+- Commit `984937d`: CI, Release Gate and Prisma Migrate Check passed, including Flutter analysis/tests for both apps.
+- Commit `7a75406`: locally verified 63 API unit tests, API typecheck, changed API lint and whitespace checks. GitHub Release Gate and Prisma Migrate Check passed; CI lint, typecheck, builds, Node tests, and both Flutter analysis/test steps passed.
+- Static audit previously verified 147 models with no reported errors/warnings.
+- Unit tests and build gates do not prove real payment settlement, notification delivery, signed native builds, background location behavior, production deployment or every customer/business workflow.
+
+### Open acceptance work
+
+1. Full operational parity: staff invitations for unregistered users, remaining richer staff/CRM actions, and purpose-built customer account sections that still use generic views.
+2. Advanced calendar: complete month/time-grid presentation, full entity filters independent of visible appointments, and high-volume/pagination behavior. Current mobile range views and drag-to-reschedule are not proof of the full calendar specification.
+3. Offline-first: durable mutation queues, conflict handling and safe replay. Cached GET responses and selected optimistic updates are only part of this requirement; financial actions must not be blindly replayed.
+4. Complete specification-by-specification review of advanced admin/manual operations, compliance/retention management and social/Verified Work workflows across every client.
+5. Real provider configuration and sandbox/production acceptance for payments, SMS, email and push; signed Android/iOS testing of token rotation, deep links, background GPS, permissions and poor networks.
+6. Database/device end-to-end tests for simultaneous bookings/payments, reconnects, delivery failure and complete floor checkout. Confirm production readiness against the deployed environment rather than inferring it from CI.
+
+## Historical audit — 2026-09-30
 
 ## Current verdict
 This source tree has been substantially hardened and expanded into a **production candidate**, but it is **not production-certified in this execution environment**. The source-level release gates pass. Final production certification still requires a networked build/CI machine with installed Node dependencies, PostgreSQL/PostGIS + Redis, Flutter SDK/native platform projects, Android/iOS signing, and the real production provider credentials.
