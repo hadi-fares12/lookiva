@@ -5,6 +5,7 @@ import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'realtime.dart';
 import 'inventory.dart';
+import 'collect_payment.dart';
 import 'package:go_router/go_router.dart';
 
 class BusinessRemotePage extends StatelessWidget {
@@ -2655,7 +2656,20 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
               if (next != null) FilledButton.tonal(onPressed: _busy ? null : () => _mutate(
                 () => LookivaBusinessApi.instance.patchScoped('/booking-v2/appointments/${a['id']}/floor-status', data: {'state': next}),
                 'Floor updated.'), child: Text(label!)),
-              if (state == 'completed') const Text('Record the payment in Payments before confirming paid. The server verifies the full balance.'),
+              if (state == 'completed') OutlinedButton.icon(
+                icon: const Icon(Icons.payments_outlined), label: const Text('Record payment'),
+                onPressed: _busy ? null : () async {
+                  setState(() => _busy = true);
+                  try {
+                    final recorded = await collectFloorPayment(context, a);
+                    if (mounted) setState(() { _notice = recorded ? 'Payment recorded. You can now confirm paid.' : null; _reload(); });
+                  } catch (error) {
+                    if (mounted) setState(() => _notice = LookivaBusinessApi.instance.friendlyError(error));
+                  } finally {
+                    if (mounted) setState(() => _busy = false);
+                  }
+                },
+              ),
             ]));
           }),
         ],

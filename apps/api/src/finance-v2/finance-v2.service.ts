@@ -113,7 +113,7 @@ export class FinanceV2Service {
         if (!ownsAppointment && !businessScoped) {
           throw new ForbiddenException('Customers may only pay their own appointments');
         }
-        if (appointment.customer_id && customerId !== appointment.customer_id && !businessScoped) {
+        if (appointment.customer_id && customerId !== appointment.customer_id) {
           throw new ForbiddenException('Payment customer does not match the appointment customer');
         }
       } else if (!businessScoped) {
@@ -314,6 +314,11 @@ export class FinanceV2Service {
         },
       });
       return { payment: savedPayment, appointmentTransition };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        throw new ConflictException('Payment balance changed. Refresh payment history before trying again.');
+      }
+      throw error;
     });
 
     if (result.appointmentTransition) {

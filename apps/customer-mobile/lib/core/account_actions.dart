@@ -61,10 +61,10 @@ class _CustomerAccountActionsState extends State<CustomerAccountActions> {
     } catch(e) { if (mounted && generation==_generation) setState(() { _error=api.friendlyError(e); _loading=false; }); }
   }
 
-  Future<void> _run(Future<dynamic> Function() action) async {
+  Future<void> _run(Future<dynamic> Function() action, {bool reload=true}) async {
     if (_busy) return;
     setState(() { _busy=true; _error=null; });
-    try { await action(); if (mounted) await _load(); }
+    try { await action(); if (mounted && reload) await _load(); }
     catch(e) { if (mounted) setState(() => _error=api.friendlyError(e)); }
     finally { if (mounted) setState(() => _busy=false); }
   }
@@ -135,7 +135,7 @@ class _CustomerAccountActionsState extends State<CustomerAccountActions> {
     if(const {'favorites','following'}.contains(widget.section)) Wrap(spacing:8,children:(widget.section=='favorites'?['business','professional','service','post']:['business','professional']).map((tab)=>ChoiceChip(label:Text(tab),selected:_tab==tab,onSelected:_busy?null:(_){setState(()=>_tab=tab);_load();})).toList()),
     if(widget.section=='notifications') Row(children:[Expanded(child:TextButton(onPressed:_busy?null:()=>_run(()=>api.patch('/notifications/read-all',data:{})),child:const Text('Mark all read'))),TextButton(onPressed:()=>context.push('/account/preferences'),child:const Text('Preferences'))]),
     if(widget.section=='collections') FilledButton.icon(onPressed:_busy?null:_createCollection,icon:const Icon(Icons.add),label:const Text('New collection')),
-    if(widget.section=='security') OutlinedButton(onPressed:_busy?null:()async{if(!await _confirm('Sign out on all devices?')||!mounted)return;await _run(()async{await api.post('/auth/logout-everywhere');await CustomerMobileServices.instance.onSignedOut();await api.clearSession();if(mounted)context.go('/login');});},child:const Text('Sign out everywhere')),
+    if(widget.section=='security') OutlinedButton(onPressed:_busy?null:()async{if(!await _confirm('Sign out on all devices?')||!mounted)return;await _run(()async{await api.post('/auth/logout-everywhere');await CustomerMobileServices.instance.onSignedOut();await api.clearSession();if(mounted)context.go('/login');},reload:false);},child:const Text('Sign out everywhere')),
     if(_loading||_busy) const LinearProgressIndicator(),
     if(_error!=null) Padding(padding:const EdgeInsets.all(12),child:Text(_error!,style:TextStyle(color:Theme.of(context).colorScheme.error))),
     if(!_loading && const {'nearby-settings','preferences'}.contains(widget.section)) ..._settings()
