@@ -5,6 +5,7 @@ import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'realtime.dart';
 import 'inventory.dart';
+import 'package:go_router/go_router.dart';
 
 class BusinessRemotePage extends StatelessWidget {
   final String section;
@@ -78,7 +79,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
     LookivaBusinessRealtime.instance.connect();
     _realtimeSub = LookivaBusinessRealtime.instance.events.listen((event) {
       if (!mounted) return;
-      if (const {'booking:changed', 'queue:changed', 'floor:changed', 'business:changed'}.contains(event.name)) {
+      if (const {'booking:changed', 'queue:changed', 'floor:changed', 'business:changed', 'notification:created'}.contains(event.name)) {
         setState(_reload);
       }
     });
@@ -1430,6 +1431,7 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
   }
 
   List<Widget> _buildSection(dynamic data) {
+    if (widget.section == 'notifications') return _notifications(data);
     if (widget.section == 'staff') return _staff(data);
     if (widget.section == 'calendar') return _calendar(data);
     if (widget.section == 'floor') return _resources(data);
@@ -1453,6 +1455,24 @@ class _BusinessRemoteBodyState extends State<BusinessRemoteBody> {
         subtitle: row.$2.isEmpty ? null : Text(row.$2, maxLines: 6, overflow: TextOverflow.ellipsis),
       ),
     )).toList();
+  }
+
+  List<Widget> _notifications(dynamic data) {
+    final rows = _maps(data is Map ? data['items'] : data);
+    return [
+      TextButton(onPressed: _busy ? null : () => _mutate(() => LookivaBusinessApi.instance.patchScoped('/notifications/read-all', data: {}), 'Notifications marked read.'), child: const Text('Mark all read')),
+      if (rows.isEmpty) const Text('No notifications.'),
+      ...rows.map((row) => Card(child: ListTile(
+        leading: Icon(row['read_at'] == null ? Icons.notifications_active : Icons.notifications_none),
+        title: Text(row['title']?.toString() ?? 'Notification'), subtitle: Text(row['body']?.toString() ?? ''),
+        onTap: _busy ? null : () async {
+          await _mutate(() => LookivaBusinessApi.instance.patchScoped('/notifications/${row['id']}/read', data: {}), 'Notification marked read.');
+          if (!mounted) return;
+          final link = row['deep_link']?.toString() ?? '';
+          if (link.startsWith('/bookings')) context.push('/ops/calendar');
+        },
+      ))),
+    ];
   }
 
   List<Widget> _staff(dynamic data) => [

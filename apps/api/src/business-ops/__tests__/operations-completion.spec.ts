@@ -51,3 +51,20 @@ describe('operational completion invariants', () => {
     await expect(service.stockMovement(owner, 'company', 'product', { quantityChange: 1.5 })).rejects.toThrow('integer');
   });
 });
+
+describe('stock write safety', () => {
+  it('rejects invalid opening quantities before creating a product', async () => {
+    const { service, prisma } = fixture();
+    prisma.products = { create: vi.fn() };
+    await expect(service.createProduct(owner, 'company', { name: 'Product', currencyCode: 'USD', price: 1, initialQuantity: -2 })).rejects.toThrow('non-negative integer');
+    expect(prisma.products.create).not.toHaveBeenCalled();
+  });
+  it('turns a competing inventory update into an explicit conflict', async () => {
+    const { service, prisma } = fixture();
+    prisma.products = { findFirst: vi.fn().mockResolvedValue({ id: 'product', cost: 2 }) };
+    prisma.$transaction = vi.fn().mockRejectedValue({ code: 'P2034' });
+    await expect(service.stockMovement(owner, 'company', 'product', { quantityChange: 1 })).rejects.toThrow('Stock changed');
+    expect(prisma.$transaction.mock.calls[0][1]).toEqual({ isolationLevel: 'Serializable' });
+    expect(prisma.audit_logs.create).not.toHaveBeenCalled();
+  });
+});

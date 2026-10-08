@@ -28,8 +28,9 @@ export class SocialV2Controller {
     @CurrentUser() user: AuthenticatedUser,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
+    @Query('postId') postId?: string,
   ) {
-    return this.social.feed(user, Number(limit) || 20, cursor);
+    return this.social.feed(user, Number(limit) || 20, cursor, postId);
   }
 
   @Get('portfolio')

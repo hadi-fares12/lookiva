@@ -73,6 +73,13 @@ class BusinessMobileServices {
   }
 
   Future<void> onSignedOut() async {
+    _initialized = false;
+    await _tokenSubscription?.cancel();
+    await _messageSubscription?.cancel();
+    await _openedSubscription?.cancel();
+    _tokenSubscription = null;
+    _messageSubscription = null;
+    _openedSubscription = null;
     LookivaBusinessRealtime.instance.disconnect();
     final token = _registeredToken;
     _registeredToken = null;

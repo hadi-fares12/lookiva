@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'lookiva_api.dart';
 import 'realtime.dart';
+import 'deep_links.dart';
 
 const String _firebaseApiKey =
     String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
@@ -74,12 +75,26 @@ class CustomerMobileServices {
     await _startNearbyIfEnabled();
   }
 
+  Future<void> refreshNearby() => _startNearbyIfEnabled();
+
+  void _openLink(String value) {
+    final route = customerNotificationRoute(value);
+    if (route != null) _openDeepLink?.call(route);
+  }
+
   Future<void> onSignedIn() async {
     await _registerCurrentPushToken();
     await _startNearbyIfEnabled();
   }
 
   Future<void> onSignedOut() async {
+    _initialized = false;
+    await _tokenSubscription?.cancel();
+    await _messageSubscription?.cancel();
+    await _openedSubscription?.cancel();
+    _tokenSubscription = null;
+    _messageSubscription = null;
+    _openedSubscription = null;
     LookivaRealtime.instance.disconnect();
     final token = _registeredToken;
     _registeredToken = null;
@@ -110,7 +125,7 @@ class CustomerMobileServices {
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload;
         if (payload != null && payload.isNotEmpty) {
-          _openDeepLink?.call(payload);
+          _openLink(payload);
         }
       },
     );
@@ -162,7 +177,7 @@ class CustomerMobileServices {
         final deepLink = message.data['deepLink']?.toString() ??
             message.data['deep_link']?.toString();
         if (deepLink != null && deepLink.isNotEmpty) {
-          _openDeepLink?.call(deepLink);
+          _openLink(deepLink);
         }
       });
 
@@ -172,7 +187,7 @@ class CustomerMobileServices {
       if (initialLink != null && initialLink.isNotEmpty) {
         Future<void>.delayed(
           const Duration(milliseconds: 500),
-          () => _openDeepLink?.call(initialLink),
+          () => _openLink(initialLink),
         );
       }
 

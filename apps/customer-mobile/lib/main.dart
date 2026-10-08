@@ -343,7 +343,7 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/reels',
-      builder: (context, state) => const CustomerReelsPage(),
+      builder: (context, state) => CustomerReelsPage(postId: state.uri.queryParameters['postId']),
     ),
     GoRoute(
       path: '/messages/:id',

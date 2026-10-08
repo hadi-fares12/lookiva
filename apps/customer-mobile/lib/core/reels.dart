@@ -5,19 +5,22 @@ import 'package:url_launcher/url_launcher.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 import 'share.dart';
+import 'account_actions.dart';
 
 class CustomerReelsPage extends StatelessWidget {
-  const CustomerReelsPage({super.key});
+  final String? postId;
+  const CustomerReelsPage({super.key, this.postId});
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(ct(context, 'reels'))),
-        body: const CustomerReels(),
+        body: CustomerReels(postId: postId),
       );
 }
 
 class CustomerReels extends StatefulWidget {
-  const CustomerReels({super.key});
+  final String? postId;
+  const CustomerReels({super.key, this.postId});
 
   @override
   State<CustomerReels> createState() => _CustomerReelsState();
@@ -36,7 +39,7 @@ class _CustomerReelsState extends State<CustomerReels> {
   void _reload() {
     _future = LookivaApi.instance.get(
       '/social-v2/feed',
-      query: {'limit': 30},
+      query: {'limit': 30, if (widget.postId != null) 'postId': widget.postId},
     );
   }
 
@@ -131,7 +134,7 @@ class _CustomerReelsState extends State<CustomerReels> {
             : <String, dynamic>{};
         final items = (envelope['items'] as List? ?? const [])
             .whereType<Map>()
-            .map((row) => Map<String, dynamic>.from(row))
+            .map((row) => row.cast<String, dynamic>())
             .toList();
 
         if (items.isEmpty) {
@@ -218,6 +221,7 @@ class _ReelCard extends StatelessWidget {
               Expanded(
                 child: _ReelMedia(post: post),
               ),
+              TextButton.icon(onPressed: () => saveLookToCollection(context, post['id'].toString()), icon: const Icon(Icons.collections_bookmark_outlined), label: const Text('Add to collection')),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -388,7 +392,7 @@ class _ReelMedia extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaRows = (post['media_list'] as List? ?? const [])
         .whereType<Map>()
-        .map((row) => Map<String, dynamic>.from(row))
+        .map((row) => row.cast<String, dynamic>())
         .toList();
     if (mediaRows.isEmpty) {
       return Container(

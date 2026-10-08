@@ -43,7 +43,7 @@ export class SocialV2Service {
     );
   }
 
-  async feed(user: AuthenticatedUser, limit = 20, cursor?: string) {
+  async feed(user: AuthenticatedUser, limit = 20, cursor?: string, postId?: string) {
     const take = Math.min(Math.max(limit, 1), 50);
     const cursorPost = cursor
       ? await this.prisma.posts.findFirst({
@@ -65,6 +65,7 @@ export class SocialV2Service {
 
     const posts = await this.prisma.posts.findMany({
       where: {
+        ...(postId ? { id: postId } : {}),
         status: 'published',
         deleted_at: null,
         ...(boundary
@@ -655,6 +656,7 @@ export class SocialV2Service {
       where: { user_id: user.id },
       include: {
         items: {
+          where: { post: { status: 'published', deleted_at: null } },
           orderBy: [{ sort_order: 'asc' }, { added_at: 'desc' }],
           include: {
             post: {

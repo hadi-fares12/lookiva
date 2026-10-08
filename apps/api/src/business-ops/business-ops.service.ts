@@ -1527,6 +1527,16 @@ export class BusinessOpsService {
     const currencyCode = String(dto.currencyCode ?? '').trim().toUpperCase();
     const price = Number(dto.price);
     if (!name) throw new BadRequestException('Product name is required');
+    for (const key of ['cost', 'taxPercent']) {
+      if (dto[key] != null && (!Number.isFinite(Number(dto[key])) || Number(dto[key]) < 0)) throw new BadRequestException(`${key} must be non-negative`);
+    }
+    if (dto.taxPercent != null && Number(dto.taxPercent) > 100) throw new BadRequestException('taxPercent must be at most 100');
+    for (const key of ['initialQuantity', 'reorderLevel', 'reorderQuantity']) {
+      if (dto[key] != null && (!Number.isSafeInteger(Number(dto[key])) || Number(dto[key]) < 0)) throw new BadRequestException(`${key} must be a non-negative integer`);
+    }
+    if (dto.expiresAt && Number.isNaN(new Date(dto.expiresAt).getTime())) throw new BadRequestException('Invalid expiry date');
+    if (dto.branchId) await this.assertBranchesBelongToCompany(companyId, [String(dto.branchId)], access);
+
     if (!currencyCode || currencyCode.length !== 3) throw new BadRequestException('currencyCode must be 3 characters');
     if (!Number.isFinite(price) || price < 0) throw new BadRequestException('Product price must be zero or greater');
 
@@ -1539,7 +1549,8 @@ export class BusinessOpsService {
       if (exists) throw new ConflictException('Barcode already exists for this business');
     }
 
-    const product = await this.prisma.products.create({
+    const product = await this.prisma.$transaction(async (tx) => {
+    const product = await tx.products.create({
       data: {
         company_id: companyId,
         category_id: dto.categoryId || null,
@@ -1558,9 +1569,8 @@ export class BusinessOpsService {
     });
 
     if (dto.branchId || dto.initialQuantity != null) {
-      if (dto.branchId) await this.assertBranchesBelongToCompany(companyId, [String(dto.branchId)], access);
       const quantity = Math.trunc(Number(dto.initialQuantity ?? 0));
-      const inventory = await this.prisma.inventory_items.create({
+      const inventory = await tx.inventory_items.create({
         data: {
           product_id: product.id,
           branch_id: dto.branchId || null,
@@ -1575,7 +1585,7 @@ export class BusinessOpsService {
         },
       });
       if (quantity !== 0) {
-        await this.prisma.inventory_movements.create({
+        await tx.inventory_movements.create({
           data: {
             product_id: product.id,
             inventory_id: inventory.id,
@@ -1590,6 +1600,9 @@ export class BusinessOpsService {
         });
       }
     }
+
+      return product;
+    });
 
     await this.auditMutation(user, companyId, 'product.create', 'product', product.id, undefined, product);
     return product;
@@ -1698,6 +1711,9 @@ export class BusinessOpsService {
         },
       });
       return { inventory: updated, movement };
+    }, { isolationLevel: 'Serializable' }).catch((error) => {
+      if (error?.code === 'P2034' || error?.code === 'P2025') throw new ConflictException('Stock changed during this operation. Refresh inventory before trying again.');
+      throw error;
     });
     await this.auditMutation(user, companyId, 'inventory.movement', 'product', productId, undefined, result, branchId);
     return result;

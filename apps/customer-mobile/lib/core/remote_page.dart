@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'account_actions.dart';
 
-class CustomerRemotePage extends StatelessWidget{final String section;const CustomerRemotePage({super.key,required this.section});@override Widget build(BuildContext context){final config=CustomerRemoteBody.configFor(section);return Scaffold(appBar:AppBar(title:Text(ct(context,config.titleKey))),body:CustomerRemoteBody(section:section));}}
+class CustomerRemotePage extends StatelessWidget{final String section;const CustomerRemotePage({super.key,required this.section});@override Widget build(BuildContext context){final config=CustomerRemoteBody.configFor(section);return Scaffold(appBar:AppBar(title:Text(ct(context,config.titleKey))),body:CustomerAccountActions.sections.contains(section)?CustomerAccountActions(section:section):CustomerRemoteBody(section:section));}}
 class CustomerRemoteBody extends StatefulWidget{
   final String section;const CustomerRemoteBody({super.key,required this.section});
   static const config=<String,({String titleKey,String path,IconData icon})>{
