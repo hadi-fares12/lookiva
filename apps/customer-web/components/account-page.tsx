@@ -44,11 +44,11 @@ export function AccountPage({section}:{section:string}){
   const [notice,setNotice]=React.useState('');
   const [busy,setBusy]=React.useState('');
 
-  async function load(){
+  const load=React.useCallback(async()=>{
     setLoading(true);setError('');
     try{const {data}=await axios.get(cfg.endpoint);setData(data);}catch(e){setError(e instanceof Error?e.message:t('loadError'));}finally{setLoading(false);}
-  }
-  React.useEffect(()=>{if(!getAccessToken()){setLoading(false);setError(t('signInRequired'));return;}void load();},[section]);
+  },[cfg.endpoint,t]);
+  React.useEffect(()=>{if(!getAccessToken()){setLoading(false);setError(t('signInRequired'));return;}void load();},[load,t]);
 
   async function mutate(key:string,request:()=>Promise<unknown>,message:string){
     setBusy(key);setError('');setNotice('');

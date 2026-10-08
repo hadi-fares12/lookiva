@@ -12,7 +12,7 @@ export default function DashboardPage() {
   const session = useMemo(() => getBusinessSession(), []);
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { if (!session) return; businessFetch<Overview>(`/business-ops/${session.companyId}/overview`).then(setData).catch(e => setError(e instanceof Error ? e.message : 'Unable to load dashboard')); }, []);
+  useEffect(() => { if (!session) return; businessFetch<Overview>(`/business-ops/${session.companyId}/overview`).then(setData).catch(e => setError(e instanceof Error ? e.message : 'Unable to load dashboard')); }, [session]);
   const currency = data?.finance?.primaryCurrency || 'USD';
   const money = (value: unknown) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(value ?? 0));
   const metrics = [

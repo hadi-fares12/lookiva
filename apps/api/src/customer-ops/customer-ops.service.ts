@@ -15,7 +15,7 @@ export class CustomerOpsService {
     const customer = await this.customerForUser(userId);
     const now = new Date();
     const [upcoming, completed, wallet, loyalty, packages, memberships, unreadNotifications] = await Promise.all([
-      this.prisma.appointments.count({ where: { customer_id: customer.id, starts_at: { gte: now }, status: { notIn: ['cancelled', 'no_show', 'completed'] } } }),
+      this.prisma.appointments.count({ where: { customer_id: customer.id, starts_at: { gte: now }, status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] } } }),
       this.prisma.appointments.count({ where: { customer_id: customer.id, status: 'completed' } }),
       this.prisma.wallets.findUnique({ where: { customer_id: customer.id } }),
       this.prisma.loyalty_accounts.findUnique({ where: { customer_id: customer.id } }),
@@ -28,8 +28,16 @@ export class CustomerOpsService {
 
   async bookings(userId: string, status?: string, limit = 100) {
     const customer = await this.customerForUser(userId);
+    const statusFilter =
+      status === 'upcoming'
+        ? { status: { in: ['pending', 'confirmed', 'checked_in', 'in_progress'] } }
+        : status === 'cancelled'
+          ? { status: { in: ['cancelled', 'cancelled_by_customer', 'cancelled_by_business', 'cancelled_by_system'] } }
+          : status
+            ? { status }
+            : {};
     return this.prisma.appointments.findMany({
-      where: { customer_id: customer.id, ...(status ? { status } : {}) },
+      where: { customer_id: customer.id, ...statusFilter },
       include: {
         company: { select: { id: true, display_name: true, logo_media_id: true } },
         branch: { select: { id: true, name: true, address_line_1: true, latitude: true, longitude: true } },
@@ -65,6 +73,76 @@ export class CustomerOpsService {
     });
     if (!item) throw new NotFoundException('Booking not found');
     return item;
+  }
+
+  async selfCheckIn(userId: string, id: string, latitude?: number, longitude?: number) {
+    const customer = await this.customerForUser(userId);
+    const appointment = await this.prisma.appointments.findFirst({
+      where: { id, customer_id: customer.id },
+      include: {
+        branch: { select: { id: true, name: true, latitude: true, longitude: true } },
+      },
+    });
+    if (!appointment) throw new NotFoundException('Booking not found');
+    if (!['pending', 'confirmed'].includes(appointment.status)) {
+      throw new BadRequestException('Only pending or confirmed appointments can be checked in');
+    }
+
+    const now = new Date();
+    const earliest = new Date(appointment.starts_at.getTime() - 60 * 60 * 1000);
+    const latest = new Date(appointment.ends_at.getTime() + 30 * 60 * 1000);
+    if (now < earliest || now > latest) {
+      throw new BadRequestException('Self check-in is available from 60 minutes before the appointment until 30 minutes after it ends');
+    }
+
+    const branchLat = appointment.branch.latitude;
+    const branchLon = appointment.branch.longitude;
+    if (branchLat != null && branchLon != null) {
+      if (latitude == null || longitude == null) {
+        throw new BadRequestException('Current location is required for self check-in');
+      }
+      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        throw new BadRequestException('Invalid check-in coordinates');
+      }
+      const toRad = (value: number) => value * Math.PI / 180;
+      const earth = 6371000;
+      const dLat = toRad(latitude - branchLat);
+      const dLon = toRad(longitude - branchLon);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(branchLat)) * Math.cos(toRad(latitude)) *
+        Math.sin(dLon / 2) ** 2;
+      const distanceMeters = earth * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (distanceMeters > 500) {
+        throw new ForbiddenException('Move closer to the branch before checking in');
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.appointments.update({
+        where: { id: appointment.id },
+        data: {
+          status: 'checked_in',
+          checked_in_at: now,
+          arrival_latitude: latitude ?? null,
+          arrival_longitude: longitude ?? null,
+        },
+        include: {
+          company: { select: { id: true, display_name: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      });
+      await tx.appointment_status_history.create({
+        data: {
+          appointment_id: appointment.id,
+          old_status: appointment.status,
+          new_status: 'checked_in',
+          changed_by_id: userId,
+          reason: 'customer_self_check_in',
+        },
+      });
+      return updated;
+    });
   }
 
   async conversations(userId: string) {

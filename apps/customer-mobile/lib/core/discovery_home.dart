@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
 
@@ -83,7 +84,7 @@ class _DiscoveryHomeState extends State<DiscoveryHome> {
             children: [
               TextField(
                 readOnly: true,
-                onTap: () {},
+                onTap: () => context.push('/search'),
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search_rounded),
                   hintText: ct(context, 'searchHint'),

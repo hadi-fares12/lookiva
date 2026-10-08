@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'core/lookiva_api.dart';
 import 'core/remote_page.dart';
 import 'core/l10n.dart';
+import 'core/checkin_scanner.dart';
+import 'core/auth_pages.dart';
 
 const String _prefThemeMode = 'biz_theme_mode';
 const String _prefLocale = 'biz_locale_code';
@@ -288,12 +290,20 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const BusinessLoginPage(),
     ),
     GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const BusinessForgotPasswordPage(),
+    ),
+    GoRoute(
       path: '/dashboard',
       builder: (context, state) => const BusinessDashboardPage(),
     ),
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const BusinessOnboardingPage(),
+    ),
+    GoRoute(
+      path: '/scan-checkin',
+      builder: (context, state) => const BusinessCheckInScannerPage(),
     ),
     GoRoute(
       path: '/ops/:section',
@@ -788,7 +798,17 @@ class _BusinessLoginPageState extends State<BusinessLoginPage> {
                           : bt(context, 'signIn'),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () => context.push('/forgot-password'),
+                      child: Text(bt(context, 'forgotPassword')),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   FutureBuilder<String?>(
                     future: LookivaBusinessApi.getStoredApiBaseUrl(),
                     builder: (ctx, snap) {
@@ -937,7 +957,7 @@ class _BusinessDashboardPageState extends State<BusinessDashboardPage> {
           IconButton(
             tooltip: bt(context, 'notifications'),
             icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () {},
+            onPressed: () => context.push('/ops/notifications'),
           ),
           const SizedBox(width: 4),
         ],
@@ -1039,6 +1059,22 @@ class BusinessMoreTab extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => context.push('/ops/${item.$3}'),
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: Icon(
+              Icons.qr_code_scanner_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: Text(
+              bt(context, 'scanCheckIn'),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(bt(context, 'scanCheckInBody')),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => context.push('/scan-checkin'),
           ),
         ),
         const SizedBox(height: 12),
