@@ -1,8 +1,9 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../common/prisma.service';
+import { DeadLetterService } from '../common/dead-letter.service';
 
 @Processor('notification-queue')
 export class NotificationProcessor extends WorkerHost {
@@ -11,7 +12,14 @@ export class NotificationProcessor extends WorkerHost {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly deadLetters: DeadLetterService,
   ) { super(); }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job | undefined, error: Error) {
+    if (!job) return;
+    await this.deadLetters.capture('notification-queue', job, error);
+  }
 
   async process(job: Job) {
     const { notificationId, userId, type, title, body, payload } = job.data as {

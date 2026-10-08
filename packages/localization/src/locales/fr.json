@@ -217,7 +217,8 @@
     "wallet": "Portefeuille",
     "settings": "Paramètres",
     "help": "Aide et support",
-    "menu": "Menu"
+    "menu": "Menu",
+    "reels": "Reels"
   },
   "homeSections": {
     "forYou": "Pour vous",
@@ -549,7 +550,14 @@
         "branches": "Établissements",
         "subscriptions": "Abonnement",
         "audit": "Journal d’audit",
-        "settings": "Paramètres"
+        "settings": "Paramètres",
+        "inventory": "Stock",
+        "commissions": "Commissions",
+        "forms": "Formulaires de consentement",
+        "banking": "Banque",
+        "packageRedemptions": "Utilisation des forfaits",
+        "withdrawals": "Retraits",
+        "portfolio": "Portfolio"
       }
     },
     "admin": {
@@ -579,7 +587,17 @@
         "featureFlags": "Fonctionnalités",
         "remoteConfig": "Configuration distante",
         "audit": "Journal d’audit",
-        "system": "Système"
+        "system": "Système",
+        "strikes": "Sanctions utilisateurs",
+        "branches": "Succursales",
+        "professionals": "Professionnels",
+        "services": "Services",
+        "regions": "Régions",
+        "currencies": "Devises",
+        "plans": "Forfaits",
+        "appeals": "Recours",
+        "withdrawals": "Retraits",
+        "autoFlags": "Alertes auto"
       }
     }
   },
@@ -663,6 +681,34 @@
       "settings": {
         "title": "Paramètres entreprise",
         "subtitle": "Profil et configuration des réservations."
+      },
+      "inventory": {
+        "title": "Produits et stock",
+        "subtitle": "Produits, stock par établissement, seuils, expiration et mouvements de stock."
+      },
+      "commissions": {
+        "title": "Règles de commission",
+        "subtitle": "Règles, taux et logique de paiement des commissions professionnelles."
+      },
+      "forms": {
+        "title": "Formulaires de consentement",
+        "subtitle": "Modèles de consentement service, médical, média et général avec versions."
+      },
+      "banking": {
+        "title": "Comptes de paiement",
+        "subtitle": "Gérez les destinations bancaires masquées et les documents de vérification."
+      },
+      "packageRedemptions": {
+        "title": "Utilisation des forfaits",
+        "subtitle": "Utilisez des séances de forfait en toute sécurité et consultez l’historique."
+      },
+      "withdrawals": {
+        "title": "Retraits",
+        "subtitle": "Demandez des virements vers des comptes bancaires vérifiés et suivez leur traitement."
+      },
+      "portfolio": {
+        "title": "Portfolio & Reels",
+        "subtitle": "Publiez vos travaux photo/vidéo, associez services et professionnels, puis vérifiez le travail via une réservation terminée et un avis vérifié."
       }
     },
     "actions": {
@@ -685,7 +731,35 @@
       "complete": "Terminer",
       "call": "Appeler",
       "served": "Servi",
-      "viewOnly": "Voir seulement"
+      "viewOnly": "Voir seulement",
+      "structure": "Structure",
+      "close": "Fermer",
+      "saveDependencies": "Enregistrer les dépendances",
+      "addStage": "Ajouter une étape",
+      "saveStages": "Enregistrer les étapes",
+      "remove": "Supprimer",
+      "useTemplate": "Utiliser le modèle",
+      "saveCrm": "Enregistrer CRM",
+      "mergeDuplicate": "Fusionner un doublon",
+      "viewCrm": "Ouvrir le CRM",
+      "merge": "Fusionner le doublon",
+      "addBankAccount": "Ajouter un compte bancaire",
+      "enablePayouts": "Activer les paiements",
+      "disablePayouts": "Désactiver les paiements",
+      "exportCsv": "Exporter CSV",
+      "exportXlsx": "Exporter XLSX",
+      "redeemPackage": "Utiliser le forfait",
+      "requestWithdrawal": "Demander un retrait",
+      "cancelWithdrawal": "Annuler la demande",
+      "uploading": "Téléversement…",
+      "publishPortfolio": "Publier le portfolio",
+      "verifyWork": "Vérifier le travail",
+      "archive": "Archiver",
+      "previous": "Précédent",
+      "today": "Aujourd’hui",
+      "next": "Suivant",
+      "quickAdd": "Ajout rapide",
+      "createBooking": "Créer la réservation"
     },
     "labels": {
       "serviceName": "Nom du service",
@@ -716,7 +790,7 @@
       "card": "Carte",
       "online": "En ligne",
       "refunds": "Remboursements",
-      "allBranches": "Tous les établissements",
+      "allBranches": "Toutes les succursales",
       "allProfessionals": "Tous les professionnels",
       "from": "Du",
       "to": "Au",
@@ -738,7 +812,72 @@
       "anyProfessional": "Tout professionnel",
       "until": "jusqu’à",
       "allAuthorizedBranches": "Tous les établissements autorisés",
-      "resetFilters": "Réinitialiser les filtres"
+      "resetFilters": "Réinitialiser les filtres",
+      "formTemplates": "Modèles de formulaires",
+      "formTemplatesHint": "Partez d’un modèle de consentement ou d’admission réutilisable, puis adaptez-le à votre entreprise.",
+      "serviceStructure": "Structure du service",
+      "serviceStructureHint": "Configurez les services prérequis et les étapes ordonnées nécessaires à ce service.",
+      "dependencies": "Dépendances",
+      "dependenciesHint": "Sélectionnez les services à effectuer avant ce service.",
+      "minutes": "minutes",
+      "noDependencyOptions": "Aucun autre service actif n’est disponible comme prérequis.",
+      "serviceStages": "Étapes du service",
+      "serviceStagesHint": "Décomposez le service en étapes opérationnelles ordonnées. La durée totale ne peut pas dépasser celle du service.",
+      "stageName": "Nom de l’étape",
+      "stageDuration": "Durée de l’étape (minutes)",
+      "noStages": "Aucune étape configurée. Ajoutez-en une pour un service en plusieurs phases.",
+      "crmProfile": "CRM client",
+      "crmNotes": "Notes de l’entreprise",
+      "crmNotesHint": "Contexte opérationnel privé pour ce client dans votre entreprise.",
+      "crmTags": "Étiquettes client",
+      "crmTagsHint": "VIP, coloration, préfère Hadi…",
+      "duplicateCustomerId": "ID du client en doublon à fusionner",
+      "mergedAliases": "Alias fusionnés",
+      "recentAppointments": "Rendez-vous récents",
+      "recentPayments": "Paiements récents",
+      "crmNotesTags": "Notes et tags entreprise",
+      "tags": "Tags",
+      "tagsHint": "vip, cliente-couleur, préfère-hadi",
+      "privateNotes": "Notes privées",
+      "privateNotesHint": "Préférences, contexte, suivi ou considérations de service visibles par le personnel autorisé.",
+      "mergeDuplicate": "Fusionner un client en doublon",
+      "mergeDuplicateHint": "Choisissez un autre dossier représentant la même personne. L’historique est conservé sous ce client canonique.",
+      "chooseDuplicate": "Choisir le doublon",
+      "mergeConfirm": "Fusionner {name} dans ce client ? L’historique est conservé et ce client devient le dossier canonique.",
+      "bankName": "Banque",
+      "accountHolder": "Titulaire du compte",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "Numéro de compte",
+      "routingNumber": "Numéro de routage",
+      "verificationDocumentId": "ID du document de vérification",
+      "bankVerificationHint": "La modification du compte ou de l’IBAN réinitialise la vérification. La plateforme effectue la vérification.",
+      "packagePurchaseId": "ID d’achat du forfait",
+      "serviceId": "ID du service",
+      "appointmentId": "ID du rendez-vous",
+      "sessionsUsed": "Séances à utiliser",
+      "chooseBankAccount": "Choisir un compte bancaire vérifié",
+      "bankAccount": "Compte bancaire",
+      "withdrawalAmount": "Montant du retrait",
+      "referenceCode": "Code de référence",
+      "withdrawalReason": "Motif / note",
+      "portfolioTitle": "Titre de la publication",
+      "portfolioCaption": "Légende",
+      "portfolioTags": "Tags séparés par des virgules",
+      "portfolioMedia": "Choisir jusqu’à 6 photos/vidéos",
+      "noVerifiedReview": "Publier sans Travail vérifié",
+      "portfolioPost": "Publication portfolio",
+      "verifiedWork": "Travail vérifié",
+      "mediaItems": "médias",
+      "verifiedReviewId": "ID de l’avis vérifié",
+      "selectVerifiedReview": "Choisir un avis vérifié",
+      "calendarDate": "Date du calendrier",
+      "allResources": "Tous les fauteuils / ressources",
+      "anyResource": "Tout fauteuil / ressource",
+      "calendarDragHint": "Glissez une réservation en attente ou confirmée vers un autre jour pour la replanifier en toute sécurité.",
+      "startTime": "Heure de début",
+      "staffNote": "Note du personnel",
+      "emptyDay": "Aucune réservation"
     },
     "messages": {
       "serviceCreated": "Service créé.",
@@ -760,7 +899,38 @@
       "serviceDisabled": "Service désactivé.",
       "serviceEnabled": "Service activé.",
       "promotionPaused": "Promotion en pause.",
-      "promotionActivated": "Promotion activée."
+      "promotionActivated": "Promotion activée.",
+      "dependenciesSaved": "Dépendances du service enregistrées.",
+      "stagesSaved": "Étapes du service enregistrées.",
+      "templateCreated": "Formulaire créé à partir du modèle.",
+      "crmSaved": "CRM client enregistré.",
+      "mergeSameCustomer": "Choisissez un autre client en doublon.",
+      "customerMerged": "Client en doublon fusionné.",
+      "bankDestinationRequired": "Saisissez un numéro de compte ou un IBAN.",
+      "bankAccountCreated": "Compte bancaire ajouté.",
+      "bankAccountEnabled": "Paiements activés pour ce compte.",
+      "bankAccountDisabled": "Paiements désactivés pour ce compte.",
+      "packageRedeemed": "Séance du forfait utilisée.",
+      "withdrawalBankRequired": "Choisissez un compte bancaire vérifié.",
+      "withdrawalRequested": "Demande de retrait envoyée.",
+      "noVerifiedBank": "Ajoutez et faites vérifier un compte bancaire avant de demander un retrait.",
+      "withdrawalCancelled": "Demande de retrait annulée.",
+      "portfolioMediaLimit": "Une publication portfolio peut contenir jusqu’à 6 médias.",
+      "portfolioPublished": "Publication portfolio créée.",
+      "portfolioPublishedVerified": "Publication créée comme Travail vérifié.",
+      "portfolioVerified": "Travail vérifié.",
+      "portfolioArchived": "Publication archivée.",
+      "calendarQuickAddRequired": "La succursale, le client, le service et l’heure de début sont obligatoires.",
+      "calendarBookingCreated": "Réservation créée.",
+      "calendarBookingMoved": "Réservation replanifiée."
+    },
+    "calendarViews": {
+      "day": "Jour",
+      "fourDay": "4 jours",
+      "week": "Semaine",
+      "twoWeek": "2 semaines",
+      "month": "Mois",
+      "list": "Liste"
     }
   },
   "adminOps": {
@@ -873,13 +1043,55 @@
       "remote-config": {
         "title": "Configuration distante",
         "subtitle": "Configuration opérationnelle pilotée par serveur."
+      },
+      "strikes": {
+        "title": "Sanctions utilisateurs",
+        "subtitle": "Avertissements, sanctions, expiration et état d’application."
+      },
+      "branches": {
+        "title": "Succursales",
+        "subtitle": "Répertoire global des établissements, réservation et état opérationnel."
+      },
+      "professionals": {
+        "title": "Professionnels",
+        "subtitle": "Profils professionnels, vérification et état plateforme."
+      },
+      "services": {
+        "title": "Services",
+        "subtitle": "Catalogue de services des entreprises, tarifs et disponibilité."
+      },
+      "regions": {
+        "title": "Régions",
+        "subtitle": "Régions de marché et rattachement aux pays."
+      },
+      "currencies": {
+        "title": "Devises",
+        "subtitle": "Devises prises en charge, symboles, décimales et état."
+      },
+      "plans": {
+        "title": "Forfaits d’abonnement",
+        "subtitle": "Niveaux, tarifs et périodes d’essai de la plateforme."
+      },
+      "appeals": {
+        "title": "Recours de modération",
+        "subtitle": "Examinez les recours, annulez les actions erronées, restaurez le contenu et les sanctions liées."
+      },
+      "withdrawals": {
+        "title": "Examen des retraits",
+        "subtitle": "Approuvez, traitez, terminez ou refusez les demandes de retrait vers des comptes vérifiés."
+      },
+      "auto-flags": {
+        "title": "Alertes de modération automatiques",
+        "subtitle": "Alertes système à forte confiance en attente d’examen, de rejet ou d’escalade."
       }
     },
     "prompts": {
       "reason": "Motif (facultatif)",
       "rejectionReason": "Motif du rejet (obligatoire)",
       "resolution": "Note de résolution",
-      "newValue": "Nouvelle valeur pour {key}"
+      "newValue": "Nouvelle valeur pour {key}",
+      "withdrawalRejectionReason": "Motif du refus du retrait",
+      "withdrawalReference": "Référence banque/prestataire (facultatif)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -899,8 +1111,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "Retrait approuvé.",
+        "rejected": "Retrait refusé.",
+        "processing": "Retrait en cours de traitement.",
+        "completed": "Retrait terminé et comptabilisé.",
+        "failed": "Retrait marqué en échec."
+      }
+    },
+    "startProcessing": "Démarrer le traitement",
+    "completeWithdrawal": "Terminer",
+    "markFailed": "Marquer en échec",
+    "retryProcessing": "Relancer le traitement"
   },
   "customerAccount": {
     "eyebrow": "Compte LOOKIVA",
@@ -967,6 +1190,18 @@
       "nearby-settings": {
         "title": "Recommandations à proximité",
         "subtitle": "Contrôlez la localisation, la distance et les heures calmes."
+      },
+      "privacy": {
+        "title": "Confidentialité et données",
+        "subtitle": "Téléchargez vos données ou supprimez définitivement votre compte LOOKIVA."
+      },
+      "collections": {
+        "title": "Collections",
+        "subtitle": "Découvrez les travaux récents des salons et professionnels que vous suivez."
+      },
+      "moderation": {
+        "title": "Modération et recours",
+        "subtitle": "Consultez les sanctions du compte et suivez vos recours de modération."
       }
     },
     "actions": {
@@ -979,7 +1214,10 @@
       "revoking": "Révocation…",
       "savePreferences": "Enregistrer les préférences",
       "saveNearby": "Enregistrer la proximité",
-      "saveProfile": "Enregistrer le profil"
+      "saveProfile": "Enregistrer le profil",
+      "downloadData": "Télécharger mes données",
+      "deleteAccount": "Supprimer définitivement le compte",
+      "appeal": "Faire appel"
     },
     "empty": {
       "bookings": "Aucune réservation. Découvrez un professionnel et réservez votre premier rendez-vous.",
@@ -989,7 +1227,9 @@
       "reviews": "Vous n’avez encore publié aucun avis.",
       "sessions": "Aucune session active trouvée.",
       "generic": "Aucune donnée dans cette section.",
-      "activity": "Aucune activité."
+      "activity": "Aucune activité.",
+      "strikes": "Aucune sanction de modération n’est associée à votre compte.",
+      "appeals": "Vous n’avez encore soumis aucun recours de modération."
     },
     "labels": {
       "booking": "Réservation",
@@ -1038,7 +1278,17 @@
       "noConversations": "Aucune conversation pour le moment.",
       "noMessages": "Aucun message pour le moment.",
       "loyaltyPoints": "Points de fidélité",
-      "standard": "Standard"
+      "standard": "Standard",
+      "privacyIntro": "L’export contient votre compte, préférences, réservations, paiements, messages et autres données liées au compte.",
+      "deleteWarning": "La suppression est définitive. Les réservations actives ou futures doivent d’abord être terminées ou annulées.",
+      "deletePhrase": "Saisissez DELETE MY ACCOUNT pour confirmer.",
+      "myStrikes": "Mes sanctions",
+      "myAppeals": "Mes recours",
+      "moderationAction": "Action de modération",
+      "noModerationDetails": "Aucun détail supplémentaire n’a été fourni.",
+      "inactive": "inactif",
+      "appealReasonPrompt": "Expliquez pourquoi cette action devrait être annulée (au moins 10 caractères).",
+      "resolution": "Résolution"
     },
     "messages": {
       "favoriteRemoved": "Retiré des favoris.",
@@ -1048,7 +1298,10 @@
       "sessionRevoked": "Session révoquée.",
       "preferencesSaved": "Préférences enregistrées.",
       "nearbySaved": "Paramètres de proximité enregistrés.",
-      "profileSaved": "Profil enregistré."
+      "profileSaved": "Profil enregistré.",
+      "exportReady": "L’export de vos données est prêt.",
+      "accountDeleted": "Votre compte a été supprimé définitivement.",
+      "appealSubmitted": "Votre recours de modération a été envoyé."
     }
   },
   "customerBooking": {
@@ -1075,7 +1328,18 @@
     "notesPlaceholder": "Indiquez au professionnel ce que vous souhaitez…",
     "processing": "Traitement…",
     "confirm": "Vérifier et confirmer",
-    "signIn": "Se connecter pour réserver"
+    "signIn": "Se connecter pour réserver",
+    "paymentRequired": "Acompte requis",
+    "depositReserved": "Votre créneau et votre ressource sont réservés. Payez l’acompte requis pour finaliser la confirmation.",
+    "payDeposit": "Payer l’acompte",
+    "paymentMethod": "Mode de paiement",
+    "giftCardCode": "Code carte cadeau",
+    "paying": "Paiement en cours…",
+    "depositPaid": "Acompte payé",
+    "paymentPending": "Le paiement a commencé. Terminez le paiement chez le prestataire pour confirmer la réservation.",
+    "noPaymentMethods": "Aucun mode de paiement n’est actuellement disponible. Contactez l’établissement.",
+    "amountDueNow": "Montant dû maintenant",
+    "bookingPendingBusiness": "Acompte reçu. En attente de confirmation de l’établissement."
   },
   "customerChat": {
     "back": "Messages",
@@ -1171,7 +1435,21 @@
     "total": "Total",
     "currency": "Devise",
     "timeline": "Chronologie",
-    "notAvailable": "Indisponible"
+    "notAvailable": "Indisponible",
+    "consents": "Formulaires de consentement",
+    "consentRequired": "Action requise",
+    "signed": "Signé",
+    "sign": "Examiner et signer",
+    "signatureName": "Saisissez votre nom complet comme signature",
+    "accept": "J’ai lu et j’accepte ces conditions",
+    "signing": "Signature…",
+    "consentSigned": "Consentement signé.",
+    "noConsents": "Aucun formulaire de consentement n’est requis pour cette réservation.",
+    "checkInQr": "QR d’arrivée",
+    "showQr": "Afficher le QR d’arrivée",
+    "qrHint": "Montrez ce QR à l’équipe du salon à votre arrivée. Il expire automatiquement.",
+    "qrUnavailable": "Le QR d’arrivée n’est pas encore disponible.",
+    "qrExpires": "Expire"
   },
   "availableNowPage": {
     "realOpenings": "créneaux réellement disponibles",
@@ -1209,5 +1487,19 @@
       "title": "Des recommandations près de vous",
       "subtitle": "Des suggestions adaptées à vos goûts, votre budget et votre localisation. Explorez maintenant."
     }
+  },
+  "customerReels": {
+    "title": "Reels et réalisations",
+    "subtitle": "Découvrez les travaux récents des salons et professionnels que vous suivez.",
+    "signIn": "Connectez-vous pour personnaliser votre fil Reels.",
+    "loadError": "Impossible de charger les Reels.",
+    "bookThisLook": "Réserver ce look",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "by": "Par",
+    "empty": "Aucun Reel disponible pour le moment.",
+    "collections": "Collections",
+    "createCollection": "Créer une collection",
+    "verifiedWork": "Verified Work"
   }
 }

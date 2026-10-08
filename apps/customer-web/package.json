@@ -35,7 +35,9 @@
     "swiper": "^11.0.5",
     "tailwind-merge": "^2.2.1",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "socket.io-client": "^4.8.1",
+    "qrcode.react": "^4.2.0"
   },
   "devDependencies": {
     "@lookiva/eslint-config": "workspace:*",

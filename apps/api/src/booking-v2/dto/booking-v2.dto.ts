@@ -133,6 +133,16 @@ export class CheckInDto {
   longitude?: number;
 }
 
+export class QrCheckInDto extends CheckInDto {
+  @IsString()
+  token!: string;
+}
+
+export class FloorStatusDto {
+  @IsString()
+  state!: string;
+}
+
 export class AppointmentTransitionDto {
   @IsOptional()
   @IsString()

@@ -8,6 +8,10 @@ environment:
   flutter: ">=3.38.4"
 
 dependencies:
+  firebase_core: ^4.2.0
+  firebase_messaging: ^16.0.3
+  flutter_local_notifications: ^19.5.0
+  mobile_scanner: ^7.4.2
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -19,6 +23,7 @@ dependencies:
   dio: ^5.4.0
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
+  socket_io_client: ^3.1.2
 
 dev_dependencies:
   flutter_test:

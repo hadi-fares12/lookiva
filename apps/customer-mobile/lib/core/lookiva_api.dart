@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'realtime.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,8 +44,10 @@ class LookivaApi {
 
   static final LookivaApi instance = LookivaApi._();
   static const _storage = FlutterSecureStorage();
+  int _sessionEpoch = 0;
   static const _accessKey = 'lookiva_customer_access';
   static const _refreshKey = 'lookiva_customer_refresh';
+  static const _responseCacheKey = 'lookiva_customer_response_cache_v1';
   static const _prefApiUrl = 'cust_api_base_url';
 
   static String? _cachedBaseUrl;
@@ -169,6 +174,7 @@ class LookivaApi {
     if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
     }
+    await _storage.delete(key: _responseCacheKey);
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -215,28 +221,162 @@ class LookivaApi {
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async {
-    final response = await _dio.get<dynamic>(path, queryParameters: query);
+    final epoch = _sessionEpoch;
+    final fingerprint = _cacheFingerprint(path, query);
+    try {
+      final response = await _dio.get<dynamic>(path, queryParameters: query);
+      final data = _unwrap(response.data);
+      if (epoch == _sessionEpoch && !RegExp(r'privacy|finance|payments|security|auth|availability|holds|check-in-token').hasMatch(path)) {
+        await _writeCachedResponse(fingerprint, data);
+      }
+      return data;
+    } catch (error) {
+      if (_isOffline(error)) {
+        final cached = await _readCachedResponse(fingerprint);
+        if (cached != null) return cached;
+      }
+      rethrow;
+    }
+  }
+
+  String _cacheFingerprint(String path, Map<String, dynamic>? query) {
+    if (query == null || query.isEmpty) return path;
+    final keys = query.keys.toList()..sort();
+    final normalized = <String, dynamic>{
+      for (final key in keys) key: query[key],
+    };
+    return '$path?${jsonEncode(normalized)}';
+  }
+
+  Future<Map<String, dynamic>> _readResponseCache() async {
+    final raw = await _storage.read(key: _responseCacheKey);
+    if (raw == null || raw.isEmpty) return <String, dynamic>{};
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<dynamic> _readCachedResponse(String fingerprint) async {
+    final cache = await _readResponseCache();
+    final entry = cache[fingerprint];
+    if (entry is! Map || !entry.containsKey('data')) return null;
+    final at = int.tryParse(entry['at']?.toString() ?? '') ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - at > const Duration(hours: 24).inMilliseconds) return null;
+    return entry['data'];
+  }
+
+  Future<void> _writeCachedResponse(String fingerprint, dynamic data) async {
+    try {
+      final cache = await _readResponseCache();
+      cache[fingerprint] = {
+        'at': DateTime.now().millisecondsSinceEpoch,
+        'data': data,
+      };
+
+      if (cache.length > 30) {
+        final entries = cache.entries.toList()
+          ..sort((a, b) {
+            final aAt = a.value is Map
+                ? int.tryParse((a.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            final bAt = b.value is Map
+                ? int.tryParse((b.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            return aAt.compareTo(bAt);
+          });
+        for (final entry in entries.take(cache.length - 30)) {
+          cache.remove(entry.key);
+        }
+      }
+
+      await _storage.write(key: _responseCacheKey, value: jsonEncode(cache));
+    } catch (_) {
+      // Offline cache is best-effort and must never break a successful request.
+    }
+  }
+
+  Future<dynamic> uploadMedia({
+    required String filePath,
+    required String fileName,
+    required String mimeType,
+    bool isPublic = false,
+  }) async {
+    final contentType = MediaType.parse(mimeType);
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        filePath,
+        filename: fileName,
+        contentType: contentType,
+      ),
+    });
+    final response = await _dio.post<dynamic>(
+      '/media/upload',
+      queryParameters: {'isPublic': isPublic},
+      data: form,
+      options: Options(contentType: 'multipart/form-data'),
+    );
     return _unwrap(response.data);
   }
 
   Future<dynamic> post(String path, {Object? data}) async {
     final response = await _dio.post<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> patch(String path, {Object? data}) async {
     final response = await _dio.patch<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> put(String path, {Object? data}) async {
     final response = await _dio.put<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
   }
 
   Future<dynamic> delete(String path, {Object? data}) async {
     final response = await _dio.delete<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
+  }
+
+  Future<String?> accessToken() => _storage.read(key: _accessKey);
+
+  Future<String> publicMediaUrl(
+    String mediaId, {
+    String? variant,
+  }) async {
+    final apiBase = _dio.options.baseUrl.isNotEmpty
+        ? _dio.options.baseUrl
+        : await _resolveBaseUrl();
+    final base = apiBase.replaceAll(RegExp(r'/$'), '');
+    final encodedId = Uri.encodeComponent(mediaId);
+    final suffix = variant == null || variant.isEmpty
+        ? ''
+        : '?variant=${Uri.encodeQueryComponent(variant)}';
+    return '$base/media/public/$encodedId$suffix';
+  }
+
+  Future<String> realtimeBaseUrl() async {
+    final apiBase = _dio.options.baseUrl.isNotEmpty
+        ? _dio.options.baseUrl
+        : await _resolveBaseUrl();
+    var base = apiBase;
+    if (base.endsWith('/api/v1')) {
+      base = base.substring(0, base.length - '/api/v1'.length);
+    }
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    return base;
   }
 
   Future<void> logout() async {
@@ -247,8 +387,11 @@ class LookivaApi {
   }
 
   Future<void> clearSession() async {
+    _sessionEpoch++;
+    LookivaRealtime.instance.disconnect();
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
+    await _storage.delete(key: _responseCacheKey);
   }
 
   bool _isOffline(Object error) {

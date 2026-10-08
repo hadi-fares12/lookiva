@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import Redis from 'ioredis';
+import { requestMetricsSnapshot } from '../common/observability/request-metrics';
 
 @Injectable()
 export class PrismaHealthIndicator extends HealthIndicator {
@@ -113,6 +114,16 @@ export class HealthController {
     private readonly redisHealthIndicator: RedisHealthIndicator,
     private readonly storageHealthIndicator: StorageHealthIndicator,
   ) {}
+
+  @Public()
+  @Get('metrics')
+  metrics() {
+    return {
+      status: 'ok',
+      service: 'lookiva-api',
+      ...requestMetricsSnapshot(),
+    };
+  }
 
   @Public()
   @Get()

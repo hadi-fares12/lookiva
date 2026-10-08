@@ -217,7 +217,8 @@
     "wallet": "المحفظة",
     "settings": "الإعدادات",
     "help": "المساعدة والدعم",
-    "menu": "القائمة"
+    "menu": "القائمة",
+    "reels": "ريلز"
   },
   "homeSections": {
     "forYou": "مُقترح لك",
@@ -549,7 +550,14 @@
         "branches": "الفروع",
         "subscriptions": "الاشتراك",
         "audit": "سجل التدقيق",
-        "settings": "الإعدادات"
+        "settings": "الإعدادات",
+        "inventory": "المخزون",
+        "commissions": "العمولات",
+        "forms": "نماذج الموافقة",
+        "banking": "الحسابات البنكية",
+        "packageRedemptions": "استخدام الباقات",
+        "withdrawals": "السحوبات",
+        "portfolio": "معرض الأعمال"
       }
     },
     "admin": {
@@ -579,7 +587,17 @@
         "featureFlags": "علامات الميزات",
         "remoteConfig": "الإعداد عن بُعد",
         "audit": "سجل التدقيق",
-        "system": "النظام"
+        "system": "النظام",
+        "strikes": "مخالفات المستخدمين",
+        "branches": "الفروع",
+        "professionals": "المحترفون",
+        "services": "الخدمات",
+        "regions": "المناطق",
+        "currencies": "العملات",
+        "plans": "الخطط",
+        "appeals": "الاعتراضات",
+        "withdrawals": "السحوبات",
+        "autoFlags": "إشارات تلقائية"
       }
     }
   },
@@ -663,6 +681,34 @@
       "settings": {
         "title": "إعدادات المؤسسة",
         "subtitle": "ملف المؤسسة وإعدادات الحجز."
+      },
+      "inventory": {
+        "title": "المنتجات والمخزون",
+        "subtitle": "المنتجات ومخزون الفروع وحدود إعادة الطلب والانتهاء وحركات المخزون."
+      },
+      "commissions": {
+        "title": "قواعد العمولات",
+        "subtitle": "قواعد عمولات المحترفين والنسب ومنطق الدفعات."
+      },
+      "forms": {
+        "title": "نماذج الموافقة",
+        "subtitle": "نماذج موافقة الخدمة والطبية والإعلامية والعامة مع الإصدارات."
+      },
+      "banking": {
+        "title": "حسابات الدفعات",
+        "subtitle": "إدارة وجهات الدفعات البنكية المخفية ومستندات التحقق."
+      },
+      "packageRedemptions": {
+        "title": "استخدام الباقات",
+        "subtitle": "استخدم جلسات الباقات بأمان وراجع سجل الاستخدام."
+      },
+      "withdrawals": {
+        "title": "السحوبات",
+        "subtitle": "اطلب تحويلات إلى حسابات بنكية موثقة وتابع حالة المعالجة."
+      },
+      "portfolio": {
+        "title": "معرض الأعمال والريلز",
+        "subtitle": "انشر صور وفيديوهات الأعمال واربط الخدمات والمحترفين ووثّق العمل بحجز مكتمل ومراجعة موثّقة."
       }
     },
     "actions": {
@@ -685,7 +731,35 @@
       "complete": "إكمال",
       "call": "استدعاء",
       "served": "تمت الخدمة",
-      "viewOnly": "عرض فقط"
+      "viewOnly": "عرض فقط",
+      "structure": "الهيكل",
+      "close": "إغلاق",
+      "saveDependencies": "حفظ المتطلبات",
+      "addStage": "إضافة مرحلة",
+      "saveStages": "حفظ المراحل",
+      "remove": "إزالة",
+      "useTemplate": "استخدام القالب",
+      "saveCrm": "حفظ CRM",
+      "mergeDuplicate": "دمج عميل مكرر",
+      "viewCrm": "فتح إدارة العميل",
+      "merge": "دمج التكرار",
+      "addBankAccount": "إضافة حساب بنكي",
+      "enablePayouts": "تفعيل الدفعات",
+      "disablePayouts": "تعطيل الدفعات",
+      "exportCsv": "تصدير CSV",
+      "exportXlsx": "تصدير XLSX",
+      "redeemPackage": "استخدام الباقة",
+      "requestWithdrawal": "طلب سحب",
+      "cancelWithdrawal": "إلغاء الطلب",
+      "uploading": "جارٍ الرفع…",
+      "publishPortfolio": "نشر العمل",
+      "verifyWork": "توثيق العمل",
+      "archive": "أرشفة",
+      "previous": "السابق",
+      "today": "اليوم",
+      "next": "التالي",
+      "quickAdd": "إضافة سريعة",
+      "createBooking": "إنشاء حجز"
     },
     "labels": {
       "serviceName": "اسم الخدمة",
@@ -738,7 +812,72 @@
       "anyProfessional": "أي محترف",
       "until": "حتى",
       "allAuthorizedBranches": "كل الفروع المصرح بها",
-      "resetFilters": "إعادة تعيين الفلاتر"
+      "resetFilters": "إعادة تعيين الفلاتر",
+      "formTemplates": "قوالب النماذج",
+      "formTemplatesHint": "ابدأ بقالب موافقة أو إدخال قابل لإعادة الاستخدام ثم خصصه لمؤسستك.",
+      "serviceStructure": "هيكل الخدمة",
+      "serviceStructureHint": "اضبط الخدمات المطلوبة مسبقاً والمراحل المرتبة اللازمة لتنفيذ هذه الخدمة.",
+      "dependencies": "المتطلبات السابقة",
+      "dependenciesHint": "اختر الخدمات التي يجب تنفيذها قبل هذه الخدمة.",
+      "minutes": "دقائق",
+      "noDependencyOptions": "لا توجد خدمات نشطة أخرى متاحة كمتطلبات سابقة.",
+      "serviceStages": "مراحل الخدمة",
+      "serviceStagesHint": "قسّم الخدمة إلى مراحل تشغيلية مرتبة. يجب ألا يتجاوز مجموع المدد مدة الخدمة.",
+      "stageName": "اسم المرحلة",
+      "stageDuration": "مدة المرحلة (دقائق)",
+      "noStages": "لا توجد مراحل مضبوطة. أضف مرحلة إذا كانت الخدمة متعددة الخطوات.",
+      "crmProfile": "إدارة علاقة العميل",
+      "crmNotes": "ملاحظات المؤسسة",
+      "crmNotesHint": "سياق تشغيلي خاص بهذا العميل داخل مؤسستك.",
+      "crmTags": "وسوم العميل",
+      "crmTagsHint": "VIP، عميل صبغة، يفضّل هادي…",
+      "duplicateCustomerId": "معرّف العميل المكرر للدمج",
+      "mergedAliases": "السجلات المدمجة",
+      "recentAppointments": "المواعيد الأخيرة",
+      "recentPayments": "المدفوعات الأخيرة",
+      "crmNotesTags": "ملاحظات المؤسسة والوسوم",
+      "tags": "الوسوم",
+      "tagsHint": "vip، عميل-صبغة، يفضل-هادي",
+      "privateNotes": "ملاحظات خاصة",
+      "privateNotesHint": "التفضيلات والسياق وملاحظات المتابعة أو اعتبارات الخدمة للموظفين المصرح لهم.",
+      "mergeDuplicate": "دمج عميل مكرر",
+      "mergeDuplicateHint": "اختر سجلاً آخر يمثل الشخص نفسه. يبقى السجل التاريخي محفوظاً تحت العميل الأساسي.",
+      "chooseDuplicate": "اختر السجل المكرر",
+      "mergeConfirm": "هل تريد دمج {name} في هذا العميل؟ سيبقى السجل محفوظاً ويصبح هذا العميل هو السجل الأساسي.",
+      "bankName": "اسم البنك",
+      "accountHolder": "اسم صاحب الحساب",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "رقم الحساب",
+      "routingNumber": "رقم التوجيه",
+      "verificationDocumentId": "معرّف مستند التحقق",
+      "bankVerificationHint": "تعديل رقم الحساب أو IBAN يلغي حالة التحقق. يتم التحقق بواسطة فريق المنصة.",
+      "packagePurchaseId": "معرّف شراء الباقة",
+      "serviceId": "معرّف الخدمة",
+      "appointmentId": "معرّف الموعد",
+      "sessionsUsed": "عدد الجلسات المستخدمة",
+      "chooseBankAccount": "اختر حساباً بنكياً موثقاً",
+      "bankAccount": "الحساب البنكي",
+      "withdrawalAmount": "مبلغ السحب",
+      "referenceCode": "رمز المرجع",
+      "withdrawalReason": "السبب / ملاحظة",
+      "portfolioTitle": "عنوان المنشور",
+      "portfolioCaption": "الوصف",
+      "portfolioTags": "الوسوم مفصولة بفواصل",
+      "portfolioMedia": "اختر حتى 6 صور أو فيديوهات",
+      "noVerifiedReview": "نشر بدون توثيق العمل",
+      "portfolioPost": "منشور معرض الأعمال",
+      "verifiedWork": "عمل موثّق",
+      "mediaItems": "وسائط",
+      "verifiedReviewId": "معرّف المراجعة الموثّقة",
+      "selectVerifiedReview": "اختر مراجعة موثّقة",
+      "calendarDate": "تاريخ التقويم",
+      "allResources": "كل الكراسي / الموارد",
+      "anyResource": "أي كرسي / مورد",
+      "calendarDragHint": "اسحب الحجز المؤهل المعلّق أو المؤكد إلى يوم آخر لإعادة جدولته بأمان.",
+      "startTime": "وقت البداية",
+      "staffNote": "ملاحظة للموظفين",
+      "emptyDay": "لا توجد حجوزات"
     },
     "messages": {
       "serviceCreated": "تم إنشاء الخدمة.",
@@ -760,7 +899,38 @@
       "serviceDisabled": "تم تعطيل الخدمة.",
       "serviceEnabled": "تم تفعيل الخدمة.",
       "promotionPaused": "تم إيقاف العرض.",
-      "promotionActivated": "تم تفعيل العرض."
+      "promotionActivated": "تم تفعيل العرض.",
+      "dependenciesSaved": "تم حفظ متطلبات الخدمة.",
+      "stagesSaved": "تم حفظ مراحل الخدمة.",
+      "templateCreated": "تم إنشاء نموذج الموافقة من القالب.",
+      "crmSaved": "تم حفظ بيانات إدارة العميل.",
+      "mergeSameCustomer": "اختر عميلاً مكرراً مختلفاً.",
+      "customerMerged": "تم دمج العميل المكرر.",
+      "bankDestinationRequired": "أدخل رقم حساب أو IBAN.",
+      "bankAccountCreated": "تمت إضافة الحساب البنكي.",
+      "bankAccountEnabled": "تم تفعيل الدفعات لهذا الحساب.",
+      "bankAccountDisabled": "تم تعطيل الدفعات لهذا الحساب.",
+      "packageRedeemed": "تم استخدام جلسة من الباقة.",
+      "withdrawalBankRequired": "اختر حساباً بنكياً موثقاً.",
+      "withdrawalRequested": "تم إرسال طلب السحب.",
+      "noVerifiedBank": "أضف حساب دفع بنكي وتحقق منه قبل طلب السحب.",
+      "withdrawalCancelled": "تم إلغاء طلب السحب.",
+      "portfolioMediaLimit": "يمكن أن يحتوي منشور معرض الأعمال على 6 ملفات وسائط كحد أقصى.",
+      "portfolioPublished": "تم نشر العمل.",
+      "portfolioPublishedVerified": "تم نشر العمل كعمل موثّق.",
+      "portfolioVerified": "تم توثيق العمل.",
+      "portfolioArchived": "تمت أرشفة المنشور.",
+      "calendarQuickAddRequired": "الفرع والعميل والخدمة ووقت البداية مطلوبة.",
+      "calendarBookingCreated": "تم إنشاء الحجز.",
+      "calendarBookingMoved": "تمت إعادة جدولة الحجز."
+    },
+    "calendarViews": {
+      "day": "يوم",
+      "fourDay": "4 أيام",
+      "week": "أسبوع",
+      "twoWeek": "أسبوعان",
+      "month": "شهر",
+      "list": "قائمة"
     }
   },
   "adminOps": {
@@ -873,13 +1043,55 @@
       "remote-config": {
         "title": "الإعداد عن بُعد",
         "subtitle": "إعداد تشغيلي تقوده الخوادم."
+      },
+      "strikes": {
+        "title": "مخالفات المستخدمين",
+        "subtitle": "التحذيرات والمخالفات والسياسات وتواريخ الانتهاء وحالة التنفيذ."
+      },
+      "branches": {
+        "title": "الفروع",
+        "subtitle": "دليل الفروع على مستوى المنصة وحالة الحجز والتشغيل."
+      },
+      "professionals": {
+        "title": "المحترفون",
+        "subtitle": "ملفات المحترفين والتحقق والحالة على المنصة."
+      },
+      "services": {
+        "title": "الخدمات",
+        "subtitle": "دليل الخدمات بين المؤسسات والأسعار وحالة التوفر."
+      },
+      "regions": {
+        "title": "المناطق",
+        "subtitle": "مناطق الأسواق وربطها بالدول."
+      },
+      "currencies": {
+        "title": "العملات",
+        "subtitle": "العملات المدعومة والرموز والكسور والحالة."
+      },
+      "plans": {
+        "title": "خطط الاشتراك",
+        "subtitle": "مستويات اشتراك المنصة والأسعار وفترات التجربة."
+      },
+      "appeals": {
+        "title": "اعتراضات الإشراف",
+        "subtitle": "راجع الاعتراضات واعكس الإجراءات الخاطئة واستعد المحتوى وألغِ المخالفات المرتبطة."
+      },
+      "withdrawals": {
+        "title": "مراجعة السحوبات",
+        "subtitle": "وافق على طلبات سحب المؤسسات أو عالجها أو أكملها أو ارفضها للحسابات البنكية الموثقة."
+      },
+      "auto-flags": {
+        "title": "إشارات الإشراف التلقائية",
+        "subtitle": "إشارات عالية الثقة من النظام بانتظار المراجعة البشرية أو الرفض أو التصعيد."
       }
     },
     "prompts": {
       "reason": "السبب (اختياري)",
       "rejectionReason": "سبب الرفض (مطلوب)",
       "resolution": "ملاحظة الحل",
-      "newValue": "قيمة جديدة لـ {key}"
+      "newValue": "قيمة جديدة لـ {key}",
+      "withdrawalRejectionReason": "سبب رفض السحب",
+      "withdrawalReference": "مرجع البنك/المزود (اختياري)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -899,8 +1111,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "تمت الموافقة على السحب.",
+        "rejected": "تم رفض السحب.",
+        "processing": "تم نقل السحب إلى المعالجة.",
+        "completed": "تم إكمال السحب وتسجيله في دفتر الأستاذ.",
+        "failed": "تم تحديد السحب كفاشل."
+      }
+    },
+    "startProcessing": "بدء المعالجة",
+    "completeWithdrawal": "إكمال السحب",
+    "markFailed": "تحديد كفاشل",
+    "retryProcessing": "إعادة المعالجة"
   },
   "customerAccount": {
     "eyebrow": "حساب لوكيفا",
@@ -967,6 +1190,18 @@
       "nearby-settings": {
         "title": "التوصيات القريبة",
         "subtitle": "التحكم في توصيات الموقع والمسافة وساعات الهدوء."
+      },
+      "privacy": {
+        "title": "الخصوصية والبيانات",
+        "subtitle": "نزّل بيانات حسابك أو احذف حساب لوكيفا نهائياً."
+      },
+      "collections": {
+        "title": "المجموعات",
+        "subtitle": "اكتشف أحدث أعمال الصالونات والمحترفين الذين تتابعهم."
+      },
+      "moderation": {
+        "title": "الإشراف والاعتراضات",
+        "subtitle": "راجع مخالفات الحساب وتابع اعتراضاتك على إجراءات الإشراف."
       }
     },
     "actions": {
@@ -979,7 +1214,10 @@
       "revoking": "جارٍ الإلغاء…",
       "savePreferences": "حفظ التفضيلات",
       "saveNearby": "حفظ إعدادات القرب",
-      "saveProfile": "حفظ الملف"
+      "saveProfile": "حفظ الملف",
+      "downloadData": "تنزيل بياناتي",
+      "deleteAccount": "حذف الحساب نهائياً",
+      "appeal": "اعتراض"
     },
     "empty": {
       "bookings": "لا توجد حجوزات بعد. اكتشف محترفاً واحجز موعدك الأول.",
@@ -989,7 +1227,9 @@
       "reviews": "لم تكتب أي تقييم بعد.",
       "sessions": "لم يتم العثور على جلسات نشطة.",
       "generic": "لا توجد سجلات في هذا القسم بعد.",
-      "activity": "لا يوجد نشاط بعد."
+      "activity": "لا يوجد نشاط بعد.",
+      "strikes": "لا توجد مخالفات إشراف مرتبطة بحسابك.",
+      "appeals": "لم تقدّم أي اعتراضات على الإشراف بعد."
     },
     "labels": {
       "booking": "حجز",
@@ -1038,7 +1278,17 @@
       "noConversations": "لا توجد محادثات بعد.",
       "noMessages": "لا توجد رسائل بعد.",
       "loyaltyPoints": "نقاط الولاء",
-      "standard": "عادي"
+      "standard": "عادي",
+      "privacyIntro": "يتضمن التصدير الحساب والتفضيلات والحجوزات والمدفوعات والرسائل والبيانات الأخرى المرتبطة بحسابك.",
+      "deleteWarning": "الحذف نهائي. يجب إكمال أو إلغاء الحجوزات الحالية أو المستقبلية أولاً.",
+      "deletePhrase": "اكتب DELETE MY ACCOUNT للتأكيد.",
+      "myStrikes": "مخالفاتي",
+      "myAppeals": "اعتراضاتي",
+      "moderationAction": "إجراء إشراف",
+      "noModerationDetails": "لم يتم تقديم تفاصيل إضافية.",
+      "inactive": "غير نشط",
+      "appealReasonPrompt": "اشرح لماذا يجب عكس هذا الإجراء (10 أحرف على الأقل).",
+      "resolution": "القرار"
     },
     "messages": {
       "favoriteRemoved": "تمت الإزالة من المفضلة.",
@@ -1048,7 +1298,10 @@
       "sessionRevoked": "تم إلغاء الجلسة.",
       "preferencesSaved": "تم حفظ التفضيلات.",
       "nearbySaved": "تم حفظ إعدادات القرب.",
-      "profileSaved": "تم حفظ الملف الشخصي."
+      "profileSaved": "تم حفظ الملف الشخصي.",
+      "exportReady": "تم تجهيز تصدير بيانات حسابك.",
+      "accountDeleted": "تم حذف حسابك نهائياً.",
+      "appealSubmitted": "تم إرسال اعتراضك على الإشراف."
     }
   },
   "customerBooking": {
@@ -1075,7 +1328,18 @@
     "notesPlaceholder": "اشرح للمحترف ما الذي تريده…",
     "processing": "جارٍ التنفيذ…",
     "confirm": "تحقق من التوفر وأكد",
-    "signIn": "سجّل الدخول للحجز"
+    "signIn": "سجّل الدخول للحجز",
+    "paymentRequired": "مطلوب عربون",
+    "depositReserved": "تم حجز الوقت والكرسي لك مؤقتاً. ادفع العربون المطلوب لإكمال تأكيد الحجز.",
+    "payDeposit": "دفع العربون",
+    "paymentMethod": "طريقة الدفع",
+    "giftCardCode": "رمز بطاقة الهدية",
+    "paying": "جارٍ معالجة الدفع…",
+    "depositPaid": "تم دفع العربون",
+    "paymentPending": "بدأت عملية الدفع. أكمل الدفع لدى مزود الخدمة لتأكيد الحجز.",
+    "noPaymentMethods": "لا توجد طريقة دفع متاحة حالياً. تواصل مع المنشأة.",
+    "amountDueNow": "المبلغ المطلوب الآن",
+    "bookingPendingBusiness": "تم استلام العربون. بانتظار تأكيد المنشأة."
   },
   "customerChat": {
     "back": "الرسائل",
@@ -1171,7 +1435,21 @@
     "total": "الإجمالي",
     "currency": "العملة",
     "timeline": "الخط الزمني",
-    "notAvailable": "غير متوفر"
+    "notAvailable": "غير متوفر",
+    "consents": "نماذج الموافقة",
+    "consentRequired": "إجراء مطلوب",
+    "signed": "تم التوقيع",
+    "sign": "مراجعة وتوقيع",
+    "signatureName": "اكتب اسمك الكامل كتوقيع",
+    "accept": "قرأت هذه الشروط وأوافق عليها",
+    "signing": "جارٍ التوقيع…",
+    "consentSigned": "تم توقيع الموافقة.",
+    "noConsents": "لا توجد نماذج موافقة مطلوبة لهذا الحجز.",
+    "checkInQr": "رمز QR لتسجيل الوصول",
+    "showQr": "إظهار رمز تسجيل الوصول",
+    "qrHint": "أظهر هذا الرمز لفريق الصالون عند وصولك. تنتهي صلاحيته تلقائياً.",
+    "qrUnavailable": "رمز تسجيل الوصول غير متاح بعد.",
+    "qrExpires": "تنتهي الصلاحية"
   },
   "availableNowPage": {
     "realOpenings": "مواعيد متاحة فعلياً",
@@ -1209,5 +1487,19 @@
       "title": "اقتراحات قريبة منك",
       "subtitle": "اختيارات مخصصة حسب ذوقك وميزانيتك وموقعك. ابدأ الاستكشاف الآن."
     }
+  },
+  "customerReels": {
+    "title": "ريلز وأعمال حقيقية",
+    "subtitle": "اكتشف أحدث أعمال الصالونات والمحترفين الذين تتابعهم.",
+    "signIn": "سجّل الدخول لتخصيص صفحة الريلز.",
+    "loadError": "تعذر تحميل الريلز.",
+    "bookThisLook": "احجز هذا الستايل",
+    "save": "حفظ",
+    "saved": "تم الحفظ",
+    "by": "بواسطة",
+    "empty": "لا توجد ريلز متاحة بعد.",
+    "collections": "المجموعات",
+    "createCollection": "إنشاء مجموعة",
+    "verifiedWork": "Verified Work"
   }
 }

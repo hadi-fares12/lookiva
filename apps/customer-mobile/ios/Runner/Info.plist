@@ -47,6 +47,17 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LOOKIVA lets you choose photos and videos to share in salon chats.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LOOKIVA uses your location to show nearby salons and available professionals.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LOOKIVA can use location in the background, when you enable nearby alerts, to notify you about salons close to you.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -11,6 +12,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import { PaymentProviderService } from './payment-provider.service';
 import { calculateFinancialMetrics } from '../common/finance/financial-metrics';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import {
   CreatePaymentDto,
   CreatePayoutDto,
@@ -48,6 +51,8 @@ export class FinanceV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentProvider: PaymentProviderService,
+    @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   private hasPlatformRole(user: AuthenticatedUser) {
@@ -77,7 +82,7 @@ export class FinanceV2Service {
   }
 
   async createPayment(user: AuthenticatedUser, dto: CreatePaymentDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const company = await tx.companies.findUnique({ where: { id: dto.companyId } });
       if (!company) throw new NotFoundException('Company not found');
 
@@ -108,7 +113,7 @@ export class FinanceV2Service {
         if (!ownsAppointment && !businessScoped) {
           throw new ForbiddenException('Customers may only pay their own appointments');
         }
-        if (appointment.customer_id && customerId !== appointment.customer_id && !businessScoped) {
+        if (appointment.customer_id && customerId !== appointment.customer_id) {
           throw new ForbiddenException('Payment customer does not match the appointment customer');
         }
       } else if (!businessScoped) {
@@ -295,7 +300,12 @@ export class FinanceV2Service {
         // customer is not completed until staff explicitly completes the appointment.
       }
 
-      return tx.payments.findUnique({
+      const appointmentTransition =
+        status === 'succeeded' && appointment
+          ? await this.transitionDepositBookingIfPaid(tx, appointment.id, user.id)
+          : null;
+
+      const savedPayment = await tx.payments.findUnique({
         where: { id: payment.id },
         include: {
           transactions: true,
@@ -303,7 +313,119 @@ export class FinanceV2Service {
           commissions: true,
         },
       });
+      return { payment: savedPayment, appointmentTransition };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }).catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        throw new ConflictException('Payment balance changed. Refresh payment history before trying again.');
+      }
+      throw error;
     });
+
+    if (result.appointmentTransition) {
+      await this.publishDepositTransition(result.appointmentTransition);
+    }
+    return result.payment;
+  }
+
+  async getAppointmentPaymentOptions(user: AuthenticatedUser, appointmentId: string) {
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: { select: { id: true, online_payments_enabled: true } },
+        financial_snapshot: true,
+        customer: { select: { id: true, user_id: true } },
+        payments: {
+          where: { status: { in: ['succeeded', 'partially_refunded', 'refunded'] } },
+          include: { refunds: { where: { status: 'succeeded' } } },
+        },
+      },
+    });
+    if (!appointment || !appointment.financial_snapshot) {
+      throw new NotFoundException('Booking payment details not found');
+    }
+
+    const businessScoped = this.hasBusinessScope(
+      user,
+      appointment.company_id,
+      appointment.branch_id,
+    );
+    if (appointment.customer_user_id !== user.id && !businessScoped) {
+      throw new ForbiddenException('You cannot view payment options for this appointment');
+    }
+
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce((refundSum, refund) => refundSum + Number(refund.amount), 0),
+        ),
+      0,
+    );
+    const depositRequired = Number(appointment.financial_snapshot.deposit_amount ?? 0);
+    const remainingDeposit = money(Math.max(0, depositRequired - collected));
+    const remainingTotal = money(
+      Math.max(0, Number(appointment.financial_snapshot.grand_total) - collected),
+    );
+
+    const wallet = appointment.customer_id
+      ? await this.prisma.wallets.findUnique({ where: { customer_id: appointment.customer_id } })
+      : null;
+    const methods: Array<{
+      key: string;
+      label: string;
+      available: boolean;
+      reason?: string;
+    }> = [];
+
+    if (wallet?.is_active && wallet.currency_code === appointment.financial_snapshot.currency_code) {
+      const walletBalance = money(wallet.balance_cents / 100);
+      methods.push({
+        key: 'wallet',
+        label: `Wallet (${walletBalance} ${wallet.currency_code})`,
+        available: walletBalance + 0.009 >= remainingDeposit,
+        reason:
+          walletBalance + 0.009 >= remainingDeposit
+            ? undefined
+            : 'Insufficient wallet balance',
+      });
+    }
+
+    methods.push({
+      key: 'gift_card',
+      label: 'Gift card',
+      available: true,
+    });
+
+    const onlineEnabled =
+      appointment.company.online_payments_enabled && this.paymentProvider.isOnlineEnabled();
+    methods.push({
+      key: 'online_card',
+      label: 'Online card',
+      available: onlineEnabled,
+      reason: onlineEnabled ? undefined : 'Online payments are not configured for this business',
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      methods.push({
+        key: 'test_card',
+        label: 'Test card (development)',
+        available: true,
+      });
+    }
+
+    return {
+      appointmentId,
+      status: appointment.status,
+      currencyCode: appointment.financial_snapshot.currency_code,
+      depositRequired: money(depositRequired),
+      collected: money(collected),
+      remainingDeposit,
+      remainingTotal,
+      requiresDeposit: remainingDeposit > 0,
+      methods,
+    };
   }
 
   async refundPayment(
@@ -459,7 +581,7 @@ export class FinanceV2Service {
   ) {
     this.paymentProvider.verifyWebhook(rawBody, signature);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payments.findFirst({
         where: { external_transaction_id: dto.externalTransactionId },
         include: {
@@ -479,7 +601,7 @@ export class FinanceV2Service {
       // transaction. This avoids a provider retry storm while revealing no
       // customer/payment information to the caller.
       if (!payment) {
-        return { received: true, ignored: true, reason: 'unknown_transaction' };
+        return { response: { received: true, ignored: true, reason: 'unknown_transaction' }, appointmentTransition: null };
       }
 
       if (payment.external_transaction_id !== dto.externalTransactionId) {
@@ -487,14 +609,14 @@ export class FinanceV2Service {
       }
 
       if (payment.status === dto.status) {
-        return { received: true, duplicate: true, paymentId: payment.id, status: payment.status };
+        return { response: { received: true, duplicate: true, paymentId: payment.id, status: payment.status }, appointmentTransition: null };
       }
 
       // A successfully captured payment is final for capture purposes. Refunds
       // are represented by separate refund records and must never be simulated
       // by a later "failed" capture webhook.
       if (['succeeded', 'partially_refunded', 'refunded'].includes(payment.status)) {
-        return { received: true, ignored: true, paymentId: payment.id, status: payment.status };
+        return { response: { received: true, ignored: true, paymentId: payment.id, status: payment.status }, appointmentTransition: null };
       }
 
       const now = new Date();
@@ -549,12 +671,28 @@ export class FinanceV2Service {
         }
       }
 
+      const appointmentTransition =
+        nextStatus === 'succeeded' && payment.appointment_id
+          ? await this.transitionDepositBookingIfPaid(tx, payment.appointment_id, null)
+          : null;
+
       return {
-        received: true,
-        paymentId: payment.id,
-        status: nextStatus,
+        response: {
+          received: true,
+          paymentId: payment.id,
+          status: nextStatus,
+        },
+        appointmentTransition,
       };
     });
+
+    if ('response' in result) {
+      if (result.appointmentTransition) {
+        await this.publishDepositTransition(result.appointmentTransition);
+      }
+      return result.response;
+    }
+    return result;
   }
 
   async getLedger(user: AuthenticatedUser, companyId: string, currencyCode?: string) {
@@ -661,6 +799,558 @@ export class FinanceV2Service {
     };
   }
 
+  private maskBankAccount<T extends {
+    account_number: string | null;
+    iban: string | null;
+    routing_number: string | null;
+    swift_bic: string | null;
+  }>(account: T) {
+    const mask = (value: string | null) => {
+      if (!value) return null;
+      const compact = value.replace(/\s+/g, '');
+      if (compact.length <= 4) return '••••' + compact;
+      return '••••' + compact.slice(-4);
+    };
+    return {
+      ...account,
+      account_number: mask(account.account_number),
+      iban: mask(account.iban),
+      routing_number: mask(account.routing_number),
+      swift_bic: account.swift_bic,
+    };
+  }
+
+  private async bankOwnerCompany(ownerType: string, ownerId: string) {
+    if (ownerType === 'company') {
+      const company = await this.prisma.companies.findFirst({
+        where: { id: ownerId, deleted_at: null },
+        select: { id: true },
+      });
+      if (!company) throw new NotFoundException('Bank account business owner not found');
+      return company.id;
+    }
+    if (ownerType === 'professional') {
+      const professional = await this.prisma.professionals.findFirst({
+        where: { id: ownerId, deleted_at: null },
+        select: { id: true, company_id: true },
+      });
+      if (!professional) throw new NotFoundException('Bank account professional owner not found');
+      return professional.company_id;
+    }
+    throw new BadRequestException('ownerType must be company or professional');
+  }
+
+  async listBankAccounts(
+    user: AuthenticatedUser,
+    ownerType: string,
+    ownerId: string,
+  ) {
+    const companyId = await this.bankOwnerCompany(ownerType, ownerId);
+    this.assertBusinessScope(user, companyId);
+    const accounts = await this.prisma.bank_accounts.findMany({
+      where: { owner_type: ownerType, owner_id: ownerId },
+      orderBy: [{ payout_enabled: 'desc' }, { created_at: 'desc' }],
+    });
+    return accounts.map((account) => this.maskBankAccount(account));
+  }
+
+  async createBankAccount(
+    user: AuthenticatedUser,
+    dto: Record<string, any>,
+  ) {
+    const ownerType = String(dto.ownerType || '').trim();
+    const ownerId = String(dto.ownerId || '').trim();
+    const companyId = await this.bankOwnerCompany(ownerType, ownerId);
+    this.assertBusinessScope(user, companyId);
+
+    const currencyCode = String(dto.currencyCode || '').trim().toUpperCase();
+    if (currencyCode.length !== 3) {
+      throw new BadRequestException('currencyCode must be a 3-letter currency code');
+    }
+    const hasDestination = [dto.accountNumber, dto.iban].some(
+      (value) => typeof value === 'string' && value.trim().length >= 4,
+    );
+    if (!hasDestination) {
+      throw new BadRequestException('Provide an accountNumber or IBAN');
+    }
+
+    const account = await this.prisma.bank_accounts.create({
+      data: {
+        owner_type: ownerType,
+        owner_id: ownerId,
+        bank_name: dto.bankName ? String(dto.bankName).trim() : null,
+        account_number: dto.accountNumber ? String(dto.accountNumber).replace(/\s+/g, '') : null,
+        account_holder: dto.accountHolder ? String(dto.accountHolder).trim() : null,
+        routing_number: dto.routingNumber ? String(dto.routingNumber).replace(/\s+/g, '') : null,
+        iban: dto.iban ? String(dto.iban).replace(/\s+/g, '').toUpperCase() : null,
+        swift_bic: dto.swiftBic ? String(dto.swiftBic).replace(/\s+/g, '').toUpperCase() : null,
+        currency_code: currencyCode,
+        verification_doc_id: dto.verificationDocId ? String(dto.verificationDocId) : null,
+        is_verified: this.hasPlatformRole(user) && dto.isVerified === true,
+        payout_enabled: dto.payoutEnabled !== false,
+      },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'bank_account.create',
+        entity_type: 'bank_account',
+        entity_id: account.id,
+        company_id: companyId,
+        new_value: {
+          ownerType,
+          ownerId,
+          bankName: account.bank_name,
+          currencyCode: account.currency_code,
+          payoutEnabled: account.payout_enabled,
+          verified: account.is_verified,
+        },
+      },
+    });
+    return this.maskBankAccount(account);
+  }
+
+  async updateBankAccount(
+    user: AuthenticatedUser,
+    bankAccountId: string,
+    dto: Record<string, any>,
+  ) {
+    const existing = await this.prisma.bank_accounts.findUnique({
+      where: { id: bankAccountId },
+    });
+    if (!existing) throw new NotFoundException('Bank account not found');
+    const companyId = await this.bankOwnerCompany(
+      existing.owner_type,
+      existing.owner_id,
+    );
+    this.assertBusinessScope(user, companyId);
+
+    const updated = await this.prisma.bank_accounts.update({
+      where: { id: existing.id },
+      data: {
+        ...(dto.bankName !== undefined
+          ? { bank_name: dto.bankName ? String(dto.bankName).trim() : null }
+          : {}),
+        ...(dto.accountHolder !== undefined
+          ? { account_holder: dto.accountHolder ? String(dto.accountHolder).trim() : null }
+          : {}),
+        ...(dto.accountNumber !== undefined
+          ? {
+              account_number: dto.accountNumber
+                ? String(dto.accountNumber).replace(/\s+/g, '')
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.iban !== undefined
+          ? {
+              iban: dto.iban
+                ? String(dto.iban).replace(/\s+/g, '').toUpperCase()
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.routingNumber !== undefined
+          ? {
+              routing_number: dto.routingNumber
+                ? String(dto.routingNumber).replace(/\s+/g, '')
+                : null,
+            }
+          : {}),
+        ...(dto.swiftBic !== undefined
+          ? {
+              swift_bic: dto.swiftBic
+                ? String(dto.swiftBic).replace(/\s+/g, '').toUpperCase()
+                : null,
+            }
+          : {}),
+        ...(dto.currencyCode !== undefined
+          ? {
+              currency_code: String(dto.currencyCode).trim().toUpperCase(),
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.verificationDocId !== undefined
+          ? {
+              verification_doc_id: dto.verificationDocId
+                ? String(dto.verificationDocId)
+                : null,
+              is_verified: false,
+            }
+          : {}),
+        ...(dto.payoutEnabled !== undefined
+          ? { payout_enabled: Boolean(dto.payoutEnabled) }
+          : {}),
+        ...(this.hasPlatformRole(user) && dto.isVerified !== undefined
+          ? { is_verified: Boolean(dto.isVerified) }
+          : {}),
+      },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'bank_account.update',
+        entity_type: 'bank_account',
+        entity_id: existing.id,
+        company_id: companyId,
+        old_value: {
+          bankName: existing.bank_name,
+          currencyCode: existing.currency_code,
+          payoutEnabled: existing.payout_enabled,
+          verified: existing.is_verified,
+        },
+        new_value: {
+          bankName: updated.bank_name,
+          currencyCode: updated.currency_code,
+          payoutEnabled: updated.payout_enabled,
+          verified: updated.is_verified,
+        },
+      },
+    });
+    return this.maskBankAccount(updated);
+  }
+
+  async listAllWithdrawals(
+    user: AuthenticatedUser,
+    status?: string,
+    limit = 100,
+  ) {
+    if (!this.hasPlatformRole(user)) {
+      throw new ForbiddenException('Only platform finance staff may list all withdrawals');
+    }
+    const rows = await this.prisma.withdrawal_requests.findMany({
+      where: status ? { status } : {},
+      include: {
+        company: {
+          select: { id: true, display_name: true, slug: true },
+        },
+        bank_account: true,
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+    return rows.map((row) => ({
+      ...row,
+      bank_account: this.maskBankAccount(row.bank_account),
+    }));
+  }
+
+  async listWithdrawals(
+    user: AuthenticatedUser,
+    companyId: string,
+    status?: string,
+    limit = 100,
+  ) {
+    this.assertBusinessScope(user, companyId);
+    const rows = await this.prisma.withdrawal_requests.findMany({
+      where: {
+        company_id: companyId,
+        ...(status ? { status } : {}),
+      },
+      include: {
+        bank_account: true,
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+    return rows.map((row) => ({
+      ...row,
+      bank_account: this.maskBankAccount(row.bank_account),
+    }));
+  }
+
+  async createWithdrawal(
+    user: AuthenticatedUser,
+    dto: Record<string, any>,
+  ) {
+    const companyId = String(dto.companyId || '').trim();
+    const bankAccountId = String(dto.bankAccountId || '').trim();
+    const currencyCode = String(dto.currencyCode || '').trim().toUpperCase();
+    const amount = money(Number(dto.amount));
+    if (!companyId || !bankAccountId) {
+      throw new BadRequestException('companyId and bankAccountId are required');
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Withdrawal amount must be greater than zero');
+    }
+    if (currencyCode.length !== 3) {
+      throw new BadRequestException('currencyCode must be a 3-letter currency code');
+    }
+
+    this.assertBusinessScope(user, companyId);
+    const bankAccount = await this.prisma.bank_accounts.findUnique({
+      where: { id: bankAccountId },
+    });
+    if (!bankAccount) throw new NotFoundException('Bank account not found');
+
+    const ownerCompanyId = await this.bankOwnerCompany(
+      bankAccount.owner_type,
+      bankAccount.owner_id,
+    );
+    if (ownerCompanyId !== companyId) {
+      throw new ForbiddenException('Bank account does not belong to this company');
+    }
+    if (!bankAccount.payout_enabled) {
+      throw new ConflictException('Payouts are disabled for this bank account');
+    }
+    if (!bankAccount.is_verified) {
+      throw new ConflictException('Bank account must be verified before requesting a withdrawal');
+    }
+    if (bankAccount.currency_code !== currencyCode) {
+      throw new ConflictException('Withdrawal currency must match the bank account currency');
+    }
+
+    const referenceCode = dto.referenceCode
+      ? String(dto.referenceCode).trim()
+      : null;
+    if (referenceCode) {
+      const existing = await this.prisma.withdrawal_requests.findFirst({
+        where: {
+          company_id: companyId,
+          reference_code: referenceCode,
+          status: { not: 'cancelled' },
+        },
+        include: { bank_account: true },
+      });
+      if (existing) {
+        return {
+          ...existing,
+          bank_account: this.maskBankAccount(existing.bank_account),
+          duplicate: true,
+        };
+      }
+    }
+
+    const request = await this.prisma.withdrawal_requests.create({
+      data: {
+        company_id: companyId,
+        bank_account_id: bankAccount.id,
+        requested_by_user_id: user.id,
+        amount,
+        currency_code: currencyCode,
+        reason: dto.reason ? String(dto.reason).trim() : null,
+        reference_code: referenceCode,
+        metadata: dto.metadata ?? undefined,
+      },
+      include: { bank_account: true },
+    });
+
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'withdrawal.request.create',
+        entity_type: 'withdrawal_request',
+        entity_id: request.id,
+        company_id: companyId,
+        new_value: {
+          amount,
+          currencyCode,
+          bankAccountId: bankAccount.id,
+          status: request.status,
+          referenceCode,
+        },
+      },
+    });
+
+    return {
+      ...request,
+      bank_account: this.maskBankAccount(request.bank_account),
+    };
+  }
+
+  async cancelWithdrawal(
+    user: AuthenticatedUser,
+    withdrawalId: string,
+  ) {
+    const existing = await this.prisma.withdrawal_requests.findUnique({
+      where: { id: withdrawalId },
+    });
+    if (!existing) throw new NotFoundException('Withdrawal request not found');
+    this.assertBusinessScope(user, existing.company_id);
+    if (existing.status !== 'pending') {
+      throw new ConflictException('Only pending withdrawal requests can be cancelled');
+    }
+
+    const updated = await this.prisma.withdrawal_requests.update({
+      where: { id: existing.id },
+      data: { status: 'cancelled' },
+    });
+    await this.prisma.audit_logs.create({
+      data: {
+        actor_user_id: user.id,
+        actor_role: user.roleScopes[0]?.roleKey ?? null,
+        action: 'withdrawal.request.cancel',
+        entity_type: 'withdrawal_request',
+        entity_id: existing.id,
+        company_id: existing.company_id,
+        old_value: { status: existing.status },
+        new_value: { status: updated.status },
+      },
+    });
+    return updated;
+  }
+
+  async reviewWithdrawal(
+    user: AuthenticatedUser,
+    withdrawalId: string,
+    dto: Record<string, any>,
+  ) {
+    if (!this.hasPlatformRole(user)) {
+      throw new ForbiddenException('Only platform finance staff may review withdrawals');
+    }
+    const existing = await this.prisma.withdrawal_requests.findUnique({
+      where: { id: withdrawalId },
+      include: { bank_account: true },
+    });
+    if (!existing) throw new NotFoundException('Withdrawal request not found');
+
+    const next = String(dto.status || '').trim().toLowerCase();
+    const transitions: Record<string, string[]> = {
+      pending: ['approved', 'rejected'],
+      approved: ['processing', 'rejected'],
+      processing: ['completed', 'failed'],
+      failed: ['processing', 'rejected'],
+    };
+    if (!(transitions[existing.status] ?? []).includes(next)) {
+      throw new ConflictException(
+        'Invalid withdrawal status transition from ' +
+          existing.status +
+          ' to ' +
+          next,
+      );
+    }
+    if (next === 'rejected' && !String(dto.rejectionReason || '').trim()) {
+      throw new BadRequestException('rejectionReason is required when rejecting a withdrawal');
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.withdrawal_requests.update({
+        where: { id: existing.id },
+        data: {
+          status: next,
+          reviewed_by_user_id: user.id,
+          reviewed_at:
+            existing.reviewed_at ??
+            (['approved', 'rejected'].includes(next) ? now : null),
+          rejection_reason:
+            next === 'rejected'
+              ? String(dto.rejectionReason).trim()
+              : existing.rejection_reason,
+          reference_code:
+            dto.referenceCode !== undefined
+              ? String(dto.referenceCode || '').trim() || null
+              : existing.reference_code,
+          processed_at:
+            ['completed', 'failed'].includes(next) ? now : null,
+          metadata:
+            dto.metadata !== undefined
+              ? (dto.metadata as Prisma.InputJsonValue)
+              : existing.metadata ?? undefined,
+        },
+      });
+
+      if (next === 'completed') {
+        const priorLedger = await tx.financial_ledger.findFirst({
+          where: {
+            company_id: existing.company_id,
+            reference_type: 'withdrawal',
+            reference_id: existing.id,
+            entry_type: 'withdrawal',
+          },
+          select: { id: true },
+        });
+        if (!priorLedger) {
+          await tx.financial_ledger.create({
+            data: {
+              company_id: existing.company_id,
+              entry_type: 'withdrawal',
+              debit_amount: existing.amount,
+              credit_amount: 0,
+              currency_code: existing.currency_code,
+              category: 'business_withdrawal',
+              subcategory: 'bank_transfer',
+              description:
+                'Withdrawal to ' +
+                (existing.bank_account.bank_name || 'verified bank account'),
+              reference_id: existing.id,
+              reference_type: 'withdrawal',
+              transaction_date: now,
+              created_by_id: user.id,
+            },
+          });
+        }
+      }
+
+      await tx.audit_logs.create({
+        data: {
+          actor_user_id: user.id,
+          actor_role: user.roleScopes[0]?.roleKey ?? null,
+          action: 'withdrawal.request.' + next,
+          entity_type: 'withdrawal_request',
+          entity_id: existing.id,
+          company_id: existing.company_id,
+          old_value: {
+            status: existing.status,
+            referenceCode: existing.reference_code,
+          },
+          new_value: {
+            status: row.status,
+            referenceCode: row.reference_code,
+            rejectionReason: row.rejection_reason,
+          },
+        },
+      });
+      return row;
+    });
+
+    return updated;
+  }
+
+  async listPayouts(
+    user: AuthenticatedUser,
+    companyId: string,
+    professionalId?: string,
+    limit = 100,
+  ) {
+    this.assertBusinessScope(user, companyId);
+    return this.prisma.professional_payouts.findMany({
+      where: {
+        company_id: companyId,
+        ...(professionalId ? { professional_id: professionalId } : {}),
+      },
+      include: {
+        professional: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_media_id: true,
+          },
+        },
+        items: {
+          orderBy: { created_at: 'asc' },
+        },
+        commissions: {
+          select: {
+            id: true,
+            appointment_id: true,
+            payment_id: true,
+            commission_amount: true,
+            currency_code: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: [{ payout_period_end: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
   async createPayout(user: AuthenticatedUser, dto: CreatePayoutDto) {
     const start = parseDate(dto.payoutPeriodStart, 'payoutPeriodStart');
     const end = parseDate(dto.payoutPeriodEnd, 'payoutPeriodEnd');
@@ -755,6 +1445,101 @@ export class FinanceV2Service {
       total: money(dto.subtotal + tax),
       taxInclusive: false,
     };
+  }
+
+  private async transitionDepositBookingIfPaid(
+    tx: Prisma.TransactionClient,
+    appointmentId: string,
+    changedById: string | null,
+  ) {
+    const appointment = await tx.appointments.findUnique({
+      where: { id: appointmentId },
+      include: {
+        company: { select: { auto_confirm_bookings: true } },
+        financial_snapshot: true,
+        payments: {
+          where: { status: { in: ['succeeded', 'partially_refunded', 'refunded'] } },
+          include: { refunds: { where: { status: 'succeeded' } } },
+        },
+      },
+    });
+    if (!appointment || appointment.status !== 'awaiting_payment' || !appointment.financial_snapshot) {
+      return null;
+    }
+
+    const requiredDeposit = Number(appointment.financial_snapshot.deposit_amount ?? 0);
+    if (requiredDeposit <= 0) return null;
+
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce((refundSum, refund) => refundSum + Number(refund.amount), 0),
+        ),
+      0,
+    );
+    if (collected + 0.009 < requiredDeposit) return null;
+
+    const nextStatus = appointment.company.auto_confirm_bookings ? 'confirmed' : 'pending';
+    const updated = await tx.appointments.update({
+      where: { id: appointment.id },
+      data: { status: nextStatus },
+    });
+    await tx.appointment_status_history.create({
+      data: {
+        appointment_id: appointment.id,
+        old_status: 'awaiting_payment',
+        new_status: nextStatus,
+        changed_by_id: changedById,
+        reason: 'required_deposit_paid',
+        notes: `Required deposit ${money(requiredDeposit)} ${appointment.financial_snapshot.currency_code} collected.`,
+      },
+    });
+    return {
+      id: updated.id,
+      customerUserId: updated.customer_user_id,
+      companyId: updated.company_id,
+      branchId: updated.branch_id,
+      startsAt: updated.starts_at,
+      status: updated.status,
+    };
+  }
+
+  private async publishDepositTransition(appointment: {
+    id: string;
+    customerUserId: string | null;
+    companyId: string;
+    branchId: string;
+    startsAt: Date;
+    status: string;
+  }) {
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      startsAt: appointment.startsAt.toISOString(),
+      changeType: 'required_deposit_paid',
+    };
+    this.realtime?.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime?.emitCompany(appointment.companyId, 'booking:changed', payload);
+    this.realtime?.emitBranch(appointment.branchId, 'booking:changed', payload);
+    if (appointment.customerUserId) {
+      this.realtime?.emitUser(appointment.customerUserId, 'booking:changed', payload);
+      await this.notifications?.dispatch({
+        recipientUserId: appointment.customerUserId,
+        notificationType: 'booking_deposit_paid',
+        title: appointment.status === 'confirmed' ? 'Booking confirmed' : 'Deposit received',
+        body:
+          appointment.status === 'confirmed'
+            ? 'Your required deposit was received and your booking is confirmed.'
+            : 'Your required deposit was received. The business will confirm your booking shortly.',
+        companyId: appointment.companyId,
+        branchId: appointment.branchId,
+        deepLink: `/bookings/${appointment.id}`,
+        payload,
+      });
+    }
   }
 
   private async writePaymentLedger(

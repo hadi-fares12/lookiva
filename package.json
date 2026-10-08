@@ -31,5 +31,13 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "overrides": {
+      "@opentelemetry/core": "2.11.0",
+      "@opentelemetry/resources": "2.11.0",
+      "@opentelemetry/resource-detector-aws": "2.22.0",
+      "@opentelemetry/resource-detector-container": "0.8.13"
+    }
+  }
 }

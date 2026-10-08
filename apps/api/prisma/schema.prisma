@@ -581,8 +581,10 @@ model companies {
   gift_cards                gift_cards[]
   products                  products[]
   consent_forms             consent_forms[]
+  customer_company_profiles customer_company_profiles[] @relation("CompanyCustomerProfiles")
   commission_rules          commission_rules[]
   disputes                  disputes[]
+  withdrawal_requests       withdrawal_requests[]
 
   @@index([owner_user_id])
   @@index([country_id])
@@ -1353,12 +1355,36 @@ model customers {
   queue_entries            queue_entries[]
   membership_subscriptions membership_subscriptions[]
   consent_form_responses   consent_form_responses[]
+  company_profiles         customer_company_profiles[]    @relation("CustomerCompanyProfileCustomer")
+  merged_company_profiles  customer_company_profiles[]    @relation("CustomerCompanyProfileMergedInto")
 
   @@index([user_id])
   @@index([referral_code])
   @@index([referred_by_user_id])
   @@index([total_bookings])
   @@index([loyalty_points])
+}
+
+model customer_company_profiles {
+  id                      String   @id @default(cuid())
+  company_id              String
+  customer_id             String
+  merged_into_customer_id String?
+  notes                   String?
+  tags                    String[] @default([])
+  created_by_id           String?
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  company     companies  @relation("CompanyCustomerProfiles", fields: [company_id], references: [id], onDelete: Cascade)
+  customer    customers  @relation("CustomerCompanyProfileCustomer", fields: [customer_id], references: [id], onDelete: Cascade)
+  merged_into customers? @relation("CustomerCompanyProfileMergedInto", fields: [merged_into_customer_id], references: [id], onDelete: SetNull)
+
+  @@unique([company_id, customer_id])
+  @@index([company_id])
+  @@index([customer_id])
+  @@index([merged_into_customer_id])
+  @@index([tags], type: Gin)
 }
 
 model customer_profiles {
@@ -1500,6 +1526,7 @@ model appointments {
   queues                 queue_entries[]
   package_usage          package_usage[]
   consent_form_responses consent_form_responses[]
+  verified_work_posts    posts[]                      @relation("PostVerifiedAppointment")
 
   @@index([company_id])
   @@index([branch_id])
@@ -2100,17 +2127,18 @@ model reviews {
   updated_at          DateTime  @updatedAt
   deleted_at          DateTime?
 
-  author_user  users            @relation("ReviewAuthor", fields: [author_user_id], references: [id])
-  company      companies        @relation(fields: [company_id], references: [id])
-  professional professionals?   @relation(fields: [professional_id], references: [id], onDelete: SetNull)
-  service      services?        @relation(fields: [service_id], references: [id], onDelete: SetNull)
-  branch       branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  appointment  appointments?    @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
-  ratings      review_ratings[]
-  media_list   review_media[]
-  reports      review_reports[]
-  customers    customers?       @relation(fields: [customersId], references: [id])
-  customersId  String?
+  author_user         users            @relation("ReviewAuthor", fields: [author_user_id], references: [id])
+  company             companies        @relation(fields: [company_id], references: [id])
+  professional        professionals?   @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  service             services?        @relation(fields: [service_id], references: [id], onDelete: SetNull)
+  branch              branches?        @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  appointment         appointments?    @relation(fields: [appointment_id], references: [id], onDelete: SetNull)
+  ratings             review_ratings[]
+  media_list          review_media[]
+  reports             review_reports[]
+  customers           customers?       @relation(fields: [customersId], references: [id])
+  customersId         String?
+  verified_work_posts posts[]          @relation("PostVerifiedReview")
 
   @@index([author_user_id])
   @@index([company_id])
@@ -2178,46 +2206,52 @@ model review_reports {
 // ============================================================
 
 model posts {
-  id                 String    @id @default(cuid())
-  author_user_id     String
-  author_role        String
-  company_id         String?
-  branch_id          String?
-  professional_id    String?
-  title              String?
-  slug               String?
-  body_plain         String?
-  body_html          String?
-  cover_media_id     String?
-  media_ids          String[]  @default([])
-  tags               String[]  @default([])
-  service_ids        String[]  @default([])
-  category_ids       String[]  @default([])
-  is_promotion       Boolean   @default(false)
-  promotion_start_at DateTime?
-  promotion_end_at   DateTime?
-  view_count         Int       @default(0)
-  like_count         Int       @default(0)
-  comment_count      Int       @default(0)
-  share_count        Int       @default(0)
-  bookmark_count     Int       @default(0)
-  status             String    @default("published")
-  scheduled_at       DateTime?
-  published_at       DateTime?
-  created_at         DateTime  @default(now())
-  updated_at         DateTime  @updatedAt
-  deleted_at         DateTime?
+  id                      String    @id @default(cuid())
+  author_user_id          String
+  author_role             String
+  company_id              String?
+  branch_id               String?
+  professional_id         String?
+  title                   String?
+  slug                    String?
+  body_plain              String?
+  body_html               String?
+  cover_media_id          String?
+  media_ids               String[]  @default([])
+  tags                    String[]  @default([])
+  service_ids             String[]  @default([])
+  category_ids            String[]  @default([])
+  is_promotion            Boolean   @default(false)
+  promotion_start_at      DateTime?
+  promotion_end_at        DateTime?
+  view_count              Int       @default(0)
+  like_count              Int       @default(0)
+  comment_count           Int       @default(0)
+  share_count             Int       @default(0)
+  bookmark_count          Int       @default(0)
+  verified_review_id      String?
+  verified_appointment_id String?
+  is_verified_work        Boolean   @default(false)
+  verified_work_at        DateTime?
+  status                  String    @default("published")
+  scheduled_at            DateTime?
+  published_at            DateTime?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+  deleted_at              DateTime?
 
-  author       users              @relation("PostAuthor", fields: [author_user_id], references: [id])
-  company      companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
-  branch       branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  professional professionals?     @relation(fields: [professional_id], references: [id], onDelete: SetNull)
-  media_list   post_media[]
-  services     post_services[]
-  likes        likes[]
-  comments     comments[]
-  favorites    favorites[]
-  collections  collection_items[]
+  author               users              @relation("PostAuthor", fields: [author_user_id], references: [id])
+  company              companies?         @relation(fields: [company_id], references: [id], onDelete: SetNull)
+  branch               branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  professional         professionals?     @relation(fields: [professional_id], references: [id], onDelete: SetNull)
+  verified_review      reviews?           @relation("PostVerifiedReview", fields: [verified_review_id], references: [id], onDelete: SetNull)
+  verified_appointment appointments?      @relation("PostVerifiedAppointment", fields: [verified_appointment_id], references: [id], onDelete: SetNull)
+  media_list           post_media[]
+  services             post_services[]
+  likes                likes[]
+  comments             comments[]
+  favorites            favorites[]
+  collections          collection_items[]
 
   @@index([author_user_id])
   @@index([author_role])
@@ -2229,6 +2263,9 @@ model posts {
   @@index([created_at])
   @@index([like_count])
   @@index([view_count])
+  @@index([verified_review_id])
+  @@index([verified_appointment_id])
+  @@index([is_verified_work])
   @@index([slug])
 }
 
@@ -3346,6 +3383,27 @@ model disputes {
   @@index([disputed_type, disputed_id])
 }
 
+model moderation_auto_flags {
+  id             String    @id @default(cuid())
+  target_type    String
+  target_id      String
+  author_user_id String?
+  reason_type    String
+  confidence     Float
+  details        Json?
+  status         String    @default("pending")
+  reviewed_by_id String?
+  reviewed_at    DateTime?
+  action_taken   String?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  @@index([target_type, target_id])
+  @@index([author_user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
 model moderation_reports {
   id                 String    @id @default(cuid())
   reporter_user_id   String
@@ -3664,7 +3722,7 @@ model country_taxes {
 }
 
 model bank_accounts {
-  id                  String   @id @default(cuid())
+  id                  String                @id @default(cuid())
   owner_type          String
   owner_id            String
   bank_name           String?
@@ -3674,14 +3732,43 @@ model bank_accounts {
   iban                String?
   swift_bic           String?
   currency_code       String
-  is_verified         Boolean  @default(false)
+  is_verified         Boolean               @default(false)
   verification_doc_id String?
-  payout_enabled      Boolean  @default(true)
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  payout_enabled      Boolean               @default(true)
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @updatedAt
+  withdrawals         withdrawal_requests[]
 
   @@index([owner_type, owner_id])
   @@index([currency_code])
   @@index([is_verified])
   @@index([payout_enabled])
+}
+
+model withdrawal_requests {
+  id                   String    @id @default(cuid())
+  company_id           String
+  bank_account_id      String
+  requested_by_user_id String
+  amount               Float
+  currency_code        String
+  status               String    @default("pending")
+  reason               String?
+  reference_code       String?
+  reviewed_by_user_id  String?
+  reviewed_at          DateTime?
+  rejection_reason     String?
+  processed_at         DateTime?
+  metadata             Json?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  company      companies     @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  bank_account bank_accounts @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+
+  @@index([company_id])
+  @@index([bank_account_id])
+  @@index([status])
+  @@index([currency_code])
+  @@index([created_at])
 }

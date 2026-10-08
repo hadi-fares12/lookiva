@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PermissionKey } from '@lookiva/shared-types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -7,7 +7,9 @@ import { AuthenticatedUser } from '../auth/types/request-with-user';
 import {
   AiParseSearchDto,
   CreateGeofenceCandidateDto,
+  CreateModerationAppealDto,
   ModerateReportDto,
+  ResolveModerationAppealDto,
 } from './dto/platform-ops-v2.dto';
 import { PlatformOpsV2Service } from './platform-ops-v2.service';
 
@@ -22,6 +24,23 @@ export class PlatformOpsV2Controller {
   @ApiOperation({ summary: 'Read local worker/queue capability status' })
   workersStatus() {
     return this.ops.workersStatus();
+  }
+
+  @Get('workers/dead-letter')
+  @RequirePermissions(PermissionKey.WorkersView)
+  @ApiOperation({ summary: 'List terminal worker failures retained in the dead-letter queue' })
+  deadLetters(@Query('limit') limit?: string) {
+    return this.ops.deadLetters(Number(limit) || 100);
+  }
+
+  @Delete('workers/dead-letter/:id')
+  @RequirePermissions(PermissionKey.WorkersManage)
+  @ApiOperation({ summary: 'Remove a reviewed dead-letter job with an audit record' })
+  removeDeadLetter(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.ops.removeDeadLetter(user, id);
   }
 
   @Get('realtime/status')
@@ -61,6 +80,66 @@ export class PlatformOpsV2Controller {
     @Body() dto: ModerateReportDto,
   ) {
     return this.ops.moderateReport(user, id, dto);
+  }
+
+  @Get('moderation/auto-flags')
+  @RequirePermissions(PermissionKey.ModerationView)
+  @ApiOperation({ summary: 'List automatic high-confidence moderation flags' })
+  automaticFlags(@Query('status') status?: string) {
+    return this.ops.listAutomaticModerationFlags(status);
+  }
+
+  @Patch('moderation/auto-flags/:id')
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @ApiOperation({ summary: 'Dismiss or escalate an automatic moderation flag' })
+  reviewAutomaticFlag(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { action?: string; notes?: string },
+  ) {
+    return this.ops.reviewAutomaticModerationFlag(user, id, body);
+  }
+
+  @Post('moderation/appeals')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'Submit an appeal for your own moderated content or strike' })
+  createAppeal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateModerationAppealDto,
+  ) {
+    return this.ops.createModerationAppeal(user, dto);
+  }
+
+  @Get('moderation/strikes/mine')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'List current user moderation strikes' })
+  myStrikes(@CurrentUser() user: AuthenticatedUser) {
+    return this.ops.myModerationStrikes(user);
+  }
+
+  @Get('moderation/appeals/mine')
+  @RequirePermissions(PermissionKey.ModerationAppealCreate)
+  @ApiOperation({ summary: 'List the current user moderation appeals' })
+  myAppeals(@CurrentUser() user: AuthenticatedUser) {
+    return this.ops.myModerationAppeals(user);
+  }
+
+  @Get('moderation/appeals')
+  @RequirePermissions(PermissionKey.ModerationView)
+  @ApiOperation({ summary: 'List moderation appeals for platform review' })
+  appeals(@Query('status') status?: string) {
+    return this.ops.listModerationAppeals(status);
+  }
+
+  @Patch('moderation/appeals/:id')
+  @RequirePermissions(PermissionKey.ModerationManage)
+  @ApiOperation({ summary: 'Resolve a moderation appeal and optionally restore content/clear strike' })
+  resolveAppeal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: ResolveModerationAppealDto,
+  ) {
+    return this.ops.resolveModerationAppeal(user, id, dto);
   }
 
   @Get('ai/status')

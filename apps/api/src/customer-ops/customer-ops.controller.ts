@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -22,6 +22,28 @@ export class CustomerOpsController {
   @Get('bookings/:id')
   booking(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) { return this.ops.booking(user.id, id); }
 
+  @Get('bookings/:id/consents')
+  bookingConsents(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.ops.bookingConsents(user.id, id);
+  }
+
+  @Post('bookings/:id/consents/:formId/sign')
+  signBookingConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() body: {
+      accepted?: boolean;
+      typedSignature?: string;
+      responses?: Record<string, unknown>;
+    },
+  ) {
+    return this.ops.signBookingConsent(user.id, id, formId, body);
+  }
+
   @Get('conversations')
   conversations(@CurrentUser() user: AuthenticatedUser) { return this.ops.conversations(user.id); }
 
@@ -31,8 +53,46 @@ export class CustomerOpsController {
   }
 
   @Post('conversations/:id/messages')
-  sendMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: { body: string; messageType?: string }) {
-    return this.ops.sendMessage(user.id, id, body.body, body.messageType || 'text');
+  sendMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      body?: string;
+      messageType?: string;
+      attachments?: Array<{
+        mediaId: string;
+        mediaType?: string;
+        fileName?: string;
+        sizeBytes?: number;
+      }>;
+    },
+  ) {
+    return this.ops.sendMessage(
+      user.id,
+      id,
+      body.body,
+      body.messageType || 'text',
+      body.attachments ?? [],
+    );
+  }
+
+  @Get('conversations/:id/attachments/:mediaId/access')
+  attachmentAccess(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('mediaId') mediaId: string,
+  ) {
+    return this.ops.conversationAttachmentAccess(user.id, id, mediaId);
+  }
+
+  @Patch('conversations/:id/read')
+  markConversationRead(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: { messageId?: string },
+  ) {
+    return this.ops.markConversationRead(user.id, id, body.messageId);
   }
 
   @Get('retention')

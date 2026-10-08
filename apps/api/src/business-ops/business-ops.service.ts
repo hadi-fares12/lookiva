@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PermissionKey, ScopeType, UserRole } from '@lookiva/shared-types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
@@ -41,6 +41,21 @@ export class BusinessOpsService {
     if (branchIds.length > 0) return { allBranches: false, branchIds };
 
     throw new ForbiddenException('This account is not authorized for the requested company');
+  }
+
+  private assertCompanyOwner(user: AuthenticatedUser, companyId: string) {
+    if (user.roleScopes.some((scope) => platformRoles.has(scope.roleKey))) return;
+    const owner = user.roleScopes.some(
+      (scope) =>
+        scope.roleKey === UserRole.BusinessOwner &&
+        scope.scopeType === ScopeType.Company &&
+        (scope.companyId === companyId || scope.scopeId === companyId),
+    );
+    if (!owner) {
+      throw new ForbiddenException(
+        'Only the business owner can grant or revoke accountant access',
+      );
+    }
   }
 
   private assertRequestedBranch(access: { allBranches: boolean; branchIds: string[] }, branchId?: string) {
@@ -147,8 +162,35 @@ export class BusinessOpsService {
   customers(user: AuthenticatedUser, companyId: string, limit: number) {
     const access = this.companyAccess(user, companyId);
     return this.prisma.customers.findMany({
-      where: { appointments: { some: { company_id: companyId, ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }) } } },
-      include: { user: { select: { id: true, full_name: true, phone: true, email: true, created_at: true } } },
+      where: {
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+        company_profiles: {
+          none: {
+            company_id: companyId,
+            merged_into_customer_id: { not: null },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            created_at: true,
+          },
+        },
+        company_profiles: {
+          where: { company_id: companyId },
+          take: 1,
+        },
+      },
       orderBy: { last_booking_at: 'desc' },
       take: Math.min(limit, 250),
     });
@@ -196,10 +238,37 @@ export class BusinessOpsService {
       orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { name: 'asc' }],
     });
     const bookings = await this.prisma.appointment_resources.findMany({
-      where: { resource: { company_id: companyId, ...(access.allBranches ? {} : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] }) }, appointment: { ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }), status: { in: ['confirmed', 'checked_in', 'in_progress'] }, starts_at: { lte: end }, ends_at: { gte: now } } },
-      include: { appointment: { select: { id: true, status: true, starts_at: true, ends_at: true, customer: { include: { user: { select: { full_name: true } } } }, participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } } } } },
+      where: {
+        resource_id: { in: items.map((resource) => resource.id) },
+        appointment: {
+          company_id: companyId,
+          ...(branchId ? { branch_id: branchId } : access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          OR: [
+            { status: { in: ['pending', 'confirmed'] }, starts_at: { lte: end }, ends_at: { gte: now } },
+            { status: { in: ['checked_in', 'in_progress'] } },
+            { status: 'completed', status_history: { none: { reason: 'floor_checked_out' } } },
+          ],
+        },
+      },
+      include: { appointment: { select: {
+        id: true, status: true, starts_at: true, ends_at: true,
+        status_history: { where: { reason: { in: ['floor_paid', 'floor_checked_out'] } }, orderBy: { created_at: 'desc' }, take: 1 },
+        customer: { include: { user: { select: { full_name: true } } } },
+        participants: { include: { professional: { select: { id: true, display_name: true, avatar_media_id: true } } } },
+      } } },
+      orderBy: { appointment: { starts_at: 'asc' } },
     });
-    return items.map((resource) => ({ ...resource, activeBookings: bookings.filter((b) => b.resource_id === resource.id) }));
+    return items.map((resource) => ({
+      ...resource,
+      activeBookings: bookings.filter((b) => b.resource_id === resource.id).map((booking) => ({
+        ...booking,
+        appointment: {
+          ...booking.appointment,
+          floorStatus: booking.appointment.status_history[0]?.reason === 'floor_paid'
+            ? 'paid' : booking.appointment.status,
+        },
+      })),
+    }));
   }
 
   reviews(user: AuthenticatedUser, companyId: string, limit: number) {
@@ -224,6 +293,216 @@ export class BusinessOpsService {
       include: { user: { select: { id: true, full_name: true, email: true, phone: true, is_active: true, last_login_at: true } }, role: { select: { id: true, key: true, name: true } } },
       orderBy: { created_at: 'desc' },
     });
+  }
+
+  async grantStaff(user: AuthenticatedUser, companyId: string, dto: { identifier?: string; roleKey?: string; branchId?: string }) {
+    const access = this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const roleKey = String(dto.roleKey || 'staff');
+    if (!['staff', 'professional', 'branch_manager', 'business_manager'].includes(roleKey)) {
+      throw new BadRequestException('This role cannot be assigned through staff management');
+    }
+    const branchId = dto.branchId?.trim() || null;
+    if (roleKey !== 'business_manager' && !branchId) throw new BadRequestException('Select a branch for this role');
+    if (roleKey === 'business_manager' && branchId) throw new BadRequestException('Business managers require company scope');
+    if (branchId) await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    const identifier = String(dto.identifier || '').trim();
+    if (!identifier) throw new BadRequestException('Email or phone is required');
+    const target = await this.prisma.users.findFirst({
+      where: { OR: [{ email: identifier.toLowerCase() }, { phone: identifier }], is_active: true, deleted_at: null },
+      include: { role_scopes: { select: { role_key: true } } },
+    });
+    if (!target) throw new NotFoundException('Ask this person to create their LOOKIVA account first');
+    if (target.id === user.id || target.role_scopes.some((r) => platformRoles.has(r.role_key as UserRole) || r.role_key === UserRole.BusinessOwner)) {
+      throw new ForbiddenException('Owner and platform accounts cannot be changed through staff management');
+    }
+    const role = await this.prisma.roles.findUnique({ where: { key: roleKey } });
+    if (!role) throw new NotFoundException('Role is not configured');
+    const scopeType = branchId ? ScopeType.Branch : ScopeType.Company;
+    const scopeId = branchId || companyId;
+    const result = await this.prisma.user_role_scopes.upsert({
+      where: { user_id_role_id_scope_type_scope_id: { user_id: target.id, role_id: role.id, scope_type: scopeType, scope_id: scopeId } },
+      create: { user_id: target.id, role_id: role.id, role_key: roleKey, scope_type: scopeType, scope_id: scopeId, company_id: companyId, branch_id: branchId, granted_by_user_id: user.id },
+      update: { expires_at: null, granted_by_user_id: user.id },
+    });
+    await this.auditMutation(user, companyId, 'staff.grant', 'user_role_scope', result.id, undefined, { userId: target.id, roleKey, branchId }, branchId);
+    return result;
+  }
+
+  async revokeStaff(user: AuthenticatedUser, companyId: string, scopeId: string) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const scope = await this.prisma.user_role_scopes.findFirst({ where: { id: scopeId, company_id: companyId } });
+    if (!scope) throw new NotFoundException('Staff scope not found');
+    if (scope.user_id === user.id || !['staff','professional','branch_manager','business_manager'].includes(scope.role_key)) {
+      throw new ForbiddenException('This role cannot be removed through staff management');
+    }
+    await this.prisma.user_role_scopes.delete({ where: { id: scope.id } });
+    await this.auditMutation(user, companyId, 'staff.revoke', 'user_role_scope', scope.id, scope, { revoked: true }, scope.branch_id);
+    return { revoked: true };
+  }
+
+  accountants(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.user_role_scopes.findMany({
+      where: {
+        company_id: companyId,
+        role_key: UserRole.BusinessAccountant,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            is_active: true,
+            last_login_at: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async grantAccountant(
+    user: AuthenticatedUser,
+    companyId: string,
+    dto: { identifier?: string; expiresAt?: string | null },
+  ) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const identifier = String(dto.identifier || '').trim();
+    if (!identifier) {
+      throw new BadRequestException('Accountant email or phone is required');
+    }
+    const target = await this.prisma.users.findFirst({
+      where: {
+        OR: [{ email: identifier.toLowerCase() }, { phone: identifier }],
+        deleted_at: null,
+        is_active: true,
+      },
+      select: {
+        id: true,
+        full_name: true,
+        email: true,
+        phone: true,
+        role_scopes: { select: { role_key: true } },
+      },
+    });
+    if (!target) throw new NotFoundException('Active user account not found');
+    if (target.id === user.id) {
+      throw new BadRequestException(
+        'The business owner cannot assign accountant access to their own account',
+      );
+    }
+    if (
+      target.role_scopes.some((scope) =>
+        platformRoles.has(scope.role_key as UserRole),
+      )
+    ) {
+      throw new BadRequestException(
+        'Platform privileged accounts cannot be assigned as business accountants',
+      );
+    }
+
+    const role = await this.prisma.roles.findUnique({
+      where: { key: UserRole.BusinessAccountant },
+      select: { id: true },
+    });
+    if (!role) {
+      throw new NotFoundException('Business accountant role is not configured');
+    }
+
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (
+      expiresAt &&
+      (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date())
+    ) {
+      throw new BadRequestException('expiresAt must be a future ISO date');
+    }
+
+    const scope = await this.prisma.user_role_scopes.upsert({
+      where: {
+        user_id_role_id_scope_type_scope_id: {
+          user_id: target.id,
+          role_id: role.id,
+          scope_type: ScopeType.Company,
+          scope_id: companyId,
+        },
+      },
+      create: {
+        user_id: target.id,
+        role_id: role.id,
+        role_key: UserRole.BusinessAccountant,
+        scope_type: ScopeType.Company,
+        scope_id: companyId,
+        company_id: companyId,
+        granted_by_user_id: user.id,
+        expires_at: expiresAt,
+      },
+      update: {
+        company_id: companyId,
+        granted_by_user_id: user.id,
+        expires_at: expiresAt,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            is_active: true,
+          },
+        },
+      },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'staff.accountant.grant',
+      'user_role_scope',
+      scope.id,
+      undefined,
+      {
+        userId: target.id,
+        roleKey: UserRole.BusinessAccountant,
+        expiresAt,
+      },
+    );
+    return scope;
+  }
+
+  async revokeAccountant(
+    user: AuthenticatedUser,
+    companyId: string,
+    scopeId: string,
+  ) {
+    this.companyAccess(user, companyId);
+    this.assertCompanyOwner(user, companyId);
+    const existing = await this.prisma.user_role_scopes.findFirst({
+      where: {
+        id: scopeId,
+        company_id: companyId,
+        role_key: UserRole.BusinessAccountant,
+      },
+    });
+    if (!existing) throw new NotFoundException('Accountant access not found');
+
+    await this.prisma.user_role_scopes.delete({
+      where: { id: existing.id },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'staff.accountant.revoke',
+      'user_role_scope',
+      existing.id,
+      existing,
+      { revoked: true },
+    );
+    return { revoked: true, id: existing.id, userId: existing.user_id };
   }
 
   audit(user: AuthenticatedUser, companyId: string, limit: number) {
@@ -532,5 +811,1451 @@ export class BusinessOpsService {
     await this.auditMutation(user, companyId, 'promotion.update', 'promotion', promotionId, existing, updated, existing.branch_id);
     return updated;
   }
+
+  async customerDetails(user: AuthenticatedUser, companyId: string, customerId: string) {
+    const access = this.companyAccess(user, companyId);
+    const requestedProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
+        },
+      },
+    });
+    const canonicalCustomerId =
+      requestedProfile?.merged_into_customer_id ?? customerId;
+
+    const aliasProfiles = await this.prisma.customer_company_profiles.findMany({
+      where: {
+        company_id: companyId,
+        merged_into_customer_id: canonicalCustomerId,
+      },
+      select: { customer_id: true },
+    });
+    const customerIds = Array.from(
+      new Set([
+        canonicalCustomerId,
+        ...aliasProfiles.map((item) => item.customer_id),
+      ]),
+    );
+
+    const customer = await this.prisma.customers.findFirst({
+      where: {
+        id: canonicalCustomerId,
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            created_at: true,
+            is_active: true,
+          },
+        },
+        profile: true,
+        preferences: true,
+        dependents: true,
+        addresses: true,
+        preferred_resources: {
+          include: {
+            resource: { select: { id: true, name: true, type: true } },
+          },
+        },
+        company_profiles: {
+          where: { company_id: companyId },
+          take: 1,
+        },
+      },
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer not found in this business scope');
+    }
+
+    const [appointments, payments, aliases] = await Promise.all([
+      this.prisma.appointments.findMany({
+        where: {
+          company_id: companyId,
+          customer_id: { in: customerIds },
+          ...(access.allBranches
+            ? {}
+            : { branch_id: { in: access.branchIds } }),
+        },
+        include: {
+          branch: { select: { id: true, name: true } },
+          services: {
+            include: {
+              service: { select: { id: true, name: true } },
+            },
+          },
+          participants: {
+            include: {
+            },
+          },
+          financial_snapshot: true,
+        },
+        orderBy: { starts_at: 'desc' },
+        take: 150,
+      }),
+      this.prisma.payments.findMany({
+        where: {
+          company_id: companyId,
+          customer_id: { in: customerIds },
+        },
+        include: { refunds: true },
+        orderBy: { created_at: 'desc' },
+        take: 150,
+      }),
+      this.prisma.customers.findMany({
+        where: { id: { in: customerIds.filter((id) => id !== canonicalCustomerId) } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              full_name: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      ...customer,
+      appointments,
+      payments,
+      crmProfile: customer.company_profiles[0] ?? null,
+      mergedAliases: aliases.map((alias) => ({
+        id: alias.id,
+        user: alias.user,
+      })),
+      canonicalCustomerId,
+      requestedCustomerId: customerId,
+    };
+  }
+
+  async updateCustomerCrm(
+    user: AuthenticatedUser,
+    companyId: string,
+    customerId: string,
+    dto: any,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    const customer = await this.prisma.customers.findFirst({
+      where: {
+        id: customerId,
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found in this business scope');
+
+    const existing = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
+        },
+      },
+    });
+    if (existing?.merged_into_customer_id) {
+      throw new ConflictException('Edit the canonical customer after merging this duplicate');
+    }
+
+    const tags: string[] | undefined = dto.tags === undefined
+      ? undefined
+      : Array.from(
+          new Set<string>(
+            (Array.isArray(dto.tags) ? dto.tags : [])
+              .map((value: unknown): string =>
+                String(value).trim().toLowerCase(),
+              )
+              .filter((value: string): value is string => value.length > 0),
+          ),
+        ).slice(0, 50);
+
+    const updated = await this.prisma.customer_company_profiles.upsert({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: customerId,
+        },
+      },
+      create: {
+        company_id: companyId,
+        customer_id: customerId,
+        notes: dto.notes ? String(dto.notes).trim() : null,
+        tags: tags ?? [],
+        created_by_id: user.id,
+      },
+      update: {
+        ...(dto.notes !== undefined
+          ? { notes: dto.notes ? String(dto.notes).trim() : null }
+          : {}),
+        ...(tags !== undefined ? { tags } : {}),
+      },
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'customer.crm.update',
+      'customer',
+      customerId,
+      existing,
+      updated,
+    );
+    return updated;
+  }
+
+  async mergeCustomerDuplicate(
+    user: AuthenticatedUser,
+    companyId: string,
+    primaryCustomerId: string,
+    duplicateCustomerId: string,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    if (primaryCustomerId === duplicateCustomerId) {
+      throw new BadRequestException('Primary and duplicate customer must be different');
+    }
+
+    const customers = await this.prisma.customers.findMany({
+      where: {
+        id: { in: [primaryCustomerId, duplicateCustomerId] },
+        appointments: {
+          some: {
+            company_id: companyId,
+            ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (customers.length !== 2) {
+      throw new NotFoundException('Both customers must exist in this business scope');
+    }
+
+    const primaryProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: primaryCustomerId,
+        },
+      },
+    });
+    if (primaryProfile?.merged_into_customer_id) {
+      throw new ConflictException('Selected primary customer is already merged into another customer');
+    }
+
+    const duplicateProfile = await this.prisma.customer_company_profiles.findUnique({
+      where: {
+        company_id_customer_id: {
+          company_id: companyId,
+          customer_id: duplicateCustomerId,
+        },
+      },
+    });
+    const mergedTags = Array.from(
+      new Set([
+        ...(primaryProfile?.tags ?? []),
+        ...(duplicateProfile?.tags ?? []),
+      ]),
+    );
+    const mergedNotes = [
+      primaryProfile?.notes,
+      duplicateProfile?.notes
+        ? '[Merged duplicate notes]\n' + duplicateProfile.notes
+        : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n') || null;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const canonical = await tx.customer_company_profiles.upsert({
+        where: {
+          company_id_customer_id: {
+            company_id: companyId,
+            customer_id: primaryCustomerId,
+          },
+        },
+        create: {
+          company_id: companyId,
+          customer_id: primaryCustomerId,
+          notes: mergedNotes,
+          tags: mergedTags,
+          created_by_id: user.id,
+        },
+        update: {
+          notes: mergedNotes,
+          tags: mergedTags,
+        },
+      });
+      const alias = await tx.customer_company_profiles.upsert({
+        where: {
+          company_id_customer_id: {
+            company_id: companyId,
+            customer_id: duplicateCustomerId,
+          },
+        },
+        create: {
+          company_id: companyId,
+          customer_id: duplicateCustomerId,
+          merged_into_customer_id: primaryCustomerId,
+          created_by_id: user.id,
+        },
+        update: {
+          merged_into_customer_id: primaryCustomerId,
+        },
+      });
+      await tx.customer_company_profiles.updateMany({
+        where: {
+          company_id: companyId,
+          merged_into_customer_id: duplicateCustomerId,
+        },
+        data: { merged_into_customer_id: primaryCustomerId },
+      });
+      return { canonical, alias };
+    });
+
+    await this.auditMutation(
+      user,
+      companyId,
+      'customer.crm.merge_duplicate',
+      'customer',
+      duplicateCustomerId,
+      duplicateProfile,
+      {
+        mergedIntoCustomerId: primaryCustomerId,
+        aliasId: result.alias.id,
+      },
+    );
+    return {
+      primaryCustomerId,
+      duplicateCustomerId,
+      merged: true,
+      canonicalProfile: result.canonical,
+    };
+  }
+
+  async packagePurchases(
+    user: AuthenticatedUser,
+    companyId: string,
+    limit = 100,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    return this.prisma.package_purchases.findMany({
+      where: {
+        package: { company_id: companyId },
+        status: 'active',
+        sessions_remaining: { gt: 0 },
+        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        ...(access.allBranches
+          ? {}
+          : {
+              customer: {
+                appointments: {
+                  some: {
+                    company_id: companyId,
+                    branch_id: { in: access.branchIds },
+                  },
+                },
+              },
+            }),
+      },
+      include: {
+        package: {
+          select: {
+            id: true,
+            name: true,
+            service_ids: true,
+            total_sessions_count: true,
+            currency_code: true,
+          },
+        },
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+        },
+        usage: {
+          orderBy: { used_at: 'desc' },
+          take: 5,
+          include: {
+            service: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ purchased_at: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
+  async packageRedemptions(
+    user: AuthenticatedUser,
+    companyId: string,
+    limit = 100,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    return this.prisma.package_usage.findMany({
+      where: {
+        package_purchase: {
+          package: { company_id: companyId },
+        },
+        ...(access.allBranches
+          ? {}
+          : {
+              appointment: {
+                branch_id: { in: access.branchIds },
+              },
+            }),
+      },
+      include: {
+        package_purchase: {
+          include: {
+            package: {
+              select: {
+                id: true,
+                name: true,
+                service_ids: true,
+                total_sessions_count: true,
+                currency_code: true,
+              },
+            },
+            customer: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    full_name: true,
+                    phone: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        service: {
+          select: { id: true, name: true },
+        },
+        appointment: {
+          select: {
+            id: true,
+            status: true,
+            starts_at: true,
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: [{ used_at: 'desc' }, { created_at: 'desc' }],
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
+  async redeemPackage(
+    user: AuthenticatedUser,
+    companyId: string,
+    dto: any,
+  ) {
+    const access = this.companyAccess(user, companyId);
+    const packagePurchaseId = String(dto.packagePurchaseId || '').trim();
+    const serviceId = String(dto.serviceId || '').trim();
+    const appointmentId = dto.appointmentId
+      ? String(dto.appointmentId).trim()
+      : null;
+    const professionalId = dto.professionalId
+      ? String(dto.professionalId).trim()
+      : null;
+    const sessionsUsed = Math.max(
+      1,
+      Math.min(25, Math.trunc(Number(dto.sessionsUsed ?? 1))),
+    );
+
+    if (!packagePurchaseId || !serviceId) {
+      throw new BadRequestException(
+        'packagePurchaseId and serviceId are required',
+      );
+    }
+
+    const purchase = await this.prisma.package_purchases.findUnique({
+      where: { id: packagePurchaseId },
+      include: {
+        package: true,
+        customer: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!purchase || purchase.package.company_id !== companyId) {
+      throw new NotFoundException('Package purchase not found');
+    }
+    if (purchase.status !== 'active') {
+      throw new ConflictException('Package purchase is not active');
+    }
+    if (purchase.expires_at && purchase.expires_at <= new Date()) {
+      throw new ConflictException('Package purchase has expired');
+    }
+    if (!purchase.package.service_ids.includes(serviceId)) {
+      throw new BadRequestException(
+        'Selected service is not included in this package',
+      );
+    }
+
+    const service = await this.prisma.services.findFirst({
+      where: {
+        id: serviceId,
+        company_id: companyId,
+        deleted_at: null,
+        is_active: true,
+      },
+      select: { id: true, name: true },
+    });
+    if (!service) {
+      throw new BadRequestException('Selected service is unavailable');
+    }
+
+    let appointment:
+      | {
+          id: string;
+          branch_id: string;
+          customer_id: string | null;
+          status: string;
+          services: Array<{ service_id: string }>;
+        }
+      | null = null;
+    if (appointmentId) {
+      appointment = await this.prisma.appointments.findFirst({
+        where: { id: appointmentId, company_id: companyId },
+        select: {
+          id: true,
+          branch_id: true,
+          customer_id: true,
+          status: true,
+          services: { select: { service_id: true } },
+        },
+      });
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+      this.assertRequestedBranch(access, appointment.branch_id);
+      if (appointment.customer_id !== purchase.customer_id) {
+        throw new ConflictException(
+          'Package purchase customer does not match the appointment customer',
+        );
+      }
+      if (!appointment.services.some((item) => item.service_id === serviceId)) {
+        throw new ConflictException(
+          'Selected service is not part of the appointment',
+        );
+      }
+      if (['cancelled', 'no_show'].includes(appointment.status)) {
+        throw new ConflictException(
+          'Cancelled or no-show appointments cannot redeem package sessions',
+        );
+      }
+    } else if (!access.allBranches) {
+      throw new BadRequestException(
+        'Branch-scoped users must redeem a package against an appointment',
+      );
+    }
+
+    if (professionalId) {
+      const professional = await this.prisma.professionals.findFirst({
+        where: {
+          id: professionalId,
+          company_id: companyId,
+          deleted_at: null,
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      if (!professional) {
+        throw new BadRequestException('Professional is invalid');
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const consumed = await tx.package_purchases.updateMany({
+        where: {
+          id: purchase.id,
+          status: 'active',
+          sessions_remaining: { gte: sessionsUsed },
+          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        },
+        data: {
+          sessions_remaining: { decrement: sessionsUsed },
+        },
+      });
+      if (consumed.count !== 1) {
+        throw new ConflictException(
+          'Package sessions are no longer available for this redemption',
+        );
+      }
+
+      const usage = await tx.package_usage.create({
+        data: {
+          package_purchase_id: purchase.id,
+          appointment_id: appointmentId,
+          service_id: serviceId,
+          professional_id: professionalId,
+          sessions_used: sessionsUsed,
+        },
+        include: {
+          service: { select: { id: true, name: true } },
+          appointment: {
+            select: {
+              id: true,
+              status: true,
+              starts_at: true,
+              branch: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      const updatedPurchase = await tx.package_purchases.findUnique({
+        where: { id: purchase.id },
+      });
+      if (updatedPurchase && updatedPurchase.sessions_remaining <= 0) {
+        await tx.package_purchases.update({
+          where: { id: purchase.id },
+          data: { status: 'exhausted' },
+        });
+      }
+
+      return {
+        usage,
+        packagePurchase: {
+          ...updatedPurchase,
+          status:
+            updatedPurchase && updatedPurchase.sessions_remaining <= 0
+              ? 'exhausted'
+              : updatedPurchase?.status,
+        },
+        customer: purchase.customer,
+        package: purchase.package,
+      };
+    });
+
+    await this.auditMutation(
+      user,
+      companyId,
+      'package.redeem',
+      'package_purchase',
+      purchase.id,
+      {
+        sessionsRemaining: purchase.sessions_remaining,
+        status: purchase.status,
+      },
+      {
+        sessionsUsed,
+        serviceId,
+        appointmentId,
+        professionalId,
+        sessionsRemaining: result.packagePurchase?.sessions_remaining,
+        status: result.packagePurchase?.status,
+      },
+      appointment?.branch_id ?? null,
+    );
+
+    return result;
+  }
+
+  async inventory(user: AuthenticatedUser, companyId: string, branchId?: string) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    const branchFilter = branchId
+      ? { branch_id: branchId }
+      : access.allBranches
+        ? {}
+        : { OR: [{ branch_id: { in: access.branchIds } }, { branch_id: null }] };
+
+    const products = await this.prisma.products.findMany({
+      where: { company_id: companyId },
+      include: {
+        inventory: {
+          where: branchFilter as any,
+          include: { branch: { select: { id: true, name: true } } },
+          orderBy: [{ branch_id: 'asc' }, { created_at: 'asc' }],
+        },
+      },
+      orderBy: [{ is_active: 'desc' }, { name: 'asc' }],
+    });
+
+    return products.map((product) => {
+      const onHand = product.inventory.reduce((sum, row) => sum + row.quantity_on_hand, 0);
+      const reserved = product.inventory.reduce((sum, row) => sum + row.quantity_reserved, 0);
+      const lowStock = product.inventory.some(
+        (row) => row.is_active && row.quantity_on_hand - row.quantity_reserved <= row.reorder_level,
+      );
+      return { ...product, onHand, reserved, available: onHand - reserved, lowStock };
+    });
+  }
+
+  async createProduct(user: AuthenticatedUser, companyId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    if (!access.allBranches) throw new ForbiddenException('Product creation requires company-level access');
+    const name = String(dto.name ?? '').trim();
+    const currencyCode = String(dto.currencyCode ?? '').trim().toUpperCase();
+    const price = Number(dto.price);
+    if (!name) throw new BadRequestException('Product name is required');
+    for (const key of ['cost', 'taxPercent']) {
+      if (dto[key] != null && (!Number.isFinite(Number(dto[key])) || Number(dto[key]) < 0)) throw new BadRequestException(`${key} must be non-negative`);
+    }
+    if (dto.taxPercent != null && Number(dto.taxPercent) > 100) throw new BadRequestException('taxPercent must be at most 100');
+    for (const key of ['initialQuantity', 'reorderLevel', 'reorderQuantity']) {
+      if (dto[key] != null && (!Number.isSafeInteger(Number(dto[key])) || Number(dto[key]) < 0)) throw new BadRequestException(`${key} must be a non-negative integer`);
+    }
+    if (dto.expiresAt && Number.isNaN(new Date(dto.expiresAt).getTime())) throw new BadRequestException('Invalid expiry date');
+    if (dto.branchId) await this.assertBranchesBelongToCompany(companyId, [String(dto.branchId)], access);
+
+    if (!currencyCode || currencyCode.length !== 3) throw new BadRequestException('currencyCode must be 3 characters');
+    if (!Number.isFinite(price) || price < 0) throw new BadRequestException('Product price must be zero or greater');
+
+    if (dto.sku) {
+      const exists = await this.prisma.products.findFirst({ where: { company_id: companyId, sku: String(dto.sku).trim() } });
+      if (exists) throw new ConflictException('SKU already exists for this business');
+    }
+    if (dto.barcode) {
+      const exists = await this.prisma.products.findFirst({ where: { company_id: companyId, barcode: String(dto.barcode).trim() } });
+      if (exists) throw new ConflictException('Barcode already exists for this business');
+    }
+
+    const product = await this.prisma.$transaction(async (tx) => {
+    const product = await tx.products.create({
+      data: {
+        company_id: companyId,
+        category_id: dto.categoryId || null,
+        sku: dto.sku ? String(dto.sku).trim() : null,
+        barcode: dto.barcode ? String(dto.barcode).trim() : null,
+        name,
+        description: dto.description || null,
+        price,
+        cost: dto.cost == null ? null : Number(dto.cost),
+        currency_code: currencyCode,
+        is_salable: dto.isSalable !== false,
+        is_consumable: dto.isConsumable === true,
+        tax_percent: dto.taxPercent == null ? null : Number(dto.taxPercent),
+        tags: Array.isArray(dto.tags) ? dto.tags.map(String) : [],
+      },
+    });
+
+    if (dto.branchId || dto.initialQuantity != null) {
+      const quantity = Math.trunc(Number(dto.initialQuantity ?? 0));
+      const inventory = await tx.inventory_items.create({
+        data: {
+          product_id: product.id,
+          branch_id: dto.branchId || null,
+          quantity_on_hand: quantity,
+          reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel ?? 0))),
+          reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))),
+          cost_unit: dto.cost == null ? null : Number(dto.cost),
+          location_note: dto.locationNote || null,
+          batch_number: dto.batchNumber || null,
+          expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          last_restocked_at: quantity > 0 ? new Date() : null,
+        },
+      });
+      if (quantity !== 0) {
+        await tx.inventory_movements.create({
+          data: {
+            product_id: product.id,
+            inventory_id: inventory.id,
+            branch_id: inventory.branch_id,
+            movement_type: 'opening',
+            quantity_change: quantity,
+            balance_after: quantity,
+            reason: 'Initial stock',
+            unit_cost: product.cost,
+            created_by_id: user.id,
+          },
+        });
+      }
+    }
+
+      return product;
+    });
+
+    await this.auditMutation(user, companyId, 'product.create', 'product', product.id, undefined, product);
+    return product;
+  }
+
+  async updateProduct(user: AuthenticatedUser, companyId: string, productId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.products.findFirst({ where: { id: productId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Product not found');
+    if (dto.sku && dto.sku !== existing.sku) {
+      const duplicate = await this.prisma.products.findFirst({ where: { company_id: companyId, sku: String(dto.sku).trim(), id: { not: productId } } });
+      if (duplicate) throw new ConflictException('SKU already exists for this business');
+    }
+    if (dto.barcode && dto.barcode !== existing.barcode) {
+      const duplicate = await this.prisma.products.findFirst({ where: { company_id: companyId, barcode: String(dto.barcode).trim(), id: { not: productId } } });
+      if (duplicate) throw new ConflictException('Barcode already exists for this business');
+    }
+    const updated = await this.prisma.products.update({
+      where: { id: productId },
+      data: {
+        ...(dto.categoryId !== undefined ? { category_id: dto.categoryId || null } : {}),
+        ...(dto.sku !== undefined ? { sku: dto.sku ? String(dto.sku).trim() : null } : {}),
+        ...(dto.barcode !== undefined ? { barcode: dto.barcode ? String(dto.barcode).trim() : null } : {}),
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.price !== undefined ? { price: Number(dto.price) } : {}),
+        ...(dto.cost !== undefined ? { cost: dto.cost == null ? null : Number(dto.cost) } : {}),
+        ...(dto.currencyCode !== undefined ? { currency_code: String(dto.currencyCode).toUpperCase() } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(dto.isSalable !== undefined ? { is_salable: Boolean(dto.isSalable) } : {}),
+        ...(dto.isConsumable !== undefined ? { is_consumable: Boolean(dto.isConsumable) } : {}),
+        ...(dto.taxPercent !== undefined ? { tax_percent: dto.taxPercent == null ? null : Number(dto.taxPercent) } : {}),
+        ...(dto.tags !== undefined ? { tags: Array.isArray(dto.tags) ? dto.tags.map(String) : [] } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'product.update', 'product', productId, existing, updated);
+    return updated;
+  }
+
+  async stockMovement(user: AuthenticatedUser, companyId: string, productId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    const branchId = dto.branchId ? String(dto.branchId) : null;
+    if (branchId) await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    if (!access.allBranches && !branchId) {
+      throw new BadRequestException('Branch-scoped users must select an authorized branch');
+    }
+    const delta = Number(dto.quantityChange);
+    if (!Number.isSafeInteger(delta) || delta === 0) throw new BadRequestException('quantityChange must be a non-zero integer');
+    const product = await this.prisma.products.findFirst({ where: { id: productId, company_id: companyId, is_active: true } });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let inventory = await tx.inventory_items.findFirst({
+        where: {
+          product_id: productId,
+          branch_id: branchId,
+          batch_number: dto.batchNumber ? String(dto.batchNumber) : null,
+          is_active: true,
+        },
+      });
+      if (!inventory) {
+        if (delta < 0) throw new ConflictException('Cannot remove stock from a missing inventory record');
+        inventory = await tx.inventory_items.create({
+          data: {
+            product_id: productId,
+            branch_id: branchId,
+            batch_number: dto.batchNumber ? String(dto.batchNumber) : null,
+            quantity_on_hand: 0,
+            reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel ?? 0))),
+            reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))),
+            cost_unit: dto.unitCost == null ? product.cost : Number(dto.unitCost),
+            location_note: dto.locationNote || null,
+            expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          },
+        });
+      }
+      const balance = inventory.quantity_on_hand + delta;
+      if (balance < inventory.quantity_reserved) {
+        throw new ConflictException('Stock movement would reduce quantity below reserved stock');
+      }
+      const updated = await tx.inventory_items.update({
+        where: { id: inventory.id, quantity_on_hand: inventory.quantity_on_hand, quantity_reserved: inventory.quantity_reserved },
+        data: {
+          quantity_on_hand: balance,
+          ...(delta > 0 ? { last_restocked_at: new Date() } : {}),
+          ...(dto.reorderLevel !== undefined ? { reorder_level: Math.max(0, Math.trunc(Number(dto.reorderLevel))) } : {}),
+          ...(dto.reorderQuantity !== undefined ? { reorder_quantity: dto.reorderQuantity == null ? null : Math.max(0, Math.trunc(Number(dto.reorderQuantity))) } : {}),
+          ...(dto.locationNote !== undefined ? { location_note: dto.locationNote || null } : {}),
+          ...(dto.expiresAt !== undefined ? { expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null } : {}),
+          ...(dto.unitCost !== undefined ? { cost_unit: dto.unitCost == null ? null : Number(dto.unitCost) } : {}),
+        },
+      });
+      const movement = await tx.inventory_movements.create({
+        data: {
+          product_id: productId,
+          inventory_id: inventory.id,
+          branch_id: branchId,
+          movement_type: String(dto.movementType || (delta > 0 ? 'stock_in' : 'stock_out')),
+          quantity_change: delta,
+          balance_after: balance,
+          reference_id: dto.referenceId || null,
+          reference_type: dto.referenceType || null,
+          reason: dto.reason || null,
+          unit_cost: dto.unitCost == null ? product.cost : Number(dto.unitCost),
+          created_by_id: user.id,
+        },
+      });
+      return { inventory: updated, movement };
+    }, { isolationLevel: 'Serializable' }).catch((error) => {
+      if (error?.code === 'P2034' || error?.code === 'P2025') throw new ConflictException('Stock changed during this operation. Refresh inventory before trying again.');
+      throw error;
+    });
+    await this.auditMutation(user, companyId, 'inventory.movement', 'product', productId, undefined, result, branchId);
+    return result;
+  }
+
+  async inventoryMovements(user: AuthenticatedUser, companyId: string, productId?: string, branchId?: string, limit = 100) {
+    const access = this.companyAccess(user, companyId);
+    this.assertRequestedBranch(access, branchId);
+    return this.prisma.inventory_movements.findMany({
+      where: {
+        product: { company_id: companyId },
+        ...(productId ? { product_id: productId } : {}),
+        ...(branchId ? { branch_id: branchId } : access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+      },
+      include: { product: { select: { id: true, name: true, sku: true, barcode: true } }, branch: { select: { id: true, name: true } } },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 250),
+    });
+  }
+
+  async professionalSchedules(user: AuthenticatedUser, companyId: string, professionalId: string) {
+    const access = this.companyAccess(user, companyId);
+    const professional = await this.prisma.professionals.findFirst({ where: { id: professionalId, company_id: companyId, deleted_at: null } });
+    if (!professional) throw new NotFoundException('Professional not found');
+    return this.prisma.professional_schedules.findMany({
+      where: {
+        professional_id: professionalId,
+        ...(access.allBranches ? {} : { branch_id: { in: access.branchIds } }),
+      },
+      include: { branch: { select: { id: true, name: true } } },
+      orderBy: [{ branch_id: 'asc' }, { day_of_week: 'asc' }, { effective_from: 'desc' }],
+    });
+  }
+
+  async replaceProfessionalSchedule(user: AuthenticatedUser, companyId: string, professionalId: string, dto: any) {
+    const access = this.companyAccess(user, companyId);
+    const branchId = String(dto.branchId || '');
+    if (!branchId) throw new BadRequestException('branchId is required');
+    await this.assertBranchesBelongToCompany(companyId, [branchId], access);
+    const professional = await this.prisma.professionals.findFirst({ where: { id: professionalId, company_id: companyId, deleted_at: null } });
+    if (!professional) throw new NotFoundException('Professional not found');
+    const schedules = Array.isArray(dto.schedules) ? dto.schedules : [];
+    for (const row of schedules) {
+      const day = Number(row.dayOfWeek);
+      if (!Number.isInteger(day) || day < 0 || day > 6) throw new BadRequestException('dayOfWeek must be between 0 and 6');
+      if (!row.isOff && (!row.startsAt || !row.endsAt)) throw new BadRequestException('Working days require startsAt and endsAt');
+    }
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.professional_schedules.deleteMany({ where: { professional_id: professionalId, branch_id: branchId } });
+      if (schedules.length) {
+        await tx.professional_schedules.createMany({
+          data: schedules.map((row: any) => ({
+            professional_id: professionalId,
+            branch_id: branchId,
+            day_of_week: Number(row.dayOfWeek),
+            is_off: row.isOff === true,
+            starts_at: row.isOff ? null : String(row.startsAt),
+            ends_at: row.isOff ? null : String(row.endsAt),
+            break_starts_at: row.breakStartsAt || null,
+            break_ends_at: row.breakEndsAt || null,
+            effective_from: row.effectiveFrom ? new Date(row.effectiveFrom) : null,
+            effective_to: row.effectiveTo ? new Date(row.effectiveTo) : null,
+          })),
+        });
+      }
+      return tx.professional_schedules.findMany({
+        where: { professional_id: professionalId, branch_id: branchId },
+        orderBy: { day_of_week: 'asc' },
+      });
+    });
+    await this.auditMutation(user, companyId, 'professional.schedule.replace', 'professional', professionalId, undefined, result, branchId);
+    return result;
+  }
+
+  async commissionRules(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.commission_rules.findMany({
+      where: { company_id: companyId },
+      orderBy: [{ is_active: 'desc' }, { sort_order: 'asc' }, { created_at: 'desc' }],
+    });
+  }
+
+  async createCommissionRule(user: AuthenticatedUser, companyId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const type = String(dto.calculationType || '');
+    if (!['percentage', 'fixed', 'tiered'].includes(type)) throw new BadRequestException('Unsupported commission calculation type');
+    if (type === 'percentage' && (dto.percentRate == null || Number(dto.percentRate) < 0 || Number(dto.percentRate) > 100)) {
+      throw new BadRequestException('percentRate must be between 0 and 100');
+    }
+    if (type === 'fixed' && (dto.fixedAmount == null || Number(dto.fixedAmount) < 0)) {
+      throw new BadRequestException('fixedAmount must be zero or greater');
+    }
+    const rule = await this.prisma.commission_rules.create({
+      data: {
+        company_id: companyId,
+        name: String(dto.name || '').trim() || 'Commission rule',
+        description: dto.description || null,
+        professional_id: dto.professionalId || null,
+        service_category_id: dto.serviceCategoryId || null,
+        service_id: dto.serviceId || null,
+        calculation_type: type,
+        percent_rate: dto.percentRate == null ? null : Number(dto.percentRate),
+        fixed_amount: dto.fixedAmount == null ? null : Number(dto.fixedAmount),
+        tiered_rates: dto.tieredRates ?? undefined,
+        effective_from: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null,
+        effective_to: dto.effectiveTo ? new Date(dto.effectiveTo) : null,
+        sort_order: Math.trunc(Number(dto.sortOrder ?? 0)),
+      },
+    });
+    await this.auditMutation(user, companyId, 'commission_rule.create', 'commission_rule', rule.id, undefined, rule);
+    return rule;
+  }
+
+  async updateCommissionRule(user: AuthenticatedUser, companyId: string, ruleId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.commission_rules.findFirst({ where: { id: ruleId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Commission rule not found');
+    const updated = await this.prisma.commission_rules.update({
+      where: { id: ruleId },
+      data: {
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.professionalId !== undefined ? { professional_id: dto.professionalId || null } : {}),
+        ...(dto.serviceCategoryId !== undefined ? { service_category_id: dto.serviceCategoryId || null } : {}),
+        ...(dto.serviceId !== undefined ? { service_id: dto.serviceId || null } : {}),
+        ...(dto.calculationType !== undefined ? { calculation_type: String(dto.calculationType) } : {}),
+        ...(dto.percentRate !== undefined ? { percent_rate: dto.percentRate == null ? null : Number(dto.percentRate) } : {}),
+        ...(dto.fixedAmount !== undefined ? { fixed_amount: dto.fixedAmount == null ? null : Number(dto.fixedAmount) } : {}),
+        ...(dto.tieredRates !== undefined ? { tiered_rates: dto.tieredRates } : {}),
+        ...(dto.effectiveFrom !== undefined ? { effective_from: dto.effectiveFrom ? new Date(dto.effectiveFrom) : null } : {}),
+        ...(dto.effectiveTo !== undefined ? { effective_to: dto.effectiveTo ? new Date(dto.effectiveTo) : null } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(dto.sortOrder !== undefined ? { sort_order: Math.trunc(Number(dto.sortOrder)) } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'commission_rule.update', 'commission_rule', ruleId, existing, updated);
+    return updated;
+  }
+
+  async consentForms(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return this.prisma.consent_forms.findMany({
+      where: { company_id: companyId },
+      include: { _count: { select: { responses: true } } },
+      orderBy: [{ is_active: 'desc' }, { updated_at: 'desc' }],
+    });
+  }
+
+  async createConsentForm(user: AuthenticatedUser, companyId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const name = String(dto.name || '').trim();
+    const content = String(dto.contentPlain || '').trim();
+    if (!name || !content) throw new BadRequestException('Consent form name and contentPlain are required');
+    const form = await this.prisma.consent_forms.create({
+      data: {
+        company_id: companyId,
+        name,
+        description: dto.description || null,
+        form_type: String(dto.formType || 'general'),
+        content_html: dto.contentHtml || null,
+        content_plain: content,
+        fields_json: dto.fieldsJson ?? undefined,
+        require_signature: dto.requireSignature !== false,
+        require_photo_id: dto.requirePhotoId === true,
+        expires_days: dto.expiresDays == null ? null : Math.max(1, Math.trunc(Number(dto.expiresDays))),
+      },
+    });
+    await this.auditMutation(user, companyId, 'consent_form.create', 'consent_form', form.id, undefined, form);
+    return form;
+  }
+
+  async updateConsentForm(user: AuthenticatedUser, companyId: string, formId: string, dto: any) {
+    this.companyAccess(user, companyId);
+    const existing = await this.prisma.consent_forms.findFirst({ where: { id: formId, company_id: companyId } });
+    if (!existing) throw new NotFoundException('Consent form not found');
+    const contentChanged =
+      (dto.contentPlain !== undefined && dto.contentPlain !== existing.content_plain) ||
+      (dto.contentHtml !== undefined && dto.contentHtml !== existing.content_html) ||
+      (dto.fieldsJson !== undefined && JSON.stringify(dto.fieldsJson) !== JSON.stringify(existing.fields_json));
+    const updated = await this.prisma.consent_forms.update({
+      where: { id: formId },
+      data: {
+        ...(dto.name !== undefined ? { name: String(dto.name).trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.formType !== undefined ? { form_type: String(dto.formType) } : {}),
+        ...(dto.contentPlain !== undefined ? { content_plain: String(dto.contentPlain) } : {}),
+        ...(dto.contentHtml !== undefined ? { content_html: dto.contentHtml || null } : {}),
+        ...(dto.fieldsJson !== undefined ? { fields_json: dto.fieldsJson } : {}),
+        ...(dto.requireSignature !== undefined ? { require_signature: Boolean(dto.requireSignature) } : {}),
+        ...(dto.requirePhotoId !== undefined ? { require_photo_id: Boolean(dto.requirePhotoId) } : {}),
+        ...(dto.expiresDays !== undefined ? { expires_days: dto.expiresDays == null ? null : Math.max(1, Math.trunc(Number(dto.expiresDays))) } : {}),
+        ...(dto.isActive !== undefined ? { is_active: Boolean(dto.isActive) } : {}),
+        ...(contentChanged ? { version: { increment: 1 } } : {}),
+      },
+    });
+    await this.auditMutation(user, companyId, 'consent_form.update', 'consent_form', formId, existing, updated);
+    return updated;
+  }
+
+  async serviceStructure(user: AuthenticatedUser, companyId: string, serviceId: string) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true, duration_minutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+    const [dependencies, stages] = await Promise.all([
+      this.prisma.service_dependencies.findMany({
+        where: { service_id: serviceId },
+        include: {
+          prerequisite: {
+            select: { id: true, name: true, duration_minutes: true, is_active: true },
+          },
+        },
+        orderBy: { created_at: 'asc' },
+      }),
+      this.prisma.service_stages.findMany({
+        where: { service_id: serviceId },
+        include: {
+          resource_type: {
+            select: { id: true, code: true, key: true, name: true, is_active: true },
+          },
+        },
+        orderBy: [{ stage_order: 'asc' }, { created_at: 'asc' }],
+      }),
+    ]);
+    return { service, dependencies, stages };
+  }
+
+  async replaceServiceDependencies(
+    user: AuthenticatedUser,
+    companyId: string,
+    serviceId: string,
+    dto: any,
+  ) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+
+    const rows = Array.isArray(dto.dependencies) ? dto.dependencies : [];
+    const prerequisiteIds: string[] = Array.from(
+      new Set<string>(
+        rows
+          .map((row: any): string => String(row.prerequisiteId || '').trim())
+          .filter((value: string): value is string => value.length > 0),
+      ),
+    );
+    if (prerequisiteIds.includes(serviceId)) {
+      throw new BadRequestException('A service cannot depend on itself');
+    }
+    if (prerequisiteIds.length !== rows.length) {
+      throw new BadRequestException('Dependencies must be unique and include prerequisiteId');
+    }
+
+    if (prerequisiteIds.length) {
+      const validCount = await this.prisma.services.count({
+        where: {
+          id: { in: prerequisiteIds },
+          company_id: companyId,
+          is_active: true,
+          deleted_at: null,
+        },
+      });
+      if (validCount !== prerequisiteIds.length) {
+        throw new BadRequestException('One or more prerequisite services are invalid');
+      }
+    }
+
+    for (const row of rows) {
+      const minGap = Math.trunc(Number(row.minGapMinutes ?? 0));
+      const maxGap =
+        row.maxGapMinutes === null || row.maxGapMinutes === undefined
+          ? null
+          : Math.trunc(Number(row.maxGapMinutes));
+      if (!Number.isFinite(minGap) || minGap < 0) {
+        throw new BadRequestException('minGapMinutes must be zero or greater');
+      }
+      if (maxGap !== null && (!Number.isFinite(maxGap) || maxGap < minGap)) {
+        throw new BadRequestException('maxGapMinutes must be greater than or equal to minGapMinutes');
+      }
+    }
+
+    const existing = await this.prisma.service_dependencies.findMany({
+      where: {
+        service: { company_id: companyId },
+        service_id: { not: serviceId },
+      },
+      select: { service_id: true, prerequisite_id: true },
+    });
+    const graph = new Map<string, string[]>();
+    const addEdge = (from: string, to: string) => {
+      const list = graph.get(from) ?? [];
+      list.push(to);
+      graph.set(from, list);
+    };
+    for (const edge of existing) addEdge(edge.service_id, edge.prerequisite_id);
+    for (const prerequisiteId of prerequisiteIds) addEdge(serviceId, prerequisiteId);
+
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const hasCycle = (node: string): boolean => {
+      if (visiting.has(node)) return true;
+      if (visited.has(node)) return false;
+      visiting.add(node);
+      for (const next of graph.get(node) ?? []) {
+        if (hasCycle(next)) return true;
+      }
+      visiting.delete(node);
+      visited.add(node);
+      return false;
+    };
+    for (const node of graph.keys()) {
+      if (hasCycle(node)) {
+        throw new ConflictException('Service dependencies would create a circular dependency');
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.service_dependencies.deleteMany({ where: { service_id: serviceId } });
+      if (rows.length) {
+        await tx.service_dependencies.createMany({
+          data: rows.map((row: any) => ({
+            service_id: serviceId,
+            prerequisite_id: String(row.prerequisiteId),
+            min_gap_minutes: Math.trunc(Number(row.minGapMinutes ?? 0)),
+            max_gap_minutes:
+              row.maxGapMinutes === null || row.maxGapMinutes === undefined
+                ? null
+                : Math.trunc(Number(row.maxGapMinutes)),
+            is_optional: row.isOptional === true,
+          })),
+        });
+      }
+      return tx.service_dependencies.findMany({
+        where: { service_id: serviceId },
+        include: {
+          prerequisite: { select: { id: true, name: true, duration_minutes: true } },
+        },
+        orderBy: { created_at: 'asc' },
+      });
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'service.dependencies.replace',
+      'service',
+      serviceId,
+      undefined,
+      result,
+    );
+    return result;
+  }
+
+  async replaceServiceStages(
+    user: AuthenticatedUser,
+    companyId: string,
+    serviceId: string,
+    dto: any,
+  ) {
+    this.companyAccess(user, companyId);
+    const service = await this.prisma.services.findFirst({
+      where: { id: serviceId, company_id: companyId, deleted_at: null },
+      select: { id: true, name: true, duration_minutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found');
+
+    const rows = Array.isArray(dto.stages) ? dto.stages : [];
+    const orders = rows.map((row: any) => Math.trunc(Number(row.stageOrder)));
+    if (new Set(orders).size !== orders.length) {
+      throw new BadRequestException('Each service stage must have a unique stageOrder');
+    }
+    for (const row of rows) {
+      const name = String(row.name || '').trim();
+      const order = Math.trunc(Number(row.stageOrder));
+      const duration = Math.trunc(Number(row.durationMinutes));
+      if (!name) throw new BadRequestException('Each service stage requires a name');
+      if (!Number.isInteger(order) || order < 1) {
+        throw new BadRequestException('stageOrder must be a positive integer');
+      }
+      if (!Number.isInteger(duration) || duration < 1) {
+        throw new BadRequestException('durationMinutes must be a positive integer');
+      }
+    }
+
+    const resourceTypeIds: string[] = Array.from(
+      new Set<string>(
+        rows
+          .map((row: any): string =>
+            row.resourceTypeId ? String(row.resourceTypeId) : '',
+          )
+          .filter((value: string): value is string => value.length > 0),
+      ),
+    );
+    if (resourceTypeIds.length) {
+      const validCount = await this.prisma.resource_types.count({
+        where: { id: { in: resourceTypeIds }, is_active: true },
+      });
+      if (validCount !== resourceTypeIds.length) {
+        throw new BadRequestException('One or more resource types are invalid');
+      }
+    }
+
+    const totalStageDuration = rows.reduce(
+      (sum: number, row: any) => sum + Math.trunc(Number(row.durationMinutes)),
+      0,
+    );
+    if (rows.length && totalStageDuration > service.duration_minutes) {
+      throw new BadRequestException(
+        'Combined stage duration cannot exceed the service duration',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.service_stages.deleteMany({ where: { service_id: serviceId } });
+      if (rows.length) {
+        await tx.service_stages.createMany({
+          data: rows.map((row: any) => ({
+            service_id: serviceId,
+            stage_order: Math.trunc(Number(row.stageOrder)),
+            name: String(row.name).trim(),
+            description: row.description ? String(row.description).trim() : null,
+            duration_minutes: Math.trunc(Number(row.durationMinutes)),
+            resource_type_id: row.resourceTypeId ? String(row.resourceTypeId) : null,
+          })),
+        });
+      }
+      return tx.service_stages.findMany({
+        where: { service_id: serviceId },
+        include: {
+          resource_type: { select: { id: true, code: true, key: true, name: true } },
+        },
+        orderBy: { stage_order: 'asc' },
+      });
+    });
+    await this.auditMutation(
+      user,
+      companyId,
+      'service.stages.replace',
+      'service',
+      serviceId,
+      undefined,
+      result,
+    );
+    return result;
+  }
+
+  consentFormTemplates(user: AuthenticatedUser, companyId: string) {
+    this.companyAccess(user, companyId);
+    return [
+      {
+        key: 'general_service',
+        name: 'General service consent',
+        formType: 'general',
+        description: 'General acknowledgement of service scope, aftercare and risks.',
+        contentPlain:
+          'I confirm that the service, expected result, aftercare, relevant risks and opportunity to ask questions were explained to me. I consent to receive the selected service.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: null,
+      },
+      {
+        key: 'client_intake',
+        name: 'Client intake',
+        formType: 'intake',
+        description: 'Reusable intake template for preferences, sensitivities and service history.',
+        contentPlain:
+          'I confirm that the information I provide about preferences, sensitivities, allergies, medications and relevant service history is accurate to the best of my knowledge.',
+        fieldsJson: {
+          fields: [
+            { key: 'allergies', type: 'textarea', required: false },
+            { key: 'medications', type: 'textarea', required: false },
+            { key: 'sensitivities', type: 'textarea', required: false },
+            { key: 'serviceHistory', type: 'textarea', required: false },
+          ],
+        },
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 365,
+      },
+      {
+        key: 'medical_allergy',
+        name: 'Medical & allergy acknowledgement',
+        formType: 'medical',
+        description: 'Medical/allergy acknowledgement before higher-risk services.',
+        contentPlain:
+          'I have disclosed known allergies, sensitivities, medical conditions and medications relevant to this service. I understand I should stop the service and inform staff if I experience discomfort or a reaction.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 180,
+      },
+      {
+        key: 'media_release',
+        name: 'Photo & media release',
+        formType: 'media',
+        description: 'Optional authorization for before/after portfolio and social content.',
+        contentPlain:
+          'I authorize the business to use approved before/after photos or videos of the completed work for portfolio and promotional purposes. I understand this consent may be revoked for future use.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: null,
+      },
+      {
+        key: 'health_screening',
+        name: 'Health screening',
+        formType: 'health',
+        description: 'Reusable health-screening template for services requiring a current wellness declaration.',
+        contentPlain:
+          'I confirm that I have disclosed any current symptoms, conditions or exposure information that may affect whether this service should proceed safely today.',
+        requireSignature: true,
+        requirePhotoId: false,
+        expiresDays: 30,
+      },
+    ];
+  }
+
+  async createConsentFormFromTemplate(
+    user: AuthenticatedUser,
+    companyId: string,
+    templateKey: string,
+    overrides: any,
+  ) {
+    const template = this.consentFormTemplates(user, companyId).find(
+      (item) => item.key === templateKey,
+    );
+    if (!template) throw new NotFoundException('Consent form template not found');
+    return this.createConsentForm(user, companyId, {
+      ...template,
+      ...overrides,
+      name: overrides?.name || template.name,
+      formType: overrides?.formType || template.formType,
+      contentPlain: overrides?.contentPlain || template.contentPlain,
+      fieldsJson: overrides?.fieldsJson ?? (template as any).fieldsJson,
+      requireSignature:
+        overrides?.requireSignature ?? template.requireSignature,
+      requirePhotoId:
+        overrides?.requirePhotoId ?? template.requirePhotoId,
+      expiresDays: overrides?.expiresDays ?? template.expiresDays,
+    });
+  }
+
 
 }

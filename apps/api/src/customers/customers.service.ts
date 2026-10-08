@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PatchCustomerProfileDto, UpdateCustomerPreferencesDto } from './dto/customer-profile.dto';
 
@@ -385,5 +385,245 @@ export class CustomersService {
       return result;
     });
   }
+
+  async exportAccountData(userId: string) {
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        email_verified_at: true,
+        phone: true,
+        phone_verified_at: true,
+        full_name: true,
+        locale: true,
+        theme_mode: true,
+        is_active: true,
+        created_at: true,
+        updated_at: true,
+        user_profiles: true,
+        preferences: true,
+        notification_preferences: true,
+        location_preferences: true,
+        nearby_notification_preferences: true,
+        favorites: true,
+        follows_following: true,
+        reviews_written: true,
+        comments: true,
+        likes: true,
+        search_history: true,
+        customers: {
+          include: {
+            profile: true,
+            addresses: true,
+            preferences: true,
+            dependents: true,
+            preferred_resources: true,
+            appointments: {
+              include: {
+                branch: { select: { id: true, name: true, address_line_1: true } },
+                company: { select: { id: true, display_name: true } },
+                participants: { include: { professional: { select: { id: true, display_name: true } } } },
+                services: { include: { service: { select: { id: true, name: true } } } },
+                resources: { include: { resource: { select: { id: true, name: true, type: true } } } },
+                financial_snapshot: true,
+                status_history: true,
+                review: true,
+              },
+              orderBy: { created_at: 'desc' },
+            },
+            payments: {
+              include: { refunds: true, transactions: true },
+              orderBy: { created_at: 'desc' },
+            },
+            wallet: { include: { ledger: true } },
+            loyalty_account: { include: { ledger: true } },
+            package_purchases: true,
+            membership_subscriptions: true,
+            consent_form_responses: true,
+          },
+        },
+        messages_sent: {
+          select: {
+            id: true,
+            conversation_id: true,
+            message_type: true,
+            body_plain: true,
+            created_at: true,
+            edited_at: true,
+            deleted_at: true,
+          },
+          orderBy: { created_at: 'desc' },
+        },
+        conversations: {
+          select: {
+            conversation_id: true,
+            joined_at: true,
+            left_at: true,
+          },
+        },
+        sessions: {
+          select: {
+            id: true,
+            user_agent: true,
+            ip_address: true,
+            country_code: true,
+            city: true,
+            device_type: true,
+            device_name: true,
+            expires_at: true,
+            last_active_at: true,
+            revoked_at: true,
+            created_at: true,
+          },
+          orderBy: { created_at: 'desc' },
+        },
+        push_devices: {
+          select: {
+            id: true,
+            platform: true,
+            app_type: true,
+            device_name: true,
+            locale: true,
+            is_enabled: true,
+            last_seen_at: true,
+            created_at: true,
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User account not found');
+    return {
+      exportedAt: new Date().toISOString(),
+      formatVersion: 1,
+      account: user,
+    };
+  }
+
+  async deleteAccount(userId: string, confirmation: string) {
+    if (confirmation !== 'DELETE MY ACCOUNT') {
+      throw new BadRequestException('Type DELETE MY ACCOUNT to permanently delete your account');
+    }
+    const user = await this.prisma.users.findUnique({
+      where: { id: userId },
+      include: { customers: { select: { id: true } } },
+    });
+    if (!user) throw new NotFoundException('User account not found');
+
+    const customerIds = user.customers.map((customer) => customer.id);
+    const activeBookings = customerIds.length
+      ? await this.prisma.appointments.count({
+          where: {
+            customer_id: { in: customerIds },
+            status: { in: ['awaiting_payment', 'pending', 'confirmed', 'checked_in', 'in_progress'] },
+            ends_at: { gt: new Date() },
+          },
+        })
+      : 0;
+    if (activeBookings > 0) {
+      throw new ConflictException('Cancel or complete active/future bookings before deleting your account');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      await tx.sessions.updateMany({
+        where: { user_id: userId, revoked_at: null },
+        data: { revoked_at: now },
+      });
+      await tx.push_devices.updateMany({
+        where: { user_id: userId },
+        data: { is_enabled: false },
+      });
+      await tx.search_history.deleteMany({ where: { user_id: userId } });
+      await tx.notification_preferences.updateMany({
+        where: { user_id: userId },
+        data: {
+          email_marketing: false,
+          email_bookings: false,
+          email_reviews: false,
+          push_marketing: false,
+          push_bookings: false,
+          push_reviews: false,
+          push_messages: false,
+          push_system: false,
+          sms_bookings: false,
+          sms_reminders: false,
+        },
+      });
+      await tx.nearby_notification_preferences.updateMany({
+        where: { user_id: userId },
+        data: { enabled: false },
+      });
+      await tx.user_preferences.updateMany({
+        where: { user_id: userId },
+        data: {
+          email_marketing: false,
+          email_bookings: false,
+          email_reviews: false,
+          push_marketing: false,
+          push_bookings: false,
+          push_reviews: false,
+          push_messages: false,
+          push_system: false,
+          sms_bookings: false,
+          sms_reminders: false,
+          nearby_enabled: false,
+        },
+      });
+      await tx.user_profiles.updateMany({
+        where: { user_id: userId },
+        data: {
+          first_name: 'Deleted',
+          last_name: 'User',
+          bio: null,
+          website_url: null,
+          instagram_handle: null,
+          tiktok_handle: null,
+          facebook_url: null,
+          linkedin_url: null,
+          address_line_1: null,
+          address_line_2: null,
+          postal_code: null,
+          notification_token: null,
+        },
+      });
+      for (const customerId of customerIds) {
+        await tx.customer_profiles.updateMany({
+          where: { customer_id: customerId },
+          data: {
+            allergies: [],
+            preferred_products: [],
+            color_preferences: [],
+            style_notes: null,
+            medical_notes: null,
+            private_notes: null,
+          },
+        });
+        await tx.customer_addresses.deleteMany({ where: { customer_id: customerId } });
+      }
+      const deleted = await tx.users.update({
+        where: { id: userId },
+        data: {
+          email: null,
+          phone: null,
+          full_name: 'Deleted user',
+          avatar_media_id: null,
+          is_active: false,
+          deleted_at: now,
+        },
+        select: { id: true, is_active: true, deleted_at: true },
+      });
+      return deleted;
+    });
+
+    return {
+      deleted: true,
+      accountId: result.id,
+      deletedAt: result.deleted_at,
+      retainedRecords:
+        'Financial, booking, consent, moderation, and audit records may be retained without direct profile contact details where required for operational, legal, or fraud-prevention purposes.',
+    };
+  }
+
 
 }

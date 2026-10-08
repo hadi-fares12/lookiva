@@ -13,15 +13,19 @@ blocks=dict(re.findall(r'^model\s+(\w+)\s*\{(.*?)^\}',schema,re.M|re.S))
 actual=[]
 for name,body in blocks.items():
     m=re.search(r'@@map\("([^"]+)"\)',body); actual.append(m.group(1) if m else name)
-mig=ROOT/'apps/api/prisma/migrations/202609300001_baseline/migration.sql'
-if not mig.exists(): fail('Schema-aligned baseline migration is missing')
+migration_root=ROOT/'apps/api/prisma/migrations'
+migration_files=sorted(migration_root.glob('*/migration.sql'))
+if not migration_files:
+    fail('Prisma migration history is missing')
 else:
-    sql=mig.read_text()
+    sql='\n'.join(file.read_text() for file in migration_files)
     created=re.findall(r'^CREATE TABLE "([^"]+)"',sql,re.M)
-    missing=sorted(set(actual)-set(created)); extra=sorted(set(created)-set(actual))
-    if missing: fail('Migration missing schema tables: '+', '.join(missing[:20]))
-    if extra: fail('Migration creates unknown tables: '+', '.join(extra[:20]))
-    if len(created)!=len(actual): fail(f'Model/table count mismatch: {len(actual)} schema models vs {len(created)} migration tables')
+    created_unique=set(created)
+    missing=sorted(set(actual)-created_unique); extra=sorted(created_unique-set(actual))
+    if missing: fail('Migration history missing schema tables: '+', '.join(missing[:20]))
+    if extra: fail('Migration history creates unknown tables: '+', '.join(extra[:20]))
+    if len(created_unique)!=len(actual):
+        fail(f'Model/table count mismatch: {len(actual)} schema models vs {len(created_unique)} migrated tables')
     for token in ['trg_guard_professional_overlap','trg_guard_resource_overlap','trg_guard_appointment_reschedule']:
         if token not in sql: fail(f'Missing database overlap guard: {token}')
 

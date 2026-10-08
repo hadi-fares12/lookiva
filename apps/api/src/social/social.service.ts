@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { evaluateAutomaticViolation } from '../common/moderation/auto-violation';
 
 @Injectable()
 export class SocialService {
@@ -16,7 +17,7 @@ export class SocialService {
   }) {
     try {
       const { businessId, professionalId, userId, limit = 20, offset = 0 } = params;
-      const where: any = {};
+      const where: any = { status: 'published', deleted_at: null };
       if (businessId) where.company_id = businessId;
       if (professionalId) where.professional_id = professionalId;
       if (userId) where.author_user_id = userId;
@@ -65,8 +66,8 @@ export class SocialService {
 
   async getById(id: string) {
     try {
-      const post = await this.prisma.posts.findUnique({
-        where: { id },
+      const post = await this.prisma.posts.findFirst({
+        where: { id, status: 'published', deleted_at: null },
         include: {
           author: {
             select: { id: true, full_name: true, avatar_media_id: true },
@@ -113,27 +114,25 @@ export class SocialService {
   async likePost(userId: string, postId: string) {
     try {
       return await this.prisma.$transaction(async (tx: any) => {
-        const like = await tx.likes.upsert({
+        const existing = await tx.likes.findUnique({
           where: {
             user_id_post_id: {
               user_id: userId,
               post_id: postId,
             },
           },
-          create: {
+        });
+        if (existing) return existing;
+        const like = await tx.likes.create({
+          data: {
             user_id: userId,
             post_id: postId,
           },
-          update: {},
         });
-        try {
-          await tx.posts.update({
-            where: { id: postId },
-            data: { like_count: { increment: 1 } },
-          });
-        } catch (_) {
-          // ignore denormalization update failure
-        }
+        await tx.posts.updateMany({
+          where: { id: postId, status: 'published', deleted_at: null },
+          data: { like_count: { increment: 1 } },
+        });
         return like;
       });
     } catch (err) {
@@ -168,16 +167,31 @@ export class SocialService {
 
   async comment(userId: string, postId: string, body: string, parentId?: string) {
     try {
+      const clean = body.trim();
+      if (!clean) return { created: false, reason: 'empty_comment' };
       return await this.prisma.$transaction(async (tx: any) => {
         const created = await tx.comments.create({
           data: {
             post_id: postId,
             user_id: userId,
-            body,
+            body: clean,
             parent_comment_id: parentId || null,
             status: 'published',
           },
         });
+        const autoViolation = evaluateAutomaticViolation([clean]);
+        if (autoViolation) {
+          await tx.moderation_auto_flags.create({
+            data: {
+              target_type: 'comment',
+              target_id: created.id,
+              author_user_id: userId,
+              reason_type: autoViolation.reasonType,
+              confidence: autoViolation.confidence,
+              details: autoViolation.details,
+            },
+          });
+        }
         try {
           await tx.posts.update({
             where: { id: postId },

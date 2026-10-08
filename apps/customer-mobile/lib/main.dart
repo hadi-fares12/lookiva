@@ -14,7 +14,11 @@ import 'core/booking_flow.dart';
 import 'core/account_hub.dart';
 import 'core/bookings.dart';
 import 'core/chat.dart';
+import 'core/reels.dart';
 import 'core/l10n.dart';
+import 'core/privacy.dart';
+import 'core/moderation.dart';
+import 'core/mobile_services.dart';
 
 const String _prefThemeMode = 'cust_theme_mode';
 const String _prefLocale = 'cust_locale_code';
@@ -296,6 +300,14 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const CustomerLoginPage(),
     ),
     GoRoute(
+      path: '/account/moderation',
+      builder: (context, state) => const CustomerModerationPage(),
+    ),
+    GoRoute(
+      path: '/account/privacy',
+      builder: (context, state) => const CustomerPrivacyPage(),
+    ),
+    GoRoute(
       path: '/account/:section',
       builder: (context, state) => CustomerRemotePage(
         section: state.pathParameters['section'] ?? 'account',
@@ -312,6 +324,7 @@ final GoRouter _router = GoRouter(
       path: '/book/:serviceId',
       builder: (context, state) => CustomerBookingPage(
         serviceId: state.pathParameters['serviceId'] ?? '',
+        postId: state.uri.queryParameters['postId'],
       ),
     ),
     GoRoute(
@@ -327,6 +340,10 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/messages',
       builder: (context, state) => const CustomerConversationsPage(),
+    ),
+    GoRoute(
+      path: '/reels',
+      builder: (context, state) => CustomerReelsPage(postId: state.uri.queryParameters['postId']),
     ),
     GoRoute(
       path: '/messages/:id',
@@ -455,6 +472,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!onboardingSeen) {
       context.go('/onboarding');
     } else if (hasSession) {
+      await CustomerMobileServices.instance.initialize(
+        openDeepLink: (path) => _router.go(path),
+      );
+      if (!mounted) return;
       context.go('/home');
     } else {
       context.go('/login');
@@ -603,6 +624,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       label: ct(context, 'discover'),
     ),
     NavigationDestination(
+      icon: const Icon(Icons.video_collection_outlined),
+      selectedIcon: const Icon(Icons.video_collection_rounded),
+      label: ct(context, 'reels'),
+    ),
+    NavigationDestination(
       icon: const Icon(Icons.map_outlined),
       selectedIcon: const Icon(Icons.map_rounded),
       label: ct(context, 'map'),
@@ -665,6 +691,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         children: const [
           DiscoveryHome(),
           CustomerDiscoverTab(),
+          CustomerReels(),
           CustomerMapTab(),
           CustomerBookingsList(),
           CustomerAccountHub(),
@@ -826,6 +853,10 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
         _password.text,
         rememberMe: _rememberMe,
       );
+      await CustomerMobileServices.instance.initialize(
+        openDeepLink: (path) => _router.go(path),
+      );
+      await CustomerMobileServices.instance.onSignedIn();
       if (mounted) context.go('/home');
     } catch (error) {
       if (mounted) {

@@ -217,7 +217,8 @@
     "wallet": "Wallet",
     "settings": "Settings",
     "help": "Help & Support",
-    "menu": "Menu"
+    "menu": "Menu",
+    "reels": "Reels"
   },
   "homeSections": {
     "forYou": "For You",
@@ -549,7 +550,14 @@
         "branches": "Branches",
         "subscriptions": "Subscription",
         "audit": "Audit",
-        "settings": "Settings"
+        "settings": "Settings",
+        "inventory": "Inventory",
+        "commissions": "Commissions",
+        "forms": "Consent forms",
+        "banking": "Banking",
+        "packageRedemptions": "Package redemptions",
+        "withdrawals": "Withdrawals",
+        "portfolio": "Portfolio"
       }
     },
     "admin": {
@@ -579,7 +587,17 @@
         "featureFlags": "Feature flags",
         "remoteConfig": "Remote config",
         "audit": "Audit",
-        "system": "System"
+        "system": "System",
+        "strikes": "User strikes",
+        "branches": "Branches",
+        "professionals": "Professionals",
+        "services": "Services",
+        "regions": "Regions",
+        "currencies": "Currencies",
+        "plans": "Plans",
+        "appeals": "Appeals",
+        "withdrawals": "Withdrawals",
+        "autoFlags": "Auto flags"
       }
     }
   },
@@ -663,6 +681,34 @@
       "settings": {
         "title": "Business settings",
         "subtitle": "Company profile and booking configuration."
+      },
+      "inventory": {
+        "title": "Products & inventory",
+        "subtitle": "Products, branch stock, reorder levels, expiry and stock movements."
+      },
+      "commissions": {
+        "title": "Commission rules",
+        "subtitle": "Professional commission rules, rates and payout logic."
+      },
+      "forms": {
+        "title": "Consent forms",
+        "subtitle": "Service, medical, media and general consent templates with versioning."
+      },
+      "banking": {
+        "title": "Payout banking",
+        "subtitle": "Manage masked business payout destinations and verification documents."
+      },
+      "packageRedemptions": {
+        "title": "Package redemptions",
+        "subtitle": "Redeem package sessions safely and review package usage history."
+      },
+      "withdrawals": {
+        "title": "Withdrawals",
+        "subtitle": "Request transfers to verified payout bank accounts and track processing status."
+      },
+      "portfolio": {
+        "title": "Portfolio & Reels",
+        "subtitle": "Publish photo/video work, link services and professionals, and verify work against completed reviewed bookings."
       }
     },
     "actions": {
@@ -685,7 +731,35 @@
       "complete": "Complete",
       "call": "Call",
       "served": "Served",
-      "viewOnly": "View only"
+      "viewOnly": "View only",
+      "structure": "Structure",
+      "close": "Close",
+      "saveDependencies": "Save dependencies",
+      "addStage": "Add stage",
+      "saveStages": "Save stages",
+      "remove": "Remove",
+      "useTemplate": "Use template",
+      "saveCrm": "Save CRM",
+      "mergeDuplicate": "Merge duplicate",
+      "viewCrm": "Open CRM",
+      "merge": "Merge duplicate",
+      "addBankAccount": "Add bank account",
+      "enablePayouts": "Enable payouts",
+      "disablePayouts": "Disable payouts",
+      "exportCsv": "Export CSV",
+      "exportXlsx": "Export XLSX",
+      "redeemPackage": "Redeem package",
+      "requestWithdrawal": "Request withdrawal",
+      "cancelWithdrawal": "Cancel request",
+      "uploading": "Uploading…",
+      "publishPortfolio": "Publish portfolio post",
+      "verifyWork": "Verify work",
+      "archive": "Archive",
+      "previous": "Previous",
+      "today": "Today",
+      "next": "Next",
+      "quickAdd": "Quick add",
+      "createBooking": "Create booking"
     },
     "labels": {
       "serviceName": "Service name",
@@ -738,7 +812,72 @@
       "anyProfessional": "Any professional",
       "until": "until",
       "allAuthorizedBranches": "All authorized branches",
-      "resetFilters": "Reset filters"
+      "resetFilters": "Reset filters",
+      "formTemplates": "Form templates",
+      "formTemplatesHint": "Start from a reusable consent or intake template, then customize it for your business.",
+      "serviceStructure": "Service structure",
+      "serviceStructureHint": "Configure prerequisite services and the ordered stages required to deliver this service.",
+      "dependencies": "Dependencies",
+      "dependenciesHint": "Select services that must happen before this service.",
+      "minutes": "minutes",
+      "noDependencyOptions": "No other active services are available as prerequisites.",
+      "serviceStages": "Service stages",
+      "serviceStagesHint": "Break the service into ordered operational stages. Combined duration cannot exceed the service duration.",
+      "stageName": "Stage name",
+      "stageDuration": "Stage duration (minutes)",
+      "noStages": "No stages configured. Add a stage if this service has a multi-step workflow.",
+      "crmProfile": "Customer CRM",
+      "crmNotes": "Business notes",
+      "crmNotesHint": "Private operational context for this customer inside your company.",
+      "crmTags": "Customer tags",
+      "crmTagsHint": "VIP, color client, prefers Hadi…",
+      "duplicateCustomerId": "Duplicate customer ID to merge",
+      "mergedAliases": "Merged aliases",
+      "recentAppointments": "Recent appointments",
+      "recentPayments": "Recent payments",
+      "crmNotesTags": "Business notes & tags",
+      "tags": "Tags",
+      "tagsHint": "vip, color-client, prefers-hadi",
+      "privateNotes": "Private notes",
+      "privateNotesHint": "Preferences, context, follow-up notes or service considerations visible to authorized staff.",
+      "mergeDuplicate": "Merge duplicate customer",
+      "mergeDuplicateHint": "Choose another customer record that represents the same person. History is preserved under this canonical customer.",
+      "chooseDuplicate": "Choose duplicate record",
+      "mergeConfirm": "Merge {name} into this customer? This keeps history but makes the selected customer the canonical record.",
+      "bankName": "Bank name",
+      "accountHolder": "Account holder",
+      "swiftBic": "SWIFT / BIC",
+      "iban": "IBAN",
+      "accountNumber": "Account number",
+      "routingNumber": "Routing number",
+      "verificationDocumentId": "Verification document ID",
+      "bankVerificationHint": "Changing account/IBAN details resets verification. Verification is completed by platform staff.",
+      "packagePurchaseId": "Package purchase ID",
+      "serviceId": "Service ID",
+      "appointmentId": "Appointment ID",
+      "sessionsUsed": "Sessions to redeem",
+      "chooseBankAccount": "Choose verified bank account",
+      "bankAccount": "Bank account",
+      "withdrawalAmount": "Withdrawal amount",
+      "referenceCode": "Reference code",
+      "withdrawalReason": "Reason / note",
+      "portfolioTitle": "Post title",
+      "portfolioCaption": "Caption",
+      "portfolioTags": "Tags, comma separated",
+      "portfolioMedia": "Choose up to 6 photos/videos",
+      "noVerifiedReview": "Publish without Verified Work",
+      "portfolioPost": "Portfolio post",
+      "verifiedWork": "Verified Work",
+      "mediaItems": "media",
+      "verifiedReviewId": "Verified review ID",
+      "selectVerifiedReview": "Select a verified review",
+      "calendarDate": "Calendar date",
+      "allResources": "All chairs / resources",
+      "anyResource": "Any chair / resource",
+      "calendarDragHint": "Drag an eligible pending/confirmed booking onto another day to reschedule it safely.",
+      "startTime": "Start time",
+      "staffNote": "Staff note",
+      "emptyDay": "No bookings"
     },
     "messages": {
       "serviceCreated": "Service created.",
@@ -760,7 +899,38 @@
       "serviceDisabled": "Service disabled.",
       "serviceEnabled": "Service enabled.",
       "promotionPaused": "Promotion paused.",
-      "promotionActivated": "Promotion activated."
+      "promotionActivated": "Promotion activated.",
+      "dependenciesSaved": "Service dependencies saved.",
+      "stagesSaved": "Service stages saved.",
+      "templateCreated": "Consent form created from template.",
+      "crmSaved": "Customer CRM saved.",
+      "mergeSameCustomer": "Choose a different duplicate customer.",
+      "customerMerged": "Duplicate customer merged.",
+      "bankDestinationRequired": "Enter an account number or IBAN.",
+      "bankAccountCreated": "Bank account added.",
+      "bankAccountEnabled": "Payouts enabled for this account.",
+      "bankAccountDisabled": "Payouts disabled for this account.",
+      "packageRedeemed": "Package session redeemed.",
+      "withdrawalBankRequired": "Choose a verified bank account.",
+      "withdrawalRequested": "Withdrawal request submitted.",
+      "noVerifiedBank": "Add and verify a payout bank account before requesting a withdrawal.",
+      "withdrawalCancelled": "Withdrawal request cancelled.",
+      "portfolioMediaLimit": "A portfolio post can contain up to 6 media files.",
+      "portfolioPublished": "Portfolio post published.",
+      "portfolioPublishedVerified": "Portfolio post published as Verified Work.",
+      "portfolioVerified": "Portfolio post verified.",
+      "portfolioArchived": "Portfolio post archived.",
+      "calendarQuickAddRequired": "Branch, customer, service and start time are required.",
+      "calendarBookingCreated": "Booking created.",
+      "calendarBookingMoved": "Booking rescheduled."
+    },
+    "calendarViews": {
+      "day": "Day",
+      "fourDay": "4 days",
+      "week": "Week",
+      "twoWeek": "2 weeks",
+      "month": "Month",
+      "list": "List"
     }
   },
   "adminOps": {
@@ -873,13 +1043,55 @@
       "remote-config": {
         "title": "Remote configuration",
         "subtitle": "Server-driven operational configuration."
+      },
+      "strikes": {
+        "title": "User strikes",
+        "subtitle": "Warnings, policy strikes, expiry and active enforcement state."
+      },
+      "branches": {
+        "title": "Branches",
+        "subtitle": "Platform-wide branch directory, booking state and operating status."
+      },
+      "professionals": {
+        "title": "Professionals",
+        "subtitle": "Professional profiles, verification and platform status."
+      },
+      "services": {
+        "title": "Services",
+        "subtitle": "Service catalog across businesses, pricing and availability state."
+      },
+      "regions": {
+        "title": "Regions",
+        "subtitle": "Market regions and their country relationships."
+      },
+      "currencies": {
+        "title": "Currencies",
+        "subtitle": "Supported currencies, symbols, decimals and active state."
+      },
+      "plans": {
+        "title": "Subscription plans",
+        "subtitle": "Platform subscription tiers, pricing and trial configuration."
+      },
+      "appeals": {
+        "title": "Moderation appeals",
+        "subtitle": "Review appeals, reverse incorrect actions, restore content and clear linked strikes."
+      },
+      "withdrawals": {
+        "title": "Withdrawal review",
+        "subtitle": "Approve, process, complete or reject business withdrawal requests to verified payout accounts."
+      },
+      "auto-flags": {
+        "title": "Automatic moderation flags",
+        "subtitle": "High-confidence system flags awaiting human review, dismissal or escalation."
       }
     },
     "prompts": {
       "reason": "Reason (optional)",
       "rejectionReason": "Rejection reason (required)",
       "resolution": "Resolution note",
-      "newValue": "New value for {key}"
+      "newValue": "New value for {key}",
+      "withdrawalRejectionReason": "Withdrawal rejection reason",
+      "withdrawalReference": "Bank/provider reference code (optional)"
     },
     "messages": {
       "userSuspended": "User suspended.",
@@ -899,8 +1111,19 @@
       "disputeResolved": "Dispute resolved.",
       "featureEnabled": "Feature flag enabled.",
       "featureDisabled": "Feature flag disabled.",
-      "remoteUpdated": "Remote configuration updated."
-    }
+      "remoteUpdated": "Remote configuration updated.",
+      "withdrawal": {
+        "approved": "Withdrawal approved.",
+        "rejected": "Withdrawal rejected.",
+        "processing": "Withdrawal moved to processing.",
+        "completed": "Withdrawal completed and posted to the ledger.",
+        "failed": "Withdrawal marked failed."
+      }
+    },
+    "startProcessing": "Start processing",
+    "completeWithdrawal": "Complete",
+    "markFailed": "Mark failed",
+    "retryProcessing": "Retry processing"
   },
   "customerAccount": {
     "eyebrow": "LOOKIVA account",
@@ -967,6 +1190,18 @@
       "nearby-settings": {
         "title": "Nearby recommendations",
         "subtitle": "Control opt-in location recommendations, distance and quiet hours."
+      },
+      "privacy": {
+        "title": "Privacy & data",
+        "subtitle": "Download your account data or permanently delete your LOOKIVA account."
+      },
+      "collections": {
+        "title": "Collections",
+        "subtitle": "Discover recent work from salons and professionals you follow."
+      },
+      "moderation": {
+        "title": "Moderation & appeals",
+        "subtitle": "Review account strikes and track appeals of moderation actions."
       }
     },
     "actions": {
@@ -979,7 +1214,10 @@
       "revoking": "Revoking…",
       "savePreferences": "Save preferences",
       "saveNearby": "Save nearby settings",
-      "saveProfile": "Save profile"
+      "saveProfile": "Save profile",
+      "downloadData": "Download my data",
+      "deleteAccount": "Delete account permanently",
+      "appeal": "Appeal"
     },
     "empty": {
       "bookings": "No bookings yet. Discover a professional and book your first appointment.",
@@ -989,7 +1227,9 @@
       "reviews": "You have not written any reviews yet.",
       "sessions": "No active sessions were returned.",
       "generic": "This account section has no records yet.",
-      "activity": "No activity yet."
+      "activity": "No activity yet.",
+      "strikes": "No moderation strikes are associated with your account.",
+      "appeals": "You have not submitted any moderation appeals."
     },
     "labels": {
       "booking": "Booking",
@@ -1038,7 +1278,17 @@
       "noConversations": "No conversations yet.",
       "noMessages": "No messages yet.",
       "loyaltyPoints": "Loyalty points",
-      "standard": "Standard"
+      "standard": "Standard",
+      "privacyIntro": "Your export contains account, preferences, bookings, payments, messages and other data linked to your account.",
+      "deleteWarning": "Deletion is permanent. Active or future bookings must be completed or cancelled first.",
+      "deletePhrase": "Type DELETE MY ACCOUNT to confirm.",
+      "myStrikes": "My strikes",
+      "myAppeals": "My appeals",
+      "moderationAction": "Moderation action",
+      "noModerationDetails": "No additional details were provided.",
+      "inactive": "inactive",
+      "appealReasonPrompt": "Explain why this action should be reversed (at least 10 characters).",
+      "resolution": "Resolution"
     },
     "messages": {
       "favoriteRemoved": "Removed from favorites.",
@@ -1048,7 +1298,10 @@
       "sessionRevoked": "Session revoked.",
       "preferencesSaved": "Preferences saved.",
       "nearbySaved": "Nearby settings saved.",
-      "profileSaved": "Profile saved."
+      "profileSaved": "Profile saved.",
+      "exportReady": "Your account data export is ready.",
+      "accountDeleted": "Your account was permanently deleted.",
+      "appealSubmitted": "Your moderation appeal was submitted."
     }
   },
   "customerBooking": {
@@ -1075,7 +1328,18 @@
     "notesPlaceholder": "Tell the professional what you want…",
     "processing": "Processing…",
     "confirm": "Check availability & confirm",
-    "signIn": "Sign in to book"
+    "signIn": "Sign in to book",
+    "paymentRequired": "Deposit required",
+    "depositReserved": "Your time and chair are reserved. Pay the required deposit to complete confirmation.",
+    "payDeposit": "Pay deposit",
+    "paymentMethod": "Payment method",
+    "giftCardCode": "Gift card code",
+    "paying": "Processing payment…",
+    "depositPaid": "Deposit paid",
+    "paymentPending": "Payment started. Complete the provider checkout to confirm your booking.",
+    "noPaymentMethods": "No payment method is currently available. Contact the business.",
+    "amountDueNow": "Amount due now",
+    "bookingPendingBusiness": "Deposit received. Waiting for business confirmation."
   },
   "customerChat": {
     "back": "Messages",
@@ -1171,7 +1435,21 @@
     "total": "Total",
     "currency": "Currency",
     "timeline": "Timeline",
-    "notAvailable": "Not available"
+    "notAvailable": "Not available",
+    "consents": "Consent forms",
+    "consentRequired": "Action required",
+    "signed": "Signed",
+    "sign": "Review & sign",
+    "signatureName": "Type your full name as signature",
+    "accept": "I have read and accept these terms",
+    "signing": "Signing…",
+    "consentSigned": "Consent signed.",
+    "noConsents": "No consent forms are required for this booking.",
+    "checkInQr": "Check-in QR",
+    "showQr": "Show check-in QR",
+    "qrHint": "Show this QR to the salon team when you arrive. It expires automatically.",
+    "qrUnavailable": "Check-in QR is not available yet.",
+    "qrExpires": "Expires"
   },
   "availableNowPage": {
     "realOpenings": "real openings",
@@ -1209,5 +1487,19 @@
       "title": "Nearby recommendations",
       "subtitle": "Personalized picks tailored to your taste, budget and location. Explore now."
     }
+  },
+  "customerReels": {
+    "title": "Reels & real work",
+    "subtitle": "Discover recent work from salons and professionals you follow.",
+    "signIn": "Sign in to personalize your Reels feed.",
+    "loadError": "Unable to load Reels.",
+    "bookThisLook": "Book this look",
+    "save": "Save",
+    "saved": "Saved",
+    "by": "By",
+    "empty": "No Reels are available yet.",
+    "collections": "Collections",
+    "createCollection": "Create collection",
+    "verifiedWork": "Verified Work"
   }
 }

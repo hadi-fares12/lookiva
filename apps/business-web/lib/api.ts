@@ -86,6 +86,39 @@ export async function businessFetch<T = unknown>(path: string, init: RequestInit
   return unwrapEnvelope<T>(await response.json());
 }
 
+export async function businessUpload<T = any>(
+  file: File,
+  isPublic = true,
+  retry = true,
+): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS) : null;
+  const body = new FormData();
+  body.append('file', file);
+  const response = await fetch(
+    `${API_BASE}/media/upload?isPublic=${isPublic ? 'true' : 'false'}`,
+    {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+    },
+  );
+  if (response.status === 401 && retry) {
+    try {
+      await refreshAccessToken();
+      return businessUpload<T>(file, isPublic, false);
+    } catch {
+      clearBusinessSession();
+    }
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload?.message || `Upload failed (${response.status})`);
+  }
+  return unwrapEnvelope<T>(await response.json());
+}
+
 export async function loginBusiness(identifier: string, password: string, rememberMe: boolean) {
   const login = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',

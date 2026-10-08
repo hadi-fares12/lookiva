@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 export interface DispatchNotificationInput {
   recipientUserId: string;
@@ -25,6 +26,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     @InjectQueue('notification-queue') private readonly notificationQueue: Queue,
     @InjectQueue('email-queue') private readonly emailQueue: Queue,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async list(userId: string, limit = 50, offset = 0, unreadOnly?: boolean) {
@@ -154,6 +156,16 @@ export class NotificationsService {
         channels,
         expires_at: input.expiresAt ?? null,
       },
+    });
+
+    this.realtime.emitUser(input.recipientUserId, 'notification:created', {
+      id: notification.id,
+      type: input.notificationType,
+      title: input.title,
+      body: input.body,
+      deepLink: input.deepLink ?? null,
+      payload: input.payload ?? {},
+      createdAt: notification.created_at,
     });
 
     if (channels.includes('push')) {

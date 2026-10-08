@@ -1,0 +1,54 @@
+name: Sync completion dependencies
+on:
+  push:
+    branches: [complete-a-z]
+    paths:
+      - "apps/api/package.json"
+      - "apps/customer-web/package.json"
+      - "apps/business-web/package.json"
+      - "apps/customer-mobile/pubspec.yaml"
+      - "apps/business-mobile/pubspec.yaml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: completion-lock-sync
+  cancel-in-progress: true
+
+jobs:
+  sync-locks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: complete-a-z
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: pnpm install --no-frozen-lockfile
+      - run: flutter pub get
+        working-directory: apps/customer-mobile
+      - run: flutter pub get
+        working-directory: apps/business-mobile
+      - name: Commit generated locks
+        run: |
+          git config user.name "lookiva-ci"
+          git config user.email "lookiva-ci@users.noreply.github.com"
+          git add pnpm-lock.yaml apps/customer-mobile/pubspec.lock apps/business-mobile/pubspec.lock
+          if git diff --cached --quiet; then
+            echo "Locks already synchronized."
+            exit 0
+          fi
+          git commit -m "Sync completion dependency locks"
+          git restore apps/customer-mobile/analysis_options.yaml apps/business-mobile/analysis_options.yaml || true
+          git pull --rebase origin complete-a-z
+          git push origin HEAD:complete-a-z

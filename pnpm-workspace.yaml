@@ -1,3 +1,19 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+allowBuilds:
+  '@nestjs/core': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true
+overrides:
+  '@opentelemetry/core': '2.11.0'
+  '@opentelemetry/resources': '2.11.0'
+  '@opentelemetry/resource-detector-aws': '2.22.0'
+  '@opentelemetry/resource-detector-container': '0.8.13'

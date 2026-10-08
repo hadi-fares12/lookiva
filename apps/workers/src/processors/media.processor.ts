@@ -1,10 +1,11 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import sharp from 'sharp';
 import { PrismaService } from '../common/prisma.service';
+import { DeadLetterService } from '../common/dead-letter.service';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
@@ -32,6 +33,7 @@ export class MediaProcessor extends WorkerHost {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly deadLetters: DeadLetterService,
   ) {
     super();
     this.minio = new Minio.Client({
@@ -41,6 +43,12 @@ export class MediaProcessor extends WorkerHost {
       accessKey: this.config.get<string>('MINIO_ACCESS_KEY', 'lookiva_admin'),
       secretKey: this.config.get<string>('MINIO_SECRET_KEY', 'lookiva_minio_dev'),
     });
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job | undefined, error: Error) {
+    if (!job) return;
+    await this.deadLetters.capture('media-process-queue', job, error);
   }
 
   async process(job: Job) {

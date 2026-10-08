@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'realtime.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -51,9 +52,11 @@ class LookivaBusinessApi {
 
   static final LookivaBusinessApi instance = LookivaBusinessApi._();
   static const _storage = FlutterSecureStorage();
+  int _sessionEpoch = 0;
   static const _accessKey = 'lookiva_business_access';
   static const _refreshKey = 'lookiva_business_refresh';
   static const _sessionKey = 'lookiva_business_scope';
+  static const _responseCacheKey = 'lookiva_business_response_cache_v1';
   static const _prefApiUrl = 'biz_api_base_url';
   static const _allowedRoles = {
     'business_owner',
@@ -182,6 +185,7 @@ class LookivaBusinessApi {
     if (access == null || refresh == null) {
       throw StateError('Authentication tokens were not returned');
     }
+    await _storage.delete(key: _responseCacheKey);
     await _storage.write(key: _accessKey, value: access);
     await _storage.write(key: _refreshKey, value: refresh);
     try {
@@ -298,22 +302,145 @@ class LookivaBusinessApi {
     return getScoped('/business-ops/{companyId}/$suffix', query: query);
   }
 
-  Future<dynamic> getScoped(
-    String pathTemplate, {
-    Map<String, dynamic>? query,
-  }) async {
+  Future<String> _resolveScopedPath(String pathTemplate) async {
     final session = await restoreSession();
     if (session == null) throw StateError('Session expired');
     var path = pathTemplate.replaceAll('{companyId}', session.companyId);
     if (path.contains('{branchId}')) {
-      final branchId = session.branchId;
+      var branchId = session.branchId;
       if (branchId == null || branchId.isEmpty) {
-        throw StateError('Select or assign a branch before using this section');
+        final branches = await _dio.get<dynamic>('/business-ops/' + session.companyId + '/branches');
+        final raw = _unwrap(branches.data);
+        final list = (raw as List? ?? const []).whereType<Map>().toList();
+        branchId = list.isNotEmpty ? list.first['id']?.toString() : null;
+      }
+      if (branchId == null || branchId.isEmpty) {
+        throw StateError('No active branch is available for this business');
       }
       path = path.replaceAll('{branchId}', branchId);
     }
-    final response = await _dio.get<dynamic>(path, queryParameters: query);
+    return path;
+  }
+
+  Future<dynamic> getScoped(
+    String pathTemplate, {
+    Map<String, dynamic>? query,
+  }) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final epoch = _sessionEpoch;
+    final fingerprint = _cacheFingerprint(path, query);
+    try {
+      final response = await _dio.get<dynamic>(path, queryParameters: query);
+      final data = _unwrap(response.data);
+      if (epoch == _sessionEpoch && !RegExp(r'privacy|finance|payments|security|auth|availability|holds|check-in-token').hasMatch(path)) {
+        await _writeCachedResponse(fingerprint, data);
+      }
+      return data;
+    } catch (error) {
+      if (_isOffline(error)) {
+        final cached = await _readCachedResponse(fingerprint);
+        if (cached != null) return cached;
+      }
+      rethrow;
+    }
+  }
+
+  String _cacheFingerprint(String path, Map<String, dynamic>? query) {
+    if (query == null || query.isEmpty) return path;
+    final keys = query.keys.toList()..sort();
+    final normalized = <String, dynamic>{
+      for (final key in keys) key: query[key],
+    };
+    return '$path?${jsonEncode(normalized)}';
+  }
+
+  Future<Map<String, dynamic>> _readResponseCache() async {
+    final raw = await _storage.read(key: _responseCacheKey);
+    if (raw == null || raw.isEmpty) return <String, dynamic>{};
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  Future<dynamic> _readCachedResponse(String fingerprint) async {
+    final cache = await _readResponseCache();
+    final entry = cache[fingerprint];
+    if (entry is! Map || !entry.containsKey('data')) return null;
+    final at = int.tryParse(entry['at']?.toString() ?? '') ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - at > const Duration(hours: 24).inMilliseconds) return null;
+    return entry['data'];
+  }
+
+  Future<void> _writeCachedResponse(String fingerprint, dynamic data) async {
+    try {
+      final cache = await _readResponseCache();
+      cache[fingerprint] = {
+        'at': DateTime.now().millisecondsSinceEpoch,
+        'data': data,
+      };
+
+      if (cache.length > 30) {
+        final entries = cache.entries.toList()
+          ..sort((a, b) {
+            final aAt = a.value is Map
+                ? int.tryParse((a.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            final bAt = b.value is Map
+                ? int.tryParse((b.value as Map)['at']?.toString() ?? '') ?? 0
+                : 0;
+            return aAt.compareTo(bAt);
+          });
+        for (final entry in entries.take(cache.length - 30)) {
+          cache.remove(entry.key);
+        }
+      }
+
+      await _storage.write(key: _responseCacheKey, value: jsonEncode(cache));
+    } catch (_) {
+      // Offline cache is best-effort and must never break a successful request.
+    }
+  }
+
+  Future<dynamic> postScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.post<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
     return _unwrap(response.data);
+  }
+
+  Future<dynamic> patchScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.patch<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
+    return _unwrap(response.data);
+  }
+
+  Future<dynamic> deleteScoped(String pathTemplate, {Object? data}) async {
+    final path = await _resolveScopedPath(pathTemplate);
+    final response = await _dio.delete<dynamic>(path, data: data);
+    _sessionEpoch++;
+    await _storage.delete(key: _responseCacheKey);
+    return _unwrap(response.data);
+  }
+
+  Future<String?> accessToken() => _storage.read(key: _accessKey);
+
+  Future<String> realtimeBaseUrl() async {
+    final apiBase = _dio.options.baseUrl.isNotEmpty
+        ? _dio.options.baseUrl
+        : await _resolveBaseUrl();
+    var base = apiBase;
+    if (base.endsWith('/api/v1')) {
+      base = base.substring(0, base.length - '/api/v1'.length);
+    }
+    while (base.endsWith('/')) {
+      base = base.substring(0, base.length - 1);
+    }
+    return base;
   }
 
   Future<void> logout() async {
@@ -324,9 +451,12 @@ class LookivaBusinessApi {
   }
 
   Future<void> clearSession() async {
+    _sessionEpoch++;
+    LookivaBusinessRealtime.instance.disconnect();
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
     await _storage.delete(key: _sessionKey);
+    await _storage.delete(key: _responseCacheKey);
   }
 
   Future<bool> _refresh() async {

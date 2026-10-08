@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'booking_payment.dart';
+import 'share.dart';
 
 class CustomerBookingsList extends StatefulWidget {
   const CustomerBookingsList({super.key});
@@ -150,6 +153,7 @@ class CustomerBookingDetailsPage extends StatefulWidget {
 
 class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage> {
   late Future<dynamic> _future;
+  late Future<dynamic> _consentsFuture;
   bool _working = false;
 
   @override
@@ -158,7 +162,196 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
     _reload();
   }
 
-  void _reload() => _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
+  void _reload() {
+    _future = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}');
+    _consentsFuture = LookivaApi.instance.get('/customer-ops/bookings/${widget.id}/consents');
+  }
+
+  Future<void> _showCheckInQr() async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final raw = await LookivaApi.instance.get(
+        '/booking-v2/appointments/${widget.id}/check-in-token',
+      );
+      if (!mounted) return;
+      if (raw is! Map || raw['token'] == null) {
+        throw StateError(ct(context, 'qrUnavailable'));
+      }
+      final token = raw['token'].toString();
+      final expiresAt = DateTime.tryParse(raw['expiresAt']?.toString() ?? '');
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(ct(context, 'checkInQr')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                ct(context, 'qrHint'),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: QrImageView(
+                    data: token,
+                    version: QrVersions.auto,
+                    size: 220,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              if (expiresAt != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  '${ct(context, 'qrExpires')}: '
+                  '${MaterialLocalizations.of(context).formatTimeOfDay(
+                    TimeOfDay.fromDateTime(expiresAt.toLocal()),
+                    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+                  )}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(MaterialLocalizations.of(context).closeButtonLabel),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _payDeposit(String companyId) async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      final paid = await showBookingPaymentFlow(
+        context,
+        appointmentId: widget.id,
+        companyId: companyId,
+      );
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            paid ? ct(context, 'depositPaid') : ct(context, 'paymentPending'),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _signConsent(Map<String, dynamic> form) async {
+    if (_working) return;
+    final signature = TextEditingController();
+    bool accepted = false;
+    final ok = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setLocal) => AlertDialog(
+              title: Text(form['name']?.toString() ?? ct(context, 'consents')),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (form['description'] != null)
+                      Text(form['description'].toString()),
+                    const SizedBox(height: 10),
+                    Text(form['content_plain']?.toString() ?? ''),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: signature,
+                      decoration: InputDecoration(
+                        labelText: ct(context, 'signatureName'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: accepted,
+                      onChanged: (value) =>
+                          setLocal(() => accepted = value == true),
+                      title: Text(ct(context, 'acceptConsent')),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(ct(context, 'keepBooking')),
+                ),
+                FilledButton(
+                  onPressed: !accepted
+                      ? null
+                      : () => Navigator.pop(
+                            dialogContext,
+                            signature.text.trim().isNotEmpty,
+                          ),
+                  child: Text(ct(context, 'signConsent')),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+    final typed = signature.text.trim();
+    signature.dispose();
+    if (!ok || typed.isEmpty) return;
+
+    setState(() => _working = true);
+    try {
+      await LookivaApi.instance.post(
+        '/customer-ops/bookings/${widget.id}/consents/${form['id']}/sign',
+        data: {
+          'accepted': true,
+          'typedSignature': typed,
+          'responses': {'acceptedFrom': 'customer_flutter'},
+        },
+      );
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ct(context, 'consentSigned'))),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LookivaApi.instance.friendlyError(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
 
   Future<void> _cancel() async {
     final reason = TextEditingController();
@@ -256,9 +449,105 @@ class _CustomerBookingDetailsPageState extends State<CustomerBookingDetailsPage>
               _listSection(ct(context, 'resources'), b['resources'], 'resource', 'name'),
               if (b['financial_snapshot'] is Map)
                 _financial(Map<String, dynamic>.from(b['financial_snapshot'] as Map)),
+              FutureBuilder<dynamic>(
+                future: _consentsFuture,
+                builder: (context, consentSnapshot) {
+                  if (consentSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: LinearProgressIndicator(),
+                      ),
+                    );
+                  }
+                  final forms = (consentSnapshot.data as List? ?? const [])
+                      .whereType<Map>()
+                      .map((e) => Map<String, dynamic>.from(e))
+                      .toList();
+                  if (forms.isEmpty) return const SizedBox.shrink();
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ct(context, 'consents'),
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 8),
+                          ...forms.map(
+                            (form) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                form['name']?.toString() ??
+                                    ct(context, 'consents'),
+                              ),
+                              subtitle: Text(
+                                form['signed'] == true
+                                    ? ct(context, 'signed')
+                                    : ct(context, 'consentRequired'),
+                              ),
+                              trailing: form['signed'] == true
+                                  ? const Icon(Icons.verified_rounded)
+                                  : TextButton(
+                                      onPressed: _working
+                                          ? null
+                                          : () => _signConsent(form),
+                                      child: Text(ct(context, 'signConsent')),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               if (b['status_history'] is List)
                 _listSection(ct(context, 'timeline'), b['status_history'], null, 'new_status'),
-              if (['pending', 'confirmed', 'checked_in'].contains(b['status'])) ...[
+              if (['pending', 'confirmed'].contains(b['status'])) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: _working ? null : _showCheckInQr,
+                  icon: const Icon(Icons.qr_code_2_rounded),
+                  label: Text(
+                    _working
+                        ? ct(context, 'working')
+                        : ct(context, 'showCheckInQr'),
+                  ),
+                ),
+              ],
+              if (b['status'] == 'awaiting_payment' && company['id'] != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _working
+                      ? null
+                      : () => _payDeposit(company['id'].toString()),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: Text(
+                    _working ? ct(context, 'paying') : ct(context, 'payDeposit'),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => shareLookiva(
+                  title: ct(context, 'shareBookingTitle'),
+                  text: [
+                    company['display_name']?.toString() ??
+                        ct(context, 'booking'),
+                    branch['name']?.toString() ?? '',
+                    b['starts_at']?.toString() ?? '',
+                    ct(context, 'bookingId') + ': ' + widget.id,
+                    b['status']?.toString() ?? '',
+                  ].where((value) => value.trim().isNotEmpty).join('\n'),
+                  path: '/bookings/' + Uri.encodeComponent(widget.id),
+                ),
+                icon: const Icon(Icons.share_outlined),
+                label: Text(ct(context, 'share')),
+              ),
+              if (['awaiting_payment', 'pending', 'confirmed', 'checked_in'].contains(b['status'])) ...[
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: _working ? null : _cancel,

@@ -14,6 +14,8 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>UIBackgroundModes</key>
+	<array><string>remote-notification</string></array>
 	<key>CFBundleName</key>
 	<string>lookiva_business</string>
 	<key>CFBundlePackageType</key>
@@ -24,6 +26,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LOOKIVA Business uses the camera to scan secure customer check-in QR codes.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

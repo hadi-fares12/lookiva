@@ -294,7 +294,7 @@ export class MediaService implements OnModuleInit {
 
     if (
       this.mediaProcessQueue &&
-      file.mimetype.startsWith('image/')
+      (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
     ) {
       try {
         await this.mediaProcessQueue.add(
@@ -339,6 +339,81 @@ export class MediaService implements OnModuleInit {
       throw new ServiceUnavailableException('Unable to generate media access URL');
     }
     return `/media/${bucketName}/${objectKey}`;
+  }
+
+  async getPublicMediaAsset(id: string, variant?: string) {
+    const media = await this.prisma.media.findFirst({
+      where: {
+        id,
+        is_public: true,
+        status: { in: ['uploaded', 'processing', 'processed'] },
+      },
+      select: {
+        id: true,
+        storage_key: true,
+        storage_bucket: true,
+        storage_provider: true,
+        mime_type: true,
+        variants: true,
+      },
+    });
+    if (!media) return null;
+
+    let storageKey = media.storage_key;
+    let mimeType = media.mime_type;
+    if (variant && Array.isArray(media.variants)) {
+      const selected = (media.variants as Array<Record<string, unknown>>).find(
+        (item) => item.variant === variant,
+      );
+      if (selected) {
+        const selectedKey = selected.storageKey;
+        const selectedMime = selected.mimeType;
+        if (typeof selectedKey === 'string' && selectedKey) storageKey = selectedKey;
+        if (typeof selectedMime === 'string' && selectedMime) mimeType = selectedMime;
+      }
+    }
+
+    const publicBase = this.configService
+      .get<string>('MEDIA_PUBLIC_BASE_URL')
+      ?.replace(/\/$/, '');
+    if (publicBase && media.storage_provider !== 'fs') {
+      return {
+        kind: 'redirect' as const,
+        url: `${publicBase}/${media.storage_bucket}/${storageKey}`,
+        mimeType,
+      };
+    }
+
+    if (media.storage_provider !== 'fs' && this.minioAvailable && this.minioClient) {
+      try {
+        const url = await this.minioClient.presignedGetObject(
+          media.storage_bucket,
+          storageKey,
+          60 * 60,
+        );
+        return { kind: 'redirect' as const, url, mimeType };
+      } catch (error) {
+        this.logger.warn(
+          `Failed to presign public media ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    if (this.isProduction) {
+      throw new ServiceUnavailableException('Public media storage is unavailable');
+    }
+
+    const resolved = path.resolve(this.fallbackDir, media.storage_bucket, storageKey);
+    const allowedRoot = path.resolve(this.fallbackDir, media.storage_bucket) + path.sep;
+    if (!resolved.startsWith(allowedRoot)) {
+      throw new ServiceUnavailableException('Invalid media storage path');
+    }
+    if (!fs.existsSync(resolved)) return null;
+    return {
+      kind: 'buffer' as const,
+      buffer: fs.readFileSync(resolved),
+      mimeType,
+    };
   }
 
   async getMediaById(id: string) {

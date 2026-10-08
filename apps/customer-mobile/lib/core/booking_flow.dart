@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'booking_payment.dart';
 
 class CustomerBookingPage extends StatefulWidget {
   final String serviceId;
-  const CustomerBookingPage({super.key, required this.serviceId});
+  final String? postId;
+  const CustomerBookingPage({super.key, required this.serviceId, this.postId});
 
   @override
   State<CustomerBookingPage> createState() => _CustomerBookingPageState();
@@ -116,9 +118,24 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
         'endsAt': end.toUtc().toIso8601String(),
       };
       setState(() => _message = ct(context,'holding'));
-      final hold = await LookivaApi.instance.post('/booking-v2/holds', data: common);
+      final hold = widget.postId == null
+          ? await LookivaApi.instance.post('/booking-v2/holds', data: common)
+          : await LookivaApi.instance.post(
+              '/social-v2/posts/${widget.postId}/book-this-look',
+              data: {
+                'startsAt': _start.toUtc().toIso8601String(),
+                'branchId': branchId,
+                if (_professionalId != null) 'professionalId': _professionalId,
+                'resourceIds': resourceIds,
+              },
+            );
       if (!mounted) return;
-      final holdMap = hold is Map ? Map<String, dynamic>.from(hold) : <String, dynamic>{};
+      final rawHoldMap =
+          hold is Map ? Map<String, dynamic>.from(hold) : <String, dynamic>{};
+      final nestedHold = rawHoldMap['hold'];
+      final holdMap = nestedHold is Map
+          ? Map<String, dynamic>.from(nestedHold)
+          : rawHoldMap;
       final holdToken = holdMap['hold_token']?.toString() ?? holdMap['holdToken']?.toString();
       if (holdToken == null || holdToken.isEmpty) throw StateError(ct(context,'holdFailed'));
       setState(() => _message = ct(context,'confirming'));
@@ -126,20 +143,49 @@ class _CustomerBookingPageState extends State<CustomerBookingPage> {
         ...common,
         'holdToken': holdToken,
         if (_notes.text.trim().isNotEmpty) 'notesCustomer': _notes.text.trim(),
-        'source': 'customer_flutter',
+        'source': widget.postId == null ? 'customer_flutter' : 'customer_flutter_book_this_look',
       });
       final appointment = created is Map ? Map<String, dynamic>.from(created) : <String, dynamic>{};
       final id = appointment['id']?.toString();
       if (!mounted) return;
+      if (id == null || id.isEmpty) {
+        throw StateError(ct(context, 'bookingNotFound'));
+      }
+
+      if (appointment['status']?.toString() == 'awaiting_payment') {
+        setState(() => _message = ct(context, 'paymentRequired'));
+        final paid = await showBookingPaymentFlow(
+          context,
+          appointmentId: id,
+          companyId: companyId,
+        );
+        if (!mounted) return;
+        if (!paid) {
+          setState(() => _message = ct(context, 'paymentPending'));
+          context.go('/bookings/' + id);
+          return;
+        }
+        setState(() => _message = ct(context, 'depositPaid'));
+      }
+
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text(ct(context,'bookingConfirmed')),
-          content: Text(id == null ? ct(context,'appointmentConfirmed') : '${ct(context,'bookingId')}: $id'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(ct(context,'done')))],
+          title: Text(
+            appointment['status']?.toString() == 'awaiting_payment'
+                ? ct(context, 'depositPaid')
+                : ct(context, 'bookingConfirmed'),
+          ),
+          content: Text(ct(context, 'bookingId') + ': ' + id),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(ct(context, 'done')),
+            ),
+          ],
         ),
       );
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/bookings/' + id);
     } catch (error) {
       if (mounted) setState(() => _message = LookivaApi.instance.friendlyError(error));
     } finally {

@@ -3,14 +3,17 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ScopeType, UserRole } from '@lookiva/shared-types';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuthenticatedUser } from '../auth/types/request-with-user';
 import {
   CancelAppointmentDto,
@@ -19,6 +22,7 @@ import {
   CreateGroupBookingDto,
   CreateHoldDto,
   JoinQueueDto,
+  QrCheckInDto,
   RescheduleAppointmentDto,
 } from './dto/booking-v2.dto';
 
@@ -56,6 +60,7 @@ interface PreparedBooking {
 }
 
 const ACTIVE_APPOINTMENT_STATUSES = [
+  'awaiting_payment',
   'pending',
   'confirmed',
   'checked_in',
@@ -85,6 +90,7 @@ export class BookingV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly realtime?: RealtimeService,
   ) {}
 
   private async notifyCustomer(
@@ -93,6 +99,19 @@ export class BookingV2Service {
     title: string,
     body: string,
   ) {
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      startsAt: appointment.starts_at?.toISOString(),
+      changeType: type,
+    };
+    this.realtime?.emitAppointment(appointment.id, 'booking:changed', payload);
+    this.realtime?.emitCompany(appointment.company_id, 'booking:changed', payload);
+    this.realtime?.emitBranch(appointment.branch_id, 'booking:changed', payload);
+    if (appointment.customer_user_id) {
+      this.realtime?.emitUser(appointment.customer_user_id, 'booking:changed', payload);
+    }
+
     if (!appointment.customer_user_id) return;
     try {
       await this.notifications.dispatch({
@@ -103,7 +122,7 @@ export class BookingV2Service {
         companyId: appointment.company_id,
         branchId: appointment.branch_id,
         deepLink: `/bookings/${appointment.id}`,
-        payload: { appointmentId: appointment.id, status: appointment.status, startsAt: appointment.starts_at?.toISOString() },
+        payload,
       });
     } catch (error) {
       this.logger.error(`Failed to dispatch ${type} notification for appointment ${appointment.id}: ${(error as Error).message}`);
@@ -285,7 +304,11 @@ export class BookingV2Service {
         });
 
         const appointment = await this.persistAppointment(tx, user, prepared, {
-          status: prepared.company.auto_confirm_bookings ? 'confirmed' : 'pending',
+          status: prepared.depositAmount > 0
+            ? 'awaiting_payment'
+            : prepared.company.auto_confirm_bookings
+              ? 'confirmed'
+              : 'pending',
           notesCustomer: dto.notesCustomer,
           notesStaff: dto.notesStaff,
           isWalkIn: dto.isWalkIn,
@@ -313,15 +336,21 @@ export class BookingV2Service {
       await this.notifyCustomer(
         appointment,
         'booking_created',
-        appointment.status === 'confirmed' ? 'Booking confirmed' : 'Booking received',
-        `Your appointment is ${appointment.status === 'confirmed' ? 'confirmed' : 'pending confirmation'} for ${appointment.starts_at.toLocaleString()}.`,
+        appointment.status === 'confirmed'
+          ? 'Booking confirmed'
+          : appointment.status === 'awaiting_payment'
+            ? 'Deposit required'
+            : 'Booking received',
+        appointment.status === 'awaiting_payment'
+          ? `Your appointment is reserved and requires a deposit before confirmation.`
+          : `Your appointment is ${appointment.status === 'confirmed' ? 'confirmed' : 'pending confirmation'} for ${appointment.starts_at.toLocaleString()}.`,
       );
     }
     return appointment;
   }
 
   async createGroupBooking(user: AuthenticatedUser, dto: CreateGroupBookingDto) {
-    return this.prisma.$transaction(
+    const appointment = await this.prisma.$transaction(
       async (tx) => {
         this.assertBusinessScope(user, dto.companyId, dto.branchId);
         const serviceIds = unique(
@@ -366,7 +395,11 @@ export class BookingV2Service {
         }
 
         const appointment = await this.persistAppointment(tx, user, prepared, {
-          status: prepared.company.auto_confirm_bookings ? 'confirmed' : 'pending',
+          status: prepared.depositAmount > 0
+            ? 'awaiting_payment'
+            : prepared.company.auto_confirm_bookings
+              ? 'confirmed'
+              : 'pending',
           notesCustomer: dto.notesCustomer,
           guestCount: dto.participants.length,
           source: 'group_booking',
@@ -392,6 +425,15 @@ export class BookingV2Service {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    if (appointment) {
+      await this.notifyCustomer(
+        appointment,
+        'booking_group_created',
+        appointment.status === 'confirmed' ? 'Group booking confirmed' : 'Group booking received',
+        'Your group booking has been created.',
+      );
+    }
+    return appointment;
   }
 
   async cancelAppointment(
@@ -404,7 +446,7 @@ export class BookingV2Service {
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     await this.assertAppointmentAccess(this.prisma, user, appointment);
-    if (!['pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
+    if (!['awaiting_payment', 'pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
       throw new ConflictException(`Appointment cannot be cancelled from ${appointment.status}`);
     }
 
@@ -452,7 +494,7 @@ export class BookingV2Service {
         });
         if (!existing) throw new NotFoundException('Appointment not found');
         await this.assertAppointmentAccess(tx, user, existing, { professionalAllowed: true });
-        if (!['pending', 'confirmed'].includes(existing.status)) throw new ConflictException(`Appointment cannot be rescheduled from ${existing.status}`);
+        if (!['awaiting_payment', 'pending', 'confirmed'].includes(existing.status)) throw new ConflictException(`Appointment cannot be rescheduled from ${existing.status}`);
 
         const serviceIds = existing.services.map((service: any) => service.service_id);
         const resourceIds = dto.resourceIds ?? existing.resources.map((resource: any) => resource.resource_id);
@@ -506,7 +548,11 @@ export class BookingV2Service {
             starts_at: start,
             ends_at: end,
             duration_minutes: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000)),
-            status: existing.status === 'pending' ? 'pending' : 'confirmed',
+            status: existing.status === 'awaiting_payment'
+              ? 'awaiting_payment'
+              : existing.status === 'pending'
+                ? 'pending'
+                : 'confirmed',
           },
         });
 
@@ -529,6 +575,135 @@ export class BookingV2Service {
     return updated;
   }
 
+  async createCheckInToken(user: AuthenticatedUser, appointmentId: string) {
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        company_id: true,
+        branch_id: true,
+        customer_user_id: true,
+        status: true,
+        starts_at: true,
+        ends_at: true,
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    await this.assertAppointmentAccess(this.prisma, user, appointment, {
+      professionalAllowed: true,
+    });
+    if (!['pending', 'confirmed'].includes(appointment.status)) {
+      throw new ConflictException(
+        `Check-in QR is not available while appointment is ${appointment.status}`,
+      );
+    }
+    if (!appointment.customer_user_id) {
+      throw new BadRequestException('Appointment does not have a linked customer account');
+    }
+
+    const now = Date.now();
+    const earliest = appointment.starts_at.getTime() - 120 * 60_000;
+    const latest = appointment.ends_at.getTime() + 60 * 60_000;
+    if (now < earliest) {
+      throw new ConflictException('Check-in QR becomes available 2 hours before the appointment');
+    }
+    if (now > latest) {
+      throw new ConflictException('Check-in window has expired');
+    }
+
+    const expiresAt = Math.min(now + 10 * 60_000, latest);
+    const payload = {
+      v: 1,
+      appointmentId: appointment.id,
+      customerUserId: appointment.customer_user_id,
+      exp: expiresAt,
+    };
+    const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+    const signature = this.signCheckInToken(encoded);
+    return {
+      token: encoded + '.' + signature,
+      appointmentId: appointment.id,
+      expiresAt: new Date(expiresAt).toISOString(),
+    };
+  }
+
+  async checkInByToken(user: AuthenticatedUser, dto: QrCheckInDto) {
+    const payload = this.verifyCheckInToken(dto.token);
+    const appointment = await this.prisma.appointments.findUnique({
+      where: { id: payload.appointmentId },
+      select: {
+        id: true,
+        company_id: true,
+        branch_id: true,
+        customer_user_id: true,
+        status: true,
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (
+      !appointment.customer_user_id ||
+      appointment.customer_user_id !== payload.customerUserId
+    ) {
+      throw new ForbiddenException('Check-in token does not match the appointment customer');
+    }
+    this.assertBusinessScope(user, appointment.company_id, appointment.branch_id);
+    return this.checkIn(user, appointment.id, {
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+    });
+  }
+
+  private checkInSecret() {
+    const configured =
+      process.env.QR_CHECKIN_SECRET?.trim() || process.env.SESSION_SECRET?.trim();
+    if (configured) return configured;
+    if (process.env.NODE_ENV !== 'production') {
+      return 'lookiva-local-qr-checkin-development-secret';
+    }
+    throw new ServiceUnavailableException('QR check-in secret is not configured');
+  }
+
+  private signCheckInToken(encodedPayload: string) {
+    return createHmac('sha256', this.checkInSecret())
+      .update(encodedPayload)
+      .digest('base64url');
+  }
+
+  private verifyCheckInToken(token: string) {
+    const [encoded, supplied] = String(token || '').split('.');
+    if (!encoded || !supplied) throw new BadRequestException('Invalid check-in token');
+    const expected = this.signCheckInToken(encoded);
+    const suppliedBuffer = Buffer.from(supplied);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+      suppliedBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(suppliedBuffer, expectedBuffer)
+    ) {
+      throw new ForbiddenException('Invalid check-in token');
+    }
+    let payload: {
+      v: number;
+      appointmentId: string;
+      customerUserId: string;
+      exp: number;
+    };
+    try {
+      payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    } catch {
+      throw new BadRequestException('Invalid check-in token payload');
+    }
+    if (
+      payload.v !== 1 ||
+      !payload.appointmentId ||
+      !payload.customerUserId ||
+      !Number.isFinite(payload.exp)
+    ) {
+      throw new BadRequestException('Invalid check-in token payload');
+    }
+    if (Date.now() > payload.exp) throw new ConflictException('Check-in token has expired');
+    return payload;
+  }
+
   async checkIn(user: AuthenticatedUser, appointmentId: string, dto: CheckInDto) {
     const appointment = await this.prisma.appointments.findUnique({
       where: { id: appointmentId },
@@ -539,8 +714,8 @@ export class BookingV2Service {
       throw new ConflictException(`Appointment cannot be checked in from ${appointment.status}`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.appointments.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.appointments.update({
         where: { id: appointmentId },
         data: {
           status: 'checked_in',
@@ -557,12 +732,16 @@ export class BookingV2Service {
           changed_by_id: user.id,
         },
       });
-      return updated;
+      return changed;
     });
+    await this.notifyCustomer(updated, 'booking_checked_in', 'Checked in', 'You are checked in for your appointment.');
+    return updated;
   }
 
   async startAppointment(user: AuthenticatedUser, appointmentId: string, notes?: string) {
-    return this.transitionAppointment(user, appointmentId, ['checked_in'], 'in_progress', { started_at: new Date() }, notes);
+    const updated = await this.transitionAppointment(user, appointmentId, ['checked_in'], 'in_progress', { started_at: new Date() }, notes);
+    await this.notifyCustomer(updated, 'booking_started', 'Service started', 'Your appointment is now in progress.');
+    return updated;
   }
 
   async completeAppointment(user: AuthenticatedUser, appointmentId: string, notes?: string) {
@@ -581,17 +760,184 @@ export class BookingV2Service {
     return updated;
   }
 
+  async updateFloorStatus(
+    user: AuthenticatedUser,
+    appointmentId: string,
+    requestedState: string,
+  ) {
+    const state = String(requestedState || '').trim().toLowerCase();
+    if (!['ready', 'started', 'completed', 'paid', 'checked_out'].includes(state)) {
+      throw new BadRequestException(
+        'Floor state must be ready, started, completed, paid, or checked_out',
+      );
+    }
+
+    const read = () =>
+      this.prisma.appointments.findUnique({
+        where: { id: appointmentId },
+        include: {
+          financial_snapshot: true,
+          payments: {
+            where: {
+              status: { in: ['succeeded', 'partially_refunded', 'refunded'] },
+            },
+            include: {
+              refunds: {
+                where: { status: 'succeeded' },
+                select: { amount: true },
+              },
+            },
+          },
+          status_history: {
+            where: { reason: { in: ['floor_paid', 'floor_checked_out'] } },
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+    let appointment = await read();
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    await this.assertAppointmentAccess(this.prisma, user, appointment, {
+      customerAllowed: false,
+      professionalAllowed: true,
+    });
+
+    const recordedFloorState =
+      appointment.status_history[0]?.reason === 'floor_checked_out'
+        ? 'checked_out'
+        : appointment.status_history[0]?.reason === 'floor_paid'
+          ? 'paid'
+          : appointment.status === 'checked_in'
+            ? 'ready'
+            : appointment.status === 'in_progress'
+              ? 'started'
+              : appointment.status === 'completed'
+                ? 'completed'
+                : 'scheduled';
+
+    if (recordedFloorState === state) {
+      return { ...appointment, floorStatus: recordedFloorState };
+    }
+
+    if (state === 'ready') {
+      if (!['pending', 'confirmed', 'checked_in'].includes(appointment.status)) {
+        throw new ConflictException(
+          `Appointment cannot be marked ready from ${appointment.status}`,
+        );
+      }
+      if (appointment.status !== 'checked_in') {
+        await this.checkIn(user, appointment.id, {});
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'ready' };
+    }
+
+    if (state === 'started') {
+      if (appointment.status === 'checked_in') {
+        await this.startAppointment(user, appointment.id, 'Started from floor board');
+      } else if (appointment.status !== 'in_progress') {
+        throw new ConflictException(
+          `Appointment cannot be started from ${appointment.status}`,
+        );
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'started' };
+    }
+
+    if (state === 'completed') {
+      if (appointment.status === 'in_progress') {
+        await this.completeAppointment(
+          user,
+          appointment.id,
+          'Completed from floor board',
+        );
+      } else if (appointment.status !== 'completed') {
+        throw new ConflictException(
+          `Appointment cannot be completed from ${appointment.status}`,
+        );
+      }
+      appointment = await read();
+      return { ...appointment, floorStatus: 'completed' };
+    }
+
+    if (appointment.status !== 'completed') {
+      throw new ConflictException(
+        `Appointment must be completed before it can be marked ${state.replace('_', ' ')}`,
+      );
+    }
+
+    const requiredTotal = Number(
+      appointment.financial_snapshot?.grand_total ?? 0,
+    );
+    const collected = appointment.payments.reduce(
+      (sum, payment) =>
+        sum +
+        Math.max(
+          0,
+          Number(payment.amount) -
+            payment.refunds.reduce(
+              (refundSum, refund) => refundSum + Number(refund.amount),
+              0,
+            ),
+        ),
+      0,
+    );
+    if (requiredTotal > 0 && collected + 0.009 < requiredTotal) {
+      throw new ConflictException(
+        `Booking is not fully paid (${collected.toFixed(2)} of ${requiredTotal.toFixed(2)})`,
+      );
+    }
+
+    if (state === 'checked_out' && recordedFloorState !== 'paid') {
+      throw new ConflictException('Mark the completed booking paid before checkout');
+    }
+
+    const reason = state === 'paid' ? 'floor_paid' : 'floor_checked_out';
+    await this.prisma.appointment_status_history.create({
+      data: {
+        appointment_id: appointment.id,
+        old_status: appointment.status,
+        new_status: appointment.status,
+        changed_by_id: user.id,
+        reason,
+        notes:
+          state === 'paid'
+            ? 'Full payment confirmed from floor board'
+            : 'Customer checked out from floor board',
+      },
+    });
+
+    const payload = {
+      appointmentId: appointment.id,
+      status: appointment.status,
+      floorStatus: state,
+      changeType: reason,
+    };
+    this.realtime?.emitAppointment(appointment.id, 'floor:changed', payload);
+    this.realtime?.emitCompany(appointment.company_id, 'floor:changed', payload);
+    this.realtime?.emitBranch(appointment.branch_id, 'floor:changed', payload);
+    if (appointment.customer_user_id) {
+      this.realtime?.emitUser(appointment.customer_user_id, 'booking:changed', payload);
+    }
+
+    appointment = await read();
+    return { ...appointment, floorStatus: state };
+  }
+
   async markNoShow(user: AuthenticatedUser, appointmentId: string, notes?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointments.findUnique({ where: { id: appointmentId } });
       if (!appointment) throw new NotFoundException('Appointment not found');
       await this.assertAppointmentAccess(tx, user, appointment, { customerAllowed: false, professionalAllowed: true });
-      if (!['pending', 'confirmed'].includes(appointment.status)) throw new ConflictException(`Appointment cannot be marked no-show from ${appointment.status}`);
-      const updated = await tx.appointments.update({ where: { id: appointmentId }, data: { status: 'no_show', no_show_at: new Date() } });
+      if (!['awaiting_payment', 'pending', 'confirmed'].includes(appointment.status)) throw new ConflictException(`Appointment cannot be marked no-show from ${appointment.status}`);
+      const changed = await tx.appointments.update({ where: { id: appointmentId }, data: { status: 'no_show', no_show_at: new Date() } });
       await tx.appointment_services.updateMany({ where: { appointment_id: appointmentId }, data: { status: 'no_show' } });
       await tx.appointment_status_history.create({ data: { appointment_id: appointmentId, old_status: appointment.status, new_status: 'no_show', changed_by_id: user.id, notes: notes ?? null } });
-      return updated;
+      return changed;
     });
+    await this.notifyCustomer(updated, 'booking_no_show', 'Appointment marked no-show', 'This appointment was marked as a no-show.');
+    return updated;
   }
 
   private async transitionAppointment(user: AuthenticatedUser, appointmentId: string, allowed: string[], nextStatus: string, patch: Record<string, unknown>, notes?: string) {
@@ -630,7 +976,7 @@ export class BookingV2Service {
   }
 
   async joinQueue(user: AuthenticatedUser, branchId: string, dto: JoinQueueDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const branch = await tx.branches.findUnique({ where: { id: branchId } });
       if (!branch || !branch.is_active || branch.deleted_at) throw new NotFoundException('Branch not found');
 
@@ -734,6 +1080,14 @@ export class BookingV2Service {
         },
       });
     });
+    this.realtime?.emitBranch(branchId, 'queue:changed', {
+      branchId,
+      queueEntryId: created.id,
+      queueId: created.queue_id,
+      status: created.status,
+      action: 'joined',
+    });
+    return created;
   }
 
   async updateQueueEntryStatus(
@@ -794,6 +1148,22 @@ export class BookingV2Service {
       } catch (error) {
         this.logger.error(`Failed to notify called queue entry ${entry.id}: ${(error as Error).message}`);
       }
+    }
+
+    this.realtime?.emitBranch(entry.queue.branch.id, 'queue:changed', {
+      branchId: entry.queue.branch.id,
+      queueId: entry.queue_id,
+      queueEntryId: entry.id,
+      status,
+      action: 'status_changed',
+    });
+    if (entry.customer?.user_id) {
+      this.realtime?.emitUser(entry.customer.user_id, 'queue:changed', {
+        branchId: entry.queue.branch.id,
+        queueId: entry.queue_id,
+        queueEntryId: entry.id,
+        status,
+      });
     }
 
     return updated;

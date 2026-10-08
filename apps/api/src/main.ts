@@ -16,6 +16,9 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { I18nService } from 'nestjs-i18n';
+import { randomUUID } from 'crypto';
+import type { NextFunction, Request, Response } from 'express';
+import { observeRequest } from './common/observability/request-metrics';
 
 applySettingsToProcessEnv();
 
@@ -26,8 +29,59 @@ async function bootstrap() {
     rawBody: true,
   });
 
-  app.useLogger(app.get(Logger));
+  const logger = app.get(Logger);
+  app.useLogger(logger);
   app.useGlobalInterceptors(new LoggerErrorInterceptor());
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const incoming = req.header('x-correlation-id')?.trim();
+    const correlationId =
+      incoming && /^[A-Za-z0-9._:-]{8,128}$/.test(incoming)
+        ? incoming
+        : randomUUID();
+    req.headers['x-correlation-id'] = correlationId;
+    res.setHeader('X-Correlation-Id', correlationId);
+    const started = process.hrtime.bigint();
+
+    res.on('finish', () => {
+      const elapsed =
+        Number(process.hrtime.bigint() - started) / 1_000_000;
+      observeRequest(req.method, res.statusCode, elapsed);
+      logger.log(
+        {
+          correlationId,
+          method: req.method,
+          path: req.path,
+          statusCode: res.statusCode,
+          durationMs: Number(elapsed.toFixed(2)),
+        },
+        'HttpRequest',
+      );
+    });
+    next();
+  });
+
+  process.on('uncaughtExceptionMonitor', (error) => {
+    logger.error(
+      {
+        errorName: error.name,
+        errorMessage: error.message,
+        stack: error.stack,
+      },
+      'ProcessCrash',
+    );
+  });
+  process.on('unhandledRejection', (reason) => {
+    const error =
+      reason instanceof Error
+        ? {
+            errorName: reason.name,
+            errorMessage: reason.message,
+            stack: reason.stack,
+          }
+        : { reason: String(reason) };
+    logger.error(error, 'UnhandledPromiseRejection');
+  });
 
   const configService = app.get(ConfigService);
   const i18nService = app.get(I18nService);
@@ -140,7 +194,6 @@ async function bootstrap() {
 
   await app.listen(port);
 
-  const logger = app.get(Logger);
   logger.log(
     `LOOKIVA API is running on: http://localhost:${port}`,
     'Bootstrap',

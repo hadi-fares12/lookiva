@@ -16,12 +16,14 @@ import { BookingV2Service } from './booking-v2.service';
 import {
   CancelAppointmentDto,
   CheckInDto,
+  QrCheckInDto,
   CreateAppointmentDto,
   CreateGroupBookingDto,
   CreateHoldDto,
   JoinQueueDto,
   QueueEntryActionDto,
   RescheduleAppointmentDto,
+  FloorStatusDto,
   AppointmentTransitionDto,
 } from './dto/booking-v2.dto';
 
@@ -102,6 +104,26 @@ export class BookingV2Controller {
     return this.booking.rescheduleAppointment(user, id, dto);
   }
 
+  @Get('appointments/:id/check-in-token')
+  @RequirePermissions(PermissionKey.BookingView)
+  @ApiOperation({ summary: 'Create a short-lived signed QR token for appointment check-in' })
+  checkInToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.booking.createCheckInToken(user, id);
+  }
+
+  @Patch('appointments/check-in-by-token')
+  @RequirePermissions(PermissionKey.BookingCheckIn)
+  @ApiOperation({ summary: 'Check in a customer by scanning a signed appointment token' })
+  checkInByToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: QrCheckInDto,
+  ) {
+    return this.booking.checkInByToken(user, dto);
+  }
+
   @Patch('appointments/:id/check-in')
   @RequirePermissions(PermissionKey.BookingCheckIn)
   @ApiOperation({ summary: 'Check in a customer for an appointment' })
@@ -113,6 +135,17 @@ export class BookingV2Controller {
     return this.booking.checkIn(user, id, dto);
   }
 
+
+  @Patch('appointments/:id/floor-status')
+  @RequirePermissions(PermissionKey.BookingManage)
+  @ApiOperation({ summary: 'Advance floor-board state through ready, started, completed, paid and checked-out' })
+  floorStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: FloorStatusDto,
+  ) {
+    return this.booking.updateFloorStatus(user, id, dto.state);
+  }
 
   @Patch('appointments/:id/start')
   @RequirePermissions(PermissionKey.BookingManage)

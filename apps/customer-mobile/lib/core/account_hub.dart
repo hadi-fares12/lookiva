@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'lookiva_api.dart';
 import 'l10n.dart';
+import 'mobile_services.dart';
 
 class CustomerAccountHub extends StatefulWidget {
   const CustomerAccountHub({super.key});
@@ -71,7 +72,7 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
               ))),
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () async { await LookivaApi.instance.logout(); if (context.mounted) context.go('/login'); },
+                onPressed: () async { await CustomerMobileServices.instance.onSignedOut(); await LookivaApi.instance.logout(); if (context.mounted) context.go('/login'); },
                 icon: const Icon(Icons.logout_rounded),
                 label: Text(ct(context,'signOut')),
               ),
@@ -85,6 +86,7 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
   static const _menu = <(IconData,String,String,String)>[
     (Icons.calendar_month_rounded, 'bookings', 'bookingsDesc', '/bookings'),
     (Icons.favorite_border_rounded, 'favorites', 'favoritesDesc', '/account/favorites'),
+    (Icons.collections_bookmark_outlined, 'collections', 'collectionsDesc', '/account/collections'),
     (Icons.person_add_alt_1_rounded, 'following', 'followingDesc', '/account/following'),
     (Icons.chat_bubble_outline_rounded, 'messages', 'messagesDesc', '/messages'),
     (Icons.rate_review_outlined, 'myReviews', 'reviewsDesc', '/account/reviews'),
@@ -92,6 +94,8 @@ class _CustomerAccountHubState extends State<CustomerAccountHub> {
     (Icons.notifications_none_rounded, 'notifications', 'notificationsDesc', '/account/notifications'),
     (Icons.location_on_outlined, 'nearbyPrefs', 'nearbyPrefsDesc', '/account/nearby-settings'),
     (Icons.security_rounded, 'security', 'securityDesc', '/account/security'),
+    (Icons.gavel_outlined, 'moderationAppeals', 'moderationDesc', '/account/moderation'),
+    (Icons.privacy_tip_outlined, 'privacyData', 'privacyDesc', '/account/privacy'),
   ];
 
   String _initials(String? name) {

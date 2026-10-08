@@ -40,6 +40,6 @@ import { PermissionsGuard } from './guards/permissions.guard';
       useClass: PermissionsGuard,
     },
   ],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
